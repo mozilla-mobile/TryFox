@@ -21,4 +21,3 @@ dependencyResolutionManagement {
 
 rootProject.name = "Fenix Installer"
 include(":app")
- 

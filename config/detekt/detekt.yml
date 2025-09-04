@@ -1,0 +1,24 @@
+build:
+  maxIssues: 10
+
+config:
+  validation: true
+
+# Enable a few useful rulesets by default
+style:
+  MaxLineLength:
+    active: true
+    maxLineLength: 120
+  MagicNumber:
+    active: true
+    ignoreNumbers: '-1,0,1,2,100,1000'
+
+comments:
+  CommentOverPrivateFunction:
+    active: true
+  CommentOverPrivateProperty:
+    active: true
+
+# You can generate a more complete config file by running
+# ./gradlew detektGenerateConfig
+# and then customize it.

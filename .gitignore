@@ -10,6 +10,8 @@
 **/.idea/
 .DS_Store
 /build
+/doc
+/.kotlin/errors
 /captures
 .externalNativeBuild
 .cxx

@@ -11,7 +11,7 @@ data class TreeherderRevisionResponse(
 
 @Serializable
 data class RevisionMeta(
-    val revision: String,
+    val revision: String? = null,
     val count: Int,
     val repository: String
 )
@@ -59,8 +59,6 @@ data class JobDetails(
 data class TreeherderJobsResponse(
     val results: List<JobDetails> 
 )
-
-// JobInfo data class has been removed.
 
 @Serializable
 data class ArtifactsResponse(
