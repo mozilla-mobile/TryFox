@@ -2,6 +2,8 @@ package org.mozilla.fenixinstaller.data
 
 import org.mozilla.fenixinstaller.model.ParsedNightlyApk
 import org.mozilla.fenixinstaller.network.ApiService
+import org.mozilla.fenixinstaller.util.FENIX
+import org.mozilla.fenixinstaller.util.FOCUS
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.regex.Pattern
@@ -14,9 +16,11 @@ class MozillaArchiveRepositoryImpl(
 
     companion object {
         const val ARCHIVE_MOZILLA_BASE_URL = "https://archive.mozilla.org/"
+        private const val REFERENCE_BROWSER_TASK_BASE_URL = "https://firefox-ci-tc.services.mozilla.com/api/index/v1/task/mobile.v2.reference-browser.nightly.latest."
+        private val REFERENCE_BROWSER_ABIS = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
 
-        internal val fenixArchiveUrl: String get() = archiveUrl("fenix")
-        internal val focusArchiveUrl: String get() = archiveUrl("focus")
+        internal val fenixArchiveUrl: String get() = archiveUrl(FENIX)
+        internal val focusArchiveUrl: String get() = archiveUrl(FOCUS)
 
         private fun archiveUrl(appName: String): String {
             val calendar = Calendar.getInstance()
@@ -32,13 +36,32 @@ class MozillaArchiveRepositoryImpl(
     }
 
     override suspend fun getFenixNightlyBuilds(): NetworkResult<List<ParsedNightlyApk>> {
-        // Now uses internal companion object's fenixArchiveUrl
         return fetchAndParseNightlyBuilds(fenixArchiveUrl, "fenix")
     }
 
     override suspend fun getFocusNightlyBuilds(): NetworkResult<List<ParsedNightlyApk>> {
-        // Now uses internal companion object's focusArchiveUrl
         return fetchAndParseNightlyBuilds(focusArchiveUrl, "focus")
+    }
+
+    override suspend fun getReferenceBrowserNightlyBuilds(): NetworkResult<List<ParsedNightlyApk>> {
+        return try {
+            val parsedApks = REFERENCE_BROWSER_ABIS.map { abi ->
+                val fullUrl = "${REFERENCE_BROWSER_TASK_BASE_URL}${abi}/artifacts/public/target.${abi}.apk"
+                val fileName = "target.${abi}.apk"
+                ParsedNightlyApk(
+                    originalString = "reference-browser-latest-android-${abi}/",
+                    rawDateString = null,
+                    appName = "reference-browser",
+                    version = "",
+                    abiName = abi,
+                    fullUrl = fullUrl,
+                    fileName = fileName
+                )
+            }
+            NetworkResult.Success(parsedApks)
+        } catch (e: Exception) {
+            NetworkResult.Error("Failed to construct Reference Browser builds: ${e.message}", e)
+        }
     }
 
     private suspend fun fetchAndParseNightlyBuilds(archiveBaseUrl: String, appNameFilter: String): NetworkResult<List<ParsedNightlyApk>> {
@@ -93,7 +116,6 @@ class MozillaArchiveRepositoryImpl(
                 val abi = matcher.group(4) ?: ""
 
                 val fileName = "${appNameResult}-${version}.multi.android-${abi}.apk"
-                // The 'archiveUrl' parameter here is the specific monthly archive URL, e.g., .../2023/12/
                 val fullUrl = "${archiveUrl}${buildString}${fileName}"
 
                 ParsedNightlyApk(

@@ -1,40 +1,36 @@
 package org.mozilla.fenixinstaller.ui.screens
 
-import android.content.Context
 import android.os.Build
-import android.util.Log // Added import
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import logcat.LogPriority
+import logcat.logcat
 import org.mozilla.fenixinstaller.data.DownloadState
 import org.mozilla.fenixinstaller.data.IFenixRepository
-import org.mozilla.fenixinstaller.data.UserDataRepository
 import org.mozilla.fenixinstaller.data.NetworkResult
+import org.mozilla.fenixinstaller.data.UserDataRepository
+import org.mozilla.fenixinstaller.data.managers.CacheManager
 import org.mozilla.fenixinstaller.model.CacheManagementState
 import org.mozilla.fenixinstaller.ui.models.AbiUiModel
 import org.mozilla.fenixinstaller.ui.models.ArtifactUiModel
 import org.mozilla.fenixinstaller.ui.models.JobDetailsUiModel
 import org.mozilla.fenixinstaller.ui.models.PushUiModel
 import java.io.File
-import logcat.LogPriority
-import logcat.logcat
 
-/**
- * A ViewModel for the Profile screen.
- * @param fenixRepository The repository to use for fetching data.
- * @param userDataRepository The repository to use for storing user data.
- */
 class ProfileViewModel(
     private val fenixRepository: IFenixRepository,
-    private val userDataRepository: UserDataRepository
+    private val userDataRepository: UserDataRepository,
+    private val cacheManager: CacheManager
 ) : ViewModel() {
 
     companion object {
@@ -53,8 +49,7 @@ class ProfileViewModel(
     private val _pushes = MutableStateFlow<List<PushUiModel>>(emptyList())
     val pushes: StateFlow<List<PushUiModel>> = _pushes.asStateFlow()
 
-    private val _cacheState = MutableStateFlow<CacheManagementState>(CacheManagementState.IdleEmpty)
-    val cacheState: StateFlow<CacheManagementState> = _cacheState.asStateFlow()
+    val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
 
     private val deviceSupportedAbis: List<String> by lazy { Build.SUPPORTED_ABIS.toList() }
     var onInstallApk: ((File) -> Unit)? = null
@@ -65,6 +60,18 @@ class ProfileViewModel(
             _authorEmail.value = userDataRepository.lastSearchedEmailFlow.first()
             logcat(LogPriority.DEBUG, TAG) { "Initial author email loaded: ${_authorEmail.value}" }
         }
+        cacheManager.cacheState.onEach { state ->
+            if (state is CacheManagementState.IdleEmpty) {
+                val updatedPushes = _pushes.value.map {
+                    it.copy(jobs = it.jobs.map { job ->
+                        job.copy(artifacts = job.artifacts.map { artifact ->
+                            artifact.copy(downloadState = DownloadState.NotDownloaded)
+                        })
+                    })
+                }
+                _pushes.value = updatedPushes
+            }
+        }.launchIn(viewModelScope)
     }
 
     fun updateAuthorEmail(email: String) {
@@ -72,7 +79,7 @@ class ProfileViewModel(
         _authorEmail.value = email
     }
 
-    fun searchByAuthor(context: Context) {
+    fun searchByAuthor() {
         logcat(TAG) { "searchByAuthor called for email: ${_authorEmail.value}" }
         if (_authorEmail.value.isBlank()) {
             _errorMessage.value = "Please enter an author email to search."
@@ -97,7 +104,7 @@ class ProfileViewModel(
                                 if (filteredJobs.isNotEmpty()) {
                                     val jobsWithArtifacts = filteredJobs.map { jobDetails ->
                                         async {
-                                            val artifacts = fetchArtifacts(jobDetails.taskId, context)
+                                            val artifacts = fetchArtifacts(jobDetails.taskId)
                                             if (artifacts.isNotEmpty()) {
                                                 JobDetailsUiModel(
                                                     appName = jobDetails.appName,
@@ -162,7 +169,7 @@ class ProfileViewModel(
         }
     }
 
-    private suspend fun fetchArtifacts(taskId: String, context: Context): List<ArtifactUiModel> {
+    private suspend fun fetchArtifacts(taskId: String): List<ArtifactUiModel> {
         logcat(LogPriority.DEBUG, TAG) { "fetchArtifacts called for taskId: $taskId" }
         return when (val artifactsResult = fenixRepository.getArtifactsForTask(taskId)) {
             is NetworkResult.Success -> {
@@ -172,7 +179,7 @@ class ProfileViewModel(
                 logcat(LogPriority.VERBOSE, TAG) { "Found ${filteredApks.size} APKs for taskId: $taskId" }
                 filteredApks.map { artifact ->
                     val artifactFileName = artifact.name.substringAfterLast('/')
-                    val downloadedFile = getDownloadedFile(artifactFileName, context, taskId)
+                    val downloadedFile = getDownloadedFile(artifactFileName, taskId)
                     val downloadState = if (downloadedFile != null) {
                         DownloadState.Downloaded(downloadedFile)
                     } else {
@@ -202,65 +209,23 @@ class ProfileViewModel(
         }
     }
 
-    fun getDownloadedFile(artifactName: String, context: Context, taskId: String): File? {
+    fun getDownloadedFile(artifactName: String, taskId: String): File? {
         if (taskId.isBlank()) return null
-        val taskSpecificDir = File(context.cacheDir, taskId)
+        val taskSpecificDir = File(cacheManager.getCacheDir("treeherder"), taskId)
         val outputFile = File(taskSpecificDir, artifactName)
         val exists = outputFile.exists()
         logcat(LogPriority.VERBOSE, TAG) { "getDownloadedFile for $artifactName in $taskId: exists=$exists" }
-        if (exists) {
-            if (_cacheState.value == CacheManagementState.IdleEmpty) {
-                _cacheState.value = CacheManagementState.IdleNonEmpty
-            }
-            return outputFile
-        }
-        return null
+        return if (exists) outputFile else null
     }
 
-    fun checkCacheStatus(context: Context) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val cacheDir = context.cacheDir
-                val isEmpty = !(cacheDir.exists() && (cacheDir.listFiles()?.isNotEmpty() == true))
-                logcat(LogPriority.DEBUG, TAG) { "checkCacheStatus: isEmpty=$isEmpty" }
-                _cacheState.value = if (isEmpty) CacheManagementState.IdleEmpty else CacheManagementState.IdleNonEmpty
-            } catch (e: Exception) {
-                logcat(LogPriority.ERROR, TAG) { "Error checking cache status: ${e.message}\n${Log.getStackTraceString(e)}" }
-                _cacheState.value = CacheManagementState.IdleEmpty
-            }
-        }
-    }
-
-    fun clearAppCache(context: Context) {
+    fun clearAppCache() {
         logcat(TAG) { "clearAppCache called" }
         viewModelScope.launch {
-            _cacheState.value = CacheManagementState.Clearing
-            try {
-                withContext(Dispatchers.IO) {
-                    val cacheDir = context.cacheDir
-                    if (cacheDir.exists()) {
-                        cacheDir.deleteRecursively()
-                        logcat(LogPriority.DEBUG, TAG) { "Cache directory deleted" }
-                    }
-                }
-                _cacheState.value = CacheManagementState.IdleEmpty
-                val updatedPushes = _pushes.value.map {
-                    it.copy(jobs = it.jobs.map { 
-                        it.copy(artifacts = it.artifacts.map { 
-                            it.copy(downloadState = DownloadState.NotDownloaded)
-                        })
-                    })
-                }
-                _pushes.value = updatedPushes
-                logcat(LogPriority.DEBUG, TAG) { "Pushes updated to NotDownloaded state after cache clear" }
-            } catch (e: Exception) {
-                logcat(LogPriority.ERROR, TAG) { "Error clearing cache: ${e.message}\n${Log.getStackTraceString(e)}" }
-                checkCacheStatus(context) // Consider if this is the best action on error
-            }
+            cacheManager.clearCache()
         }
     }
 
-    fun downloadArtifact(artifactUiModel: ArtifactUiModel, context: Context) {
+    fun downloadArtifact(artifactUiModel: ArtifactUiModel) {
         val artifactFileName = artifactUiModel.name.substringAfterLast('/')
         val taskId = artifactUiModel.taskId
         logcat(TAG) { "downloadArtifact called for: ${artifactUiModel.name}, taskId: $taskId, uniqueKey: ${artifactUiModel.uniqueKey}" }
@@ -279,14 +244,11 @@ class ProfileViewModel(
         viewModelScope.launch {
             logcat(LogPriority.DEBUG, TAG) { "Starting download coroutine for ${artifactUiModel.name}" }
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(0f))
-            if (_cacheState.value == CacheManagementState.IdleEmpty) {
-                _cacheState.value = CacheManagementState.IdleNonEmpty
-            }
 
             val downloadUrl = artifactUiModel.downloadUrl
             logcat(LogPriority.DEBUG, TAG) { "Download URL: $downloadUrl" }
 
-            val outputDir = File(context.cacheDir, taskId)
+            val outputDir = File(cacheManager.getCacheDir("treeherder"), taskId)
             if (!outputDir.exists()) {
                 outputDir.mkdirs()
                 logcat(LogPriority.VERBOSE, TAG) { "Created output directory: ${outputDir.absolutePath}" }
@@ -330,11 +292,9 @@ class ProfileViewModel(
             when (result) {
                 is NetworkResult.Success -> {
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.Downloaded(result.data))
-                    if (_cacheState.value == CacheManagementState.IdleEmpty) {
-                        _cacheState.value = CacheManagementState.IdleNonEmpty
-                    }
+                    cacheManager.checkCacheStatus()
                     logcat(TAG) { "Download success for ${artifactUiModel.name}. APK is ready to be installed." } 
-                    // onInstallApk?.invoke(result.data) // LINE REMOVED in previous step, ensure it stays removed or handled if needed
+                    onInstallApk?.invoke(result.data)
                 }
                 is NetworkResult.Error -> {
                     val failureMessage = "Download failed for $artifactFileName: ${result.message}"
@@ -344,7 +304,7 @@ class ProfileViewModel(
                         logcat(LogPriority.ERROR, TAG) { "$failureMessage (No cause available)" }
                     }
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(result.message))
-                    checkCacheStatus(context) // Consider if this is the best action on error
+                    cacheManager.checkCacheStatus()
                 }
             }
         }

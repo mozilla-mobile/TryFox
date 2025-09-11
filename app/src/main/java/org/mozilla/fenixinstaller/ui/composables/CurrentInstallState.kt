@@ -31,7 +31,7 @@ fun CurrentInstallState(
         try {
             val parser = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
             parser.parse(apkDisplayDateString)?.time ?: 0L
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             0L // Fallback in case of parsing error
         }
     }
@@ -52,18 +52,11 @@ fun CurrentInstallState(
                     border = null
                 )
             }
-            appState.installDateMillis == null -> {
-                Text(
-                    text = "Error: Install date missing",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-            apkDateMillis == 0L -> {
-                Text(
-                    text = "Error: Could not parse APK date",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
+            apkDateMillis == 0L || appState.installDateMillis == null -> {
+                AssistChip(
+                    onClick = { /* No action */ },
+                    label = { Text("Installed") },
+                    border = AssistChipDefaults.assistChipBorder(true)
                 )
             }
             appState.installDateMillis >= apkDateMillis -> {

@@ -27,8 +27,11 @@
     <string name="app_icon_firefox_nightly_description">Firefox Nightly Icon</string>
     <string name="app_icon_firefox_description">Firefox Icon</string>
     <string name="app_icon_focus_description">Focus Icon</string>
+    <string name="app_icon_reference_browser_description">Reference Browser Icon</string>
+    <string name="app_icon_generic_description">App Icon</string>
     <string name="bin_button_confirm_clear_cache_description">Confirm Clear Cache</string>
     <string name="bin_button_clear_cache_description">Clear Cache</string>
+    <string name="bin_button_tooltip_clear_downloaded_apks">Clear downloaded apks</string>
     <string name="download_button_install">Install</string>
     <string name="download_button_downloading">Downloading</string>
     <string name="download_button_download">Download</string>
@@ -48,4 +51,8 @@
     <string name="profile_screen_search_button_description">Search pushes by email</string>
     <string name="profile_screen_no_pushes_enter_email">Enter a user email and tap search to find pushes.</string>
     <string name="profile_screen_clear_email_description">Clear email field</string>
+
+    <string name="app_name_fenix">Fenix</string>
+    <string name="app_name_focus">Focus</string>
+    <string name="app_name_reference_browser">Reference Browser</string>
 </resources>

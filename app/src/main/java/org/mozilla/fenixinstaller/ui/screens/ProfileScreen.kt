@@ -1,6 +1,5 @@
 package org.mozilla.fenixinstaller.ui.screens
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,10 +34,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -46,7 +49,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi // Added
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController // Added
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -54,18 +56,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction // Added
 import androidx.compose.ui.unit.dp
 import org.mozilla.fenixinstaller.R
+import org.mozilla.fenixinstaller.data.DownloadState
+import org.mozilla.fenixinstaller.model.CacheManagementState
 import org.mozilla.fenixinstaller.ui.composables.AppIcon
+import org.mozilla.fenixinstaller.ui.composables.BinButton
 import org.mozilla.fenixinstaller.ui.composables.DownloadButton
 import org.mozilla.fenixinstaller.ui.composables.PushCommentCard
 import org.mozilla.fenixinstaller.ui.models.JobDetailsUiModel
+import org.mozilla.fenixinstaller.util.FENIX
+import org.mozilla.fenixinstaller.util.FENIX_NIGHTLY
+import org.mozilla.fenixinstaller.util.FOCUS
 import java.util.Locale
 
 // Helper function to format app name for display
 private fun formatAppNameForDisplay(appName: String): String {
     return when (appName.lowercase(Locale.getDefault())) {
-        "fenix-nightly" -> "Fenix Nightly"
-        "fenix" -> "Fenix"
-        "focus" -> "Focus"
+        FENIX_NIGHTLY -> "Fenix Nightly"
+        FENIX -> "Fenix"
+        FOCUS -> "Focus"
         else -> appName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
     }
 }
@@ -196,12 +204,21 @@ fun ProfileScreen(
     onNavigateUp: () -> Unit,
     profileViewModel: ProfileViewModel
 ) {
-    val context = LocalContext.current
-
     val authorEmail by profileViewModel.authorEmail.collectAsState()
     val pushes by profileViewModel.pushes.collectAsState()
     val isLoading by profileViewModel.isLoading.collectAsState()
     val errorMessage by profileViewModel.errorMessage.collectAsState()
+    val cacheState by profileViewModel.cacheState.collectAsState()
+
+    val isDownloading = remember(pushes) {
+        pushes.any { push ->
+            push.jobs.any { job ->
+                job.artifacts.any { artifact ->
+                    artifact.downloadState is DownloadState.InProgress
+                }
+            }
+        }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -216,10 +233,29 @@ fun ProfileScreen(
                         )
                     }
                 },
+                actions = {
+                    val tooltipState = rememberTooltipState()
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = {
+                            PlainTooltip {
+                                Text(stringResource(id = R.string.bin_button_tooltip_clear_downloaded_apks))
+                            }
+                        },
+                        state = tooltipState
+                    ) {
+                        BinButton(
+                            cacheState = cacheState,
+                            onConfirm = { profileViewModel.clearAppCache() },
+                            enabled = !isDownloading && cacheState == CacheManagementState.IdleNonEmpty
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
         }
@@ -235,8 +271,7 @@ fun ProfileScreen(
             UserSearchCard(
                 email = authorEmail,
                 onEmailChange = { profileViewModel.updateAuthorEmail(it) },
-                // The onSearchClick lambda passed here is the original profileViewModel.searchByAuthor(context)
-                onSearchClick = { profileViewModel.searchByAuthor(context) },
+                onSearchClick = { profileViewModel.searchByAuthor() },
                 isLoading = isLoading && pushes.isEmpty()
             )
 
@@ -272,7 +307,7 @@ fun ProfileScreen(
                                 ) {
                                     PushCommentCard(comment = push.pushComment, author = push.author, revision = push.revision ?: "unknown_revision")
                                     push.jobs.forEach { job ->
-                                        JobCard(job = job, profileViewModel = profileViewModel, context = context)
+                                        JobCard(job = job, profileViewModel = profileViewModel)
                                     }
                                 }
                             }
@@ -300,8 +335,7 @@ fun ProfileScreen(
 @Composable
 private fun JobCard(
     job: JobDetailsUiModel,
-    profileViewModel: ProfileViewModel,
-    context: Context
+    profileViewModel: ProfileViewModel
 ) {
     val appNameForIconAndLogic = job.appName
     val displayAppName = formatAppNameForDisplay(appNameForIconAndLogic)
@@ -335,7 +369,7 @@ private fun JobCard(
                 apk?.let {
                     DownloadButton(
                         downloadState = it.downloadState,
-                        onDownloadClick = { profileViewModel.downloadArtifact(it, context) },
+                        onDownloadClick = { profileViewModel.downloadArtifact(it) },
                         onInstallClick = { file -> profileViewModel.onInstallApk?.invoke(file) }
                     )
                 }

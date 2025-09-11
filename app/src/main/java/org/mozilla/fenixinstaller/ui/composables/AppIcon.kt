@@ -13,6 +13,7 @@ import org.mozilla.fenixinstaller.R
 @Composable
 fun AppIcon(appName: String, modifier: Modifier = Modifier) {
     val (iconResId, contentDescResId) = when {
+        appName.contains("reference", ignoreCase = true) -> R.drawable.ic_reference_browser to R.string.app_icon_reference_browser_description
         appName.contains("fenix-nightly", ignoreCase = true) -> R.drawable.ic_fenix_nightly to R.string.app_icon_firefox_nightly_description
         appName.contains("fenix", ignoreCase = true) -> R.drawable.ic_firefox to R.string.app_icon_firefox_description
         appName.contains("focus", ignoreCase = true) -> R.drawable.ic_focus to R.string.app_icon_focus_description

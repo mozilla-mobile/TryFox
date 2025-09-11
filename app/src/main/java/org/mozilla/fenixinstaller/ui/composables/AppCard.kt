@@ -112,8 +112,7 @@ fun AppCard(
                         supportedArtifacts.forEach { artifactUiModel ->
                             DisplayArtifactCard(
                                 artifact = artifactUiModel,
-                                viewModel = viewModel,
-                                context = context
+                                viewModel = viewModel
                             )
                         }
                     }
@@ -149,8 +148,7 @@ fun AppCard(
                             unsupportedArtifacts.forEach { artifactUiModel ->
                                 DisplayArtifactCard(
                                     artifact = artifactUiModel,
-                                    viewModel = viewModel,
-                                    context = context
+                                    viewModel = viewModel
                                 )
                             }
                         }
@@ -164,8 +162,7 @@ fun AppCard(
 @Composable
 private fun DisplayArtifactCard(
     artifact: ArtifactUiModel,
-    viewModel: FenixInstallerViewModel,
-    context: Context
+    viewModel: FenixInstallerViewModel
 ) {
     if (artifact.downloadState is DownloadState.DownloadFailed) {
         val errorMessage = (artifact.downloadState as DownloadState.DownloadFailed).errorMessage
@@ -177,7 +174,7 @@ private fun DisplayArtifactCard(
         downloadState = artifact.downloadState,
         abi = artifact.abi,
         onDownloadClick = {
-            viewModel.downloadArtifact(artifact, context)
+            viewModel.downloadArtifact(artifact)
         },
         onInstallClick = { viewModel.onInstallApk?.invoke(it) }
     )

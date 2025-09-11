@@ -1,6 +1,5 @@
 package org.mozilla.fenixinstaller.ui.screens
 
-import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,26 +19,28 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mozilla.fenixinstaller.R
-import org.mozilla.fenixinstaller.model.AppState
 import org.mozilla.fenixinstaller.model.CacheManagementState
 import org.mozilla.fenixinstaller.ui.composables.ArchiveGroupCard
 import org.mozilla.fenixinstaller.ui.composables.BinButton
-import org.mozilla.fenixinstaller.ui.models.FocusApksState
+import org.mozilla.fenixinstaller.ui.models.ApksState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,19 +50,18 @@ fun HomeScreen(
     onNavigateToProfile: () -> Unit,
     homeViewModel: HomeViewModel = viewModel() // Assuming ViewModel is provided by Hilt or default factory later
 ) {
-    val context = LocalContext.current
     val screenState by homeViewModel.homeScreenState.collectAsState()
 
     LaunchedEffect(Unit) {
-        homeViewModel.initialLoad(context)
+        homeViewModel.initialLoad()
     }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            // TopAppBar remains largely the same, but enabled state for BinButton might change
-            val currentCacheState = (screenState as? HomeScreenState.Loaded)?.cacheManagementState ?: CacheManagementState.IdleEmpty
-            val isDownloading = (screenState as? HomeScreenState.Loaded)?.isDownloadingAnyFile ?: false
+            val loadedState = screenState as? HomeScreenState.Loaded
+            val currentCacheState = loadedState?.cacheManagementState ?: CacheManagementState.IdleEmpty
+            val isDownloading = loadedState?.isDownloadingAnyFile ?: false
             val binButtonEnabled = !isDownloading && currentCacheState == CacheManagementState.IdleNonEmpty
 
             TopAppBar(
@@ -84,11 +84,22 @@ fun HomeScreen(
                             contentDescription = stringResource(id = R.string.home_search_treeherder_button_description)
                         )
                     }
-                    BinButton(
-                        cacheState = currentCacheState, // Use cacheState from HomeScreenState.Loaded
-                        onConfirm = { homeViewModel.clearAppCache(context) },
-                        enabled = binButtonEnabled // Use isDownloading from HomeScreenState.Loaded
-                    )
+                    val tooltipState = rememberTooltipState()
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = {
+                            PlainTooltip {
+                                Text(stringResource(id = R.string.bin_button_tooltip_clear_downloaded_apks))
+                            }
+                        },
+                        state = tooltipState
+                    ) {
+                        BinButton(
+                            cacheState = currentCacheState,
+                            onConfirm = { homeViewModel.clearAppCache() },
+                            enabled = binButtonEnabled
+                        )
+                    }
                 }
             )
         }
@@ -117,17 +128,19 @@ fun HomeScreen(
                         item {
                             AppNightlyComponent(
                                 state = currentScreenState.fenixBuildsState,
-                                appState = currentScreenState.fenixAppInfo,
                                 homeViewModel = homeViewModel, // Still needed for download/install actions
-                                context = context
                             )
                         }
                         item {
                             AppNightlyComponent(
                                 state = currentScreenState.focusBuildsState,
-                                appState = currentScreenState.focusAppInfo,
                                 homeViewModel = homeViewModel,
-                                context = context
+                            )
+                        }
+                        item {
+                            AppNightlyComponent(
+                                state = currentScreenState.referenceBrowserBuildsState,
+                                homeViewModel = homeViewModel,
                             )
                         }
                     }
@@ -139,19 +152,17 @@ fun HomeScreen(
 
 @Composable
 fun AppNightlyComponent(
-    state: FocusApksState,
-    appState: AppState?,
+    state: ApksState,
     homeViewModel: HomeViewModel, // Kept for actions like downloadNightlyApk
-    context: Context // Kept for actions within ApkCard potentially
 ) {
     when (state) {
-        is FocusApksState.Loading -> {
+        is ApksState.Loading -> {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical=16.dp)) {
                 CircularProgressIndicator()
                 Text(stringResource(id = R.string.home_fetching_nightly_builds), modifier = Modifier.padding(top = 8.dp))
             }
         }
-        is FocusApksState.Error -> {
+        is ApksState.Error -> {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 modifier = Modifier
@@ -166,13 +177,12 @@ fun AppNightlyComponent(
                 )
             }
         }
-        is FocusApksState.Success -> {
+        is ApksState.Success -> {
             ArchiveGroupCard(
                 modifier = Modifier.padding(vertical = 8.dp),
                 apks = state.apks,
-                appState = appState,
+                appState = state.appState,
                 homeViewModel = homeViewModel,
-                context = context
             )
             Spacer(modifier = Modifier.height(16.dp))
         }

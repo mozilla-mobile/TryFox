@@ -62,4 +62,11 @@ class MozillaPackageManager(private val packageManager: PackageManager) {
     val focus: AppState by lazy {
         getAppState("org.mozilla.focus.nightly", "Focus Nightly")
     }
+
+    /**
+     * The [AppState] for Reference Browser.
+     */
+    val referenceBrowser: AppState by lazy {
+        getAppState("org.mozilla.reference.browser", "Reference Browser")
+    }
 }

@@ -1,8 +1,7 @@
 package org.mozilla.fenixinstaller.ui.screens
 
-import org.mozilla.fenixinstaller.model.AppState
 import org.mozilla.fenixinstaller.model.CacheManagementState
-import org.mozilla.fenixinstaller.ui.models.FocusApksState
+import org.mozilla.fenixinstaller.ui.models.ApksState
 
 /**
  * Represents the various states of the Home screen.
@@ -19,13 +18,12 @@ sealed class HomeScreenState {
      * and cache status.
      */
     data class Loaded(
-        val fenixBuildsState: FocusApksState,
-        val focusBuildsState: FocusApksState,
-        val fenixAppInfo: AppState?,
-        val focusAppInfo: AppState?,
+        val fenixBuildsState: ApksState,
+        val focusBuildsState: ApksState,
+        val referenceBrowserBuildsState: ApksState,
         val cacheManagementState: CacheManagementState,
-        val isDownloadingAnyFile: Boolean // Derived from fenixBuildsState and focusBuildsState
-    ) : HomeScreenState()
+        val isDownloadingAnyFile: Boolean
+    ): HomeScreenState()
 
     // Consider if a global error state for the whole screen is needed,
     // e.g., if initial cache access fails catastrophically.

@@ -1,6 +1,5 @@
 package org.mozilla.fenixinstaller
 
-import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.getValue
@@ -15,11 +14,13 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.mozilla.fenixinstaller.data.DownloadState
-import org.mozilla.fenixinstaller.data.IFenixRepository // Changed to interface
+import org.mozilla.fenixinstaller.data.IFenixRepository
 import org.mozilla.fenixinstaller.data.NetworkResult
+import org.mozilla.fenixinstaller.data.managers.CacheManager
 import org.mozilla.fenixinstaller.model.CacheManagementState
 import org.mozilla.fenixinstaller.ui.models.AbiUiModel
 import org.mozilla.fenixinstaller.ui.models.ArtifactUiModel
@@ -27,7 +28,8 @@ import org.mozilla.fenixinstaller.ui.models.JobDetailsUiModel
 import java.io.File
 
 class FenixInstallerViewModel(
-    private val repository: IFenixRepository // Changed to interface
+    private val repository: IFenixRepository,
+    private val cacheManager: CacheManager // Injected CacheManager
 ) : ViewModel() {
     var revision by mutableStateOf("c2f3f652a3a063cb7933c2781038a25974cd09ec")
         private set
@@ -38,14 +40,14 @@ class FenixInstallerViewModel(
     var relevantPushComment by mutableStateOf<String?>(null)
         private set
 
-    var relevantPushAuthor by mutableStateOf<String?>(null) // Changed to String?
+    var relevantPushAuthor by mutableStateOf<String?>(null)
         private set
 
-    var isLoading by mutableStateOf(false) // For job/artifact search loading
+    var isLoading by mutableStateOf(false)
         private set
 
-    private val _cacheState = MutableStateFlow<CacheManagementState>(CacheManagementState.IdleEmpty)
-    val cacheState: StateFlow<CacheManagementState> = _cacheState.asStateFlow()
+    // Expose cacheState directly from CacheManager
+    val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
 
     private val _isDownloadingAnyFile = MutableStateFlow(false)
     val isDownloadingAnyFile: StateFlow<Boolean> = _isDownloadingAnyFile.asStateFlow()
@@ -61,6 +63,24 @@ class FenixInstallerViewModel(
     var onInstallApk: ((File) -> Unit)? = null
 
     private val deviceSupportedAbis: List<String> by lazy { Build.SUPPORTED_ABIS.toList() }
+
+    init {
+        cacheManager.cacheState.onEach { state ->
+            if (state is CacheManagementState.IdleEmpty) {
+                // Reset download states for artifacts in this ViewModel
+                // This logic was moved from clearAppCache
+                val updatedSelectedJobs = selectedJobs.map {
+                    val updatedArtifacts = it.artifacts.map { artifact ->
+                        artifact.copy(downloadState = DownloadState.NotDownloaded)
+                    }
+                    it.copy(artifacts = updatedArtifacts)
+                }
+                selectedJobs = updatedSelectedJobs
+                checkAndUpdateDownloadingStatus() // Downloads are effectively cancelled
+            }
+            // Potentially update _isDownloadingAnyFile or other states if they depend on cache state changes
+        }.launchIn(viewModelScope)
+    }
 
     private fun checkAndUpdateDownloadingStatus() {
         val isDownloading = selectedJobs.any { job ->
@@ -79,79 +99,37 @@ class FenixInstallerViewModel(
         selectedProject = newProject
     }
 
-    fun setRevisionFromDeepLinkAndSearch(project: String?, newRevision: String, context: Context) {
+    fun setRevisionFromDeepLinkAndSearch(project: String?, newRevision: String) {
         Log.i("FenixInstallerViewModel", "Setting project to: ${project ?: "default (try)"}, revision from deep link to: $newRevision and triggering search.")
         selectedProject = project ?: "try"
         revision = newRevision
         relevantPushComment = null
-        relevantPushAuthor = null // Reset author
+        relevantPushAuthor = null
         selectedJobs = emptyList()
         isLoadingJobArtifacts.clear()
         errorMessage = null
-        searchJobsAndArtifacts(context)
+        searchJobsAndArtifacts()
     }
 
-    fun getDownloadedFile(artifactName: String, context: Context, taskId: String): File? {
+    fun getDownloadedFile(artifactName: String, taskId: String): File? {
         if (taskId.isBlank()) return null
-        val taskSpecificDir = File(context.cacheDir, taskId)
+        // The cache directory for Treeherder artifacts is now under a "treeherder" subdirectory
+        val taskSpecificDir = File(cacheManager.getCacheDir("treeherder"), taskId)
         val outputFile = File(taskSpecificDir, artifactName)
-        if (outputFile.exists()) {
-            if (_cacheState.value == CacheManagementState.IdleEmpty) {
-                _cacheState.value = CacheManagementState.IdleNonEmpty
-            }
-            return outputFile
-        }
-        return null
+        return if (outputFile.exists()) outputFile else null
     }
 
-    fun checkCacheStatus(context: Context) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val cacheDir = context.cacheDir
-                val isEmpty = !(cacheDir.exists() &&
-                                (cacheDir.listFiles()?.any { file ->
-                                    file.isFile || (file.isDirectory && file.listFiles()?.isNotEmpty() == true)
-                                } ?: false))
-                _cacheState.value = if (isEmpty) CacheManagementState.IdleEmpty else CacheManagementState.IdleNonEmpty
-                Log.d("FenixInstallerViewModel", "Cache status checked. State: ${_cacheState.value}")
-            } catch (e: Exception) {
-                Log.e("FenixInstallerViewModel", "Error checking cache status", e)
-                _cacheState.value = CacheManagementState.IdleEmpty
-            }
-        }
+    fun checkCacheStatus() {
+        cacheManager.checkCacheStatus()
     }
 
-    fun clearAppCache(context: Context) {
+    fun clearAppCache() {
         viewModelScope.launch {
-            _cacheState.value = CacheManagementState.Clearing
-            try {
-                withContext(Dispatchers.IO) {
-                    val cacheDir = context.cacheDir
-                    if (cacheDir.exists()) {
-                        val deleted = cacheDir.deleteRecursively()
-                        Log.d("FenixInstallerViewModel", "Cache directory delete attempt result: $deleted")
-                    }
-                }
-                _cacheState.value = CacheManagementState.IdleEmpty
-                Log.d("FenixInstallerViewModel", "Cache cleared. State: ${_cacheState.value}")
-
-                val updatedSelectedJobs = selectedJobs.map {
-                    val updatedArtifacts = it.artifacts.map {
-                        it.copy(downloadState = DownloadState.NotDownloaded)
-                    }
-                    it.copy(artifacts = updatedArtifacts)
-                }
-                selectedJobs = updatedSelectedJobs
-            } catch (e: Exception) {
-                Log.e("FenixInstallerViewModel", "Error clearing cache", e)
-                checkCacheStatus(context)
-            } finally {
-                checkAndUpdateDownloadingStatus()
-            }
+            cacheManager.clearCache()
         }
     }
 
-    fun searchJobsAndArtifacts(context: Context) {
+    fun searchJobsAndArtifacts() {
         if (revision.isBlank()) {
             errorMessage = "Please enter a revision to search."
             return
@@ -162,10 +140,10 @@ class FenixInstallerViewModel(
             isLoading = true
             errorMessage = null
             relevantPushComment = null
-            relevantPushAuthor = null // Reset author
+            relevantPushAuthor = null
             selectedJobs = emptyList()
             isLoadingJobArtifacts.clear()
-            checkCacheStatus(context)
+            cacheManager.checkCacheStatus() // Use CacheManager
             checkAndUpdateDownloadingStatus() // Initial check before fetching
 
             when (val revisionResult = repository.getPushByRevision(selectedProject, revision)) {
@@ -181,9 +159,9 @@ class FenixInstallerViewModel(
                                 break
                             }
                         }
-                        relevantPushAuthor = firstPushResult.author // Use raw string
+                        relevantPushAuthor = firstPushResult.author
                     } else {
-                        relevantPushAuthor = null // No push result, no author
+                        relevantPushAuthor = null
                     }
                     relevantPushComment = foundComment
 
@@ -194,7 +172,7 @@ class FenixInstallerViewModel(
                     }
                     val pushId = pushData.results.first().id
                     Log.d("FenixInstallerViewModel", "Found push ID: $pushId for project: $selectedProject, revision: $revision")
-                    fetchJobs(pushId, context)
+                    fetchJobs(pushId)
                 }
                 is NetworkResult.Error -> {
                     errorMessage = "Error fetching revision details for $selectedProject: ${revisionResult.message}"
@@ -204,7 +182,7 @@ class FenixInstallerViewModel(
         }
     }
 
-    private suspend fun fetchJobs(pushId: Int, context: Context) {
+    private suspend fun fetchJobs(pushId: Int) {
         Log.d("FenixInstallerViewModel", "Fetching jobs for push ID: $pushId")
         when (val jobsResult = repository.getJobsForPush(pushId)) {
             is NetworkResult.Success -> {
@@ -229,8 +207,8 @@ class FenixInstallerViewModel(
                     }
 
                     val updatedJobUiModels = initialJobUiModels.map {
-                        viewModelScope.async(Dispatchers.IO) { 
-                            val fetchedArtifacts = fetchArtifacts(it.taskId, context)
+                        viewModelScope.async(Dispatchers.IO) { // Consider ioDispatcher if repository calls are blocking
+                            val fetchedArtifacts = fetchArtifacts(it.taskId)
                             isLoadingJobArtifacts[it.taskId] = false
                             it.copy(artifacts = fetchedArtifacts)
                         }
@@ -253,7 +231,7 @@ class FenixInstallerViewModel(
         checkAndUpdateDownloadingStatus()
     }
 
-    private suspend fun fetchArtifacts(taskId: String, context: Context): List<ArtifactUiModel> {
+    private suspend fun fetchArtifacts(taskId: String): List<ArtifactUiModel> {
         Log.d("FenixInstallerViewModel", "Fetching artifacts for task ID: $taskId")
         return when (val artifactsResult = repository.getArtifactsForTask(taskId)) {
             is NetworkResult.Success -> {
@@ -266,13 +244,13 @@ class FenixInstallerViewModel(
                 }
                 filteredApks.map { artifact ->
                     val artifactFileName = artifact.name.substringAfterLast('/')
-                    val downloadedFile = getDownloadedFile(artifactFileName, context, taskId) 
+                    val downloadedFile = getDownloadedFile(artifactFileName, taskId)
                     val downloadState = if (downloadedFile != null) {
                         DownloadState.Downloaded(downloadedFile)
                     } else {
                         DownloadState.NotDownloaded
                     }
-                    val isCompatible = artifact.abi != null && deviceSupportedAbis.any { deviceAbi -> 
+                    val isCompatible = artifact.abi != null && deviceSupportedAbis.any { deviceAbi ->
                         deviceAbi.equals(artifact.abi, ignoreCase = true)
                     }
                     ArtifactUiModel(
@@ -296,7 +274,7 @@ class FenixInstallerViewModel(
         }
     }
 
-    fun downloadArtifact(artifactUiModel: ArtifactUiModel, context: Context) {
+    fun downloadArtifact(artifactUiModel: ArtifactUiModel) {
         val artifactFileName = artifactUiModel.name.substringAfterLast('/')
         val taskId = artifactUiModel.taskId
         val downloadKey = artifactUiModel.uniqueKey
@@ -314,15 +292,15 @@ class FenixInstallerViewModel(
 
         viewModelScope.launch {
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(0f))
-            if (_cacheState.value == CacheManagementState.IdleEmpty) { 
-                _cacheState.value = CacheManagementState.IdleNonEmpty
-            }
+            // cacheManager.checkCacheStatus() will be called after download success/failure
 
             Log.i("FenixInstallerViewModel", "Starting download for $downloadKey")
 
             val downloadUrl = artifactUiModel.downloadUrl
-            
-            val outputDir = File(context.cacheDir, taskId)
+
+            // Ensure the cache directory structure for Treeherder artifacts is respected
+            val treeherderCacheDir = cacheManager.getCacheDir("treeherder")
+            val outputDir = File(treeherderCacheDir, taskId)
             if (!outputDir.exists()) {
                 outputDir.mkdirs()
             }
@@ -335,7 +313,7 @@ class FenixInstallerViewModel(
                     val progress = if (totalBytes > 0) {
                         bytesDownloaded.toFloat() / totalBytes.toFloat()
                     } else {
-                        0f 
+                        0f
                     }
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(progress))
                     Log.d("FenixInstallerViewModel", "Download progress for $downloadKey: ${(progress * 100).toInt()}%")
@@ -346,16 +324,14 @@ class FenixInstallerViewModel(
                 is NetworkResult.Success -> {
                     Log.i("FenixInstallerViewModel", "Download completed for $downloadKey at ${result.data.absolutePath}")
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.Downloaded(result.data))
-                    if (_cacheState.value == CacheManagementState.IdleEmpty) { 
-                        _cacheState.value = CacheManagementState.IdleNonEmpty
-                    }
+                    cacheManager.checkCacheStatus() // Update cache status via CacheManager
                     onInstallApk?.invoke(result.data)
                 }
                 is NetworkResult.Error -> {
                     val failureMessage = "Download failed for $artifactFileName: ${result.message}"
                     Log.e("FenixInstallerViewModel", failureMessage, result.cause)
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(result.message))
-                    checkCacheStatus(context)
+                    cacheManager.checkCacheStatus() // Update cache status via CacheManager
                 }
             }
         }

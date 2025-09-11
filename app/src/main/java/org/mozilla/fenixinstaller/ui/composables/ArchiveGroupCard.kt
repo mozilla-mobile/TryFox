@@ -1,6 +1,5 @@
 package org.mozilla.fenixinstaller.ui.composables
 
-import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,7 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag // Added import
+import androidx.compose.ui.platform.testTag 
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -24,13 +23,15 @@ import org.mozilla.fenixinstaller.R
 import org.mozilla.fenixinstaller.model.AppState
 import org.mozilla.fenixinstaller.ui.models.ApkUiModel
 import org.mozilla.fenixinstaller.ui.screens.HomeViewModel
+import org.mozilla.fenixinstaller.util.FENIX
+import org.mozilla.fenixinstaller.util.FOCUS
+import org.mozilla.fenixinstaller.util.REFERENCE_BROWSER
 
 @Composable
 fun ArchiveGroupCard(
     modifier: Modifier = Modifier,
     apks: List<ApkUiModel>,
     homeViewModel: HomeViewModel,
-    context: Context,
     appState: AppState?
 ) {
     ElevatedCard(
@@ -47,7 +48,7 @@ fun ArchiveGroupCard(
 
         val date = firstApk.date
         val version = firstApk.version
-        val appName = firstApk.appName // appName is "fenix" or "focus"
+        val appName = getFriendlyAppName(firstApk.appName)
 
         Column(modifier = Modifier.padding(16.dp)) {
             CurrentInstallState(
@@ -64,7 +65,9 @@ fun ArchiveGroupCard(
                     modifier = Modifier.testTag("app_title_text_${appName.lowercase()}") // Applied testTag
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                AssistChip(onClick = { /* No action */ }, label = { Text(date) })
+                if (date.isNotBlank()) {
+                    AssistChip(onClick = { /* No action */ }, label = { Text(date) })
+                }
             }
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -79,7 +82,7 @@ fun ArchiveGroupCard(
                         ArtifactCard(
                             downloadState = apk.downloadState,
                             abi = apk.abi,
-                            onDownloadClick = { homeViewModel.downloadNightlyApk(apk, context) },
+                            onDownloadClick = { homeViewModel.downloadNightlyApk(apk) },
                             onInstallClick = { homeViewModel.onInstallApk?.invoke(it) }
                         )
                         Spacer(modifier = Modifier.height(16.dp))
@@ -97,7 +100,7 @@ fun ArchiveGroupCard(
                         ArtifactCard(
                             downloadState = apk.downloadState,
                             abi = apk.abi,
-                            onDownloadClick = { homeViewModel.downloadNightlyApk(apk, context) },
+                            onDownloadClick = { homeViewModel.downloadNightlyApk(apk) },
                             onInstallClick = { homeViewModel.onInstallApk?.invoke(it) }
                         )
                         Spacer(modifier = Modifier.height(12.dp))
@@ -109,4 +112,12 @@ fun ArchiveGroupCard(
             }
         }
     }
+}
+
+@Composable
+private fun getFriendlyAppName(appName: String) = when(appName) {
+    FENIX -> stringResource(id = R.string.app_name_fenix)
+    FOCUS -> stringResource(id = R.string.app_name_focus)
+    REFERENCE_BROWSER -> stringResource(R.string.app_name_reference_browser)
+    else -> "Unknown"
 }

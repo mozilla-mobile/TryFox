@@ -149,7 +149,6 @@ class MainActivity : ComponentActivity() {
                     mainActivityViewModel.setRevisionFromDeepLinkAndSearch(
                         project,
                         revision,
-                        this@MainActivity
                     )
                 }
                 mainActivityViewModel.onInstallApk = ::installApk

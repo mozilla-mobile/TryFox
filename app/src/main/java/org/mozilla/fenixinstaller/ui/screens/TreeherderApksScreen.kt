@@ -1,6 +1,5 @@
 package org.mozilla.fenixinstaller.ui.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,11 +35,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TooltipBox
+import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -51,13 +54,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import org.mozilla.fenixinstaller.model.CacheManagementState
 import org.mozilla.fenixinstaller.FenixInstallerViewModel
 import org.mozilla.fenixinstaller.R
+import org.mozilla.fenixinstaller.model.CacheManagementState
 import org.mozilla.fenixinstaller.ui.composables.AppCard
 import org.mozilla.fenixinstaller.ui.composables.BinButton
 import org.mozilla.fenixinstaller.ui.composables.PushCommentCard
@@ -79,12 +81,11 @@ fun FenixInstallerApp(
     fenixInstallerViewModel: FenixInstallerViewModel,
     onNavigateUp: () -> Unit,
 ) {
-    val context = LocalContext.current
     val cacheState by fenixInstallerViewModel.cacheState.collectAsState()
     val isDownloading by fenixInstallerViewModel.isDownloadingAnyFile.collectAsState()
 
     LaunchedEffect(Unit) {
-        fenixInstallerViewModel.checkCacheStatus(context)
+        fenixInstallerViewModel.checkCacheStatus()
     }
 
     val binButtonEnabled = !isDownloading && cacheState == CacheManagementState.IdleNonEmpty
@@ -100,11 +101,22 @@ fun FenixInstallerApp(
                     }
                 },
                 actions = {
-                    BinButton(
-                        cacheState = cacheState,
-                        onConfirm = { fenixInstallerViewModel.clearAppCache(context) },
-                        enabled = binButtonEnabled
-                    )
+                    val tooltipState = rememberTooltipState()
+                    TooltipBox(
+                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+                        tooltip = {
+                            PlainTooltip {
+                                Text(stringResource(id = R.string.bin_button_tooltip_clear_downloaded_apks))
+                            }
+                        },
+                        state = tooltipState
+                    ) {
+                        BinButton(
+                            cacheState = cacheState,
+                            onConfirm = { fenixInstallerViewModel.clearAppCache() },
+                            enabled = binButtonEnabled
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -128,7 +140,7 @@ fun FenixInstallerApp(
                     onProjectSelected = { actualProjectValue -> fenixInstallerViewModel.updateSelectedProject(actualProjectValue) },
                     revision = fenixInstallerViewModel.revision,
                     onRevisionChange = { fenixInstallerViewModel.updateRevision(it) },
-                    onSearchClick = { fenixInstallerViewModel.searchJobsAndArtifacts(context) },
+                    onSearchClick = { fenixInstallerViewModel.searchJobsAndArtifacts() },
                     isLoading = fenixInstallerViewModel.isLoading && fenixInstallerViewModel.selectedJobs.isEmpty() && fenixInstallerViewModel.relevantPushComment == null
                 )
             }
