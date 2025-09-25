@@ -1,27 +1,42 @@
 ---
-trust-domain: "mozilla"
-task-priority: low
+trust-domain: mobile
+task-priority: lowest
 
 taskgraph:
+  register: fenix_installer_taskgraph:register
   cached-task-prefix: "mozilla.v2.fenix-installer"
   repositories:
-    fenix_installer:
+    mobile:
+      fenix_installer:
       name: "fenix-installer"
 
 workers:
   aliases:
-    b-linux:
-      provisioner: '{trust-domain}-{level}'
+    b-android:
+      provisioner: 'mobile-{level}'
       implementation: docker-worker
       os: linux
-      worker-type: '{alias}-gcp'
+      worker-type: 'b-linux-gcp'
     images:
-      provisioner: '{trust-domain}-{level}'
+      provisioner: 'mobile-{level}'
       implementation: docker-worker
       os: linux
-      worker-type: '{alias}-gcp'
-    t-linux-large:
-      provisioner: '{trust-domain}-t'
+      worker-type: 'images-gcp'
+    misc:
+      provisioner: 'mobile-{level}'
       implementation: docker-worker
       os: linux
-      worker-type: '{alias}-gcp'
+      worker-type: 'b-linux-gcp'
+    push-apk:
+      provisioner: scriptworker-k8s
+      implementation: scriptworker-pushapk
+      os: scriptworker
+      worker-type: 'mobile-{level}-pushapk'
+    signing:
+      provisioner: scriptworker-k8s
+      implementation: scriptworker-signing
+      os: scriptworker
+      worker-type:
+        by-level:
+          "3": mobile-3-signing
+          default: mobile-t-signing
