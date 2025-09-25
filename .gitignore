@@ -16,3 +16,6 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Compiled python code
+*.pyc
