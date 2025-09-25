@@ -6,8 +6,7 @@ taskgraph:
   register: fenix_installer_taskgraph:register
   cached-task-prefix: "mozilla.v2.fenix-installer"
   repositories:
-    mobile:
-      fenix_installer:
+    fenix_installer:
       name: "fenix-installer"
 
 workers:

@@ -3,7 +3,7 @@ transforms:
   - fenix_installer_taskgraph.transforms.hello:transforms
 
 task-defaults:
-  worker-type: t-linux-large
+  worker-type: b-android
   worker:
     docker-image: {in-tree: linux}
     max-run-time: 1800
