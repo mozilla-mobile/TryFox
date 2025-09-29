@@ -181,18 +181,18 @@
     <ID>MaxLineLength:TreeherderApksScreen.kt$}</ID>
     <ID>MaxLineLength:UserDataRepository.kt$private</ID>
     <ID>NestedBlockDepth:HomeViewModel.kt$HomeViewModel$private fun isAppCachePopulated(appSpecificCacheDir: File): Boolean</ID>
-    <ID>NewLineAtEndOfFile:AbiChip.kt$org.mozilla.fenixinstaller.ui.composables.AbiChip.kt</ID>
-    <ID>NewLineAtEndOfFile:AbiUiModel.kt$org.mozilla.fenixinstaller.ui.models.AbiUiModel.kt</ID>
-    <ID>NewLineAtEndOfFile:Color.kt$org.mozilla.fenixinstaller.ui.theme.Color.kt</ID>
-    <ID>NewLineAtEndOfFile:ExampleUnitTest.kt$org.mozilla.fenixinstaller.ExampleUnitTest.kt</ID>
-    <ID>NewLineAtEndOfFile:ExpandableListView.kt$org.mozilla.fenixinstaller.ui.composables.ExpandableListView.kt</ID>
-    <ID>NewLineAtEndOfFile:FocusApksState.kt$org.mozilla.fenixinstaller.ui.models.FocusApksState.kt</ID>
-    <ID>NewLineAtEndOfFile:JobDetailsSerializer.kt$org.mozilla.fenixinstaller.data.JobDetailsSerializer.kt</ID>
-    <ID>NewLineAtEndOfFile:JobDetailsSerializerTest.kt$org.mozilla.fenixinstaller.JobDetailsSerializerTest.kt</ID>
-    <ID>NewLineAtEndOfFile:JobUiModel.kt$org.mozilla.fenixinstaller.ui.models.JobUiModel.kt</ID>
-    <ID>NewLineAtEndOfFile:Theme.kt$org.mozilla.fenixinstaller.ui.theme.Theme.kt</ID>
-    <ID>NewLineAtEndOfFile:Type.kt$org.mozilla.fenixinstaller.ui.theme.Type.kt</ID>
-    <ID>NewLineAtEndOfFile:UiModels.kt$org.mozilla.fenixinstaller.data.UiModels.kt</ID>
+    <ID>NewLineAtEndOfFile:AbiChip.kt$org.mozilla.tryfox.ui.composables.AbiChip.kt</ID>
+    <ID>NewLineAtEndOfFile:AbiUiModel.kt$org.mozilla.tryfox.ui.models.AbiUiModel.kt</ID>
+    <ID>NewLineAtEndOfFile:Color.kt$org.mozilla.tryfox.ui.theme.Color.kt</ID>
+    <ID>NewLineAtEndOfFile:ExampleUnitTest.kt$org.mozilla.tryfox.ExampleUnitTest.kt</ID>
+    <ID>NewLineAtEndOfFile:ExpandableListView.kt$org.mozilla.tryfox.ui.composables.ExpandableListView.kt</ID>
+    <ID>NewLineAtEndOfFile:FocusApksState.kt$org.mozilla.tryfox.ui.models.FocusApksState.kt</ID>
+    <ID>NewLineAtEndOfFile:JobDetailsSerializer.kt$org.mozilla.tryfox.data.JobDetailsSerializer.kt</ID>
+    <ID>NewLineAtEndOfFile:JobDetailsSerializerTest.kt$org.mozilla.tryfox.JobDetailsSerializerTest.kt</ID>
+    <ID>NewLineAtEndOfFile:JobUiModel.kt$org.mozilla.tryfox.ui.models.JobUiModel.kt</ID>
+    <ID>NewLineAtEndOfFile:Theme.kt$org.mozilla.tryfox.ui.theme.Theme.kt</ID>
+    <ID>NewLineAtEndOfFile:Type.kt$org.mozilla.tryfox.ui.theme.Type.kt</ID>
+    <ID>NewLineAtEndOfFile:UiModels.kt$org.mozilla.tryfox.data.UiModels.kt</ID>
     <ID>ReturnCount:FenixInstallerViewModel.kt$FenixInstallerViewModel$fun getDownloadedFile(artifactName: String, context: Context, taskId: String): File?</ID>
     <ID>ReturnCount:HomeViewModel.kt$HomeViewModel$private fun isAppCachePopulated(appSpecificCacheDir: File): Boolean</ID>
     <ID>ReturnCount:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$private fun parseNightlyBuildsFromHtml( html: String, archiveUrl: String, // This parameter is the fully constructed URL for the month app: String // "fenix" or "focus" ): List&lt;ParsedNightlyApk&gt;</ID>

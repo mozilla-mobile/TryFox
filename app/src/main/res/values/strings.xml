@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Fenix Installer</string>
+    <string name="app_name">TryFox</string>
     <string name="home_profile_button_description">Profile</string>
     <string name="home_search_treeherder_button_description">Search Treeherder</string>
     <string name="home_fetching_nightly_builds">Fetching latest nightly builds...</string>
