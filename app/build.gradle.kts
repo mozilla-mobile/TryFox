@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     id("org.jlleitschuh.gradle.ktlint")
     id("io.gitlab.arturbosch.detekt")
+    alias(libs.plugins.kotlin.android)
 }
 
 android {
@@ -40,6 +41,9 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+    kotlinOptions {
+        jvmTarget = "11"
     }
 }
 
