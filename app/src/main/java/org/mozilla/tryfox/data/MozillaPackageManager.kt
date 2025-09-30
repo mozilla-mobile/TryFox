@@ -2,6 +2,7 @@ package org.mozilla.tryfox.data
 
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import org.mozilla.tryfox.model.AppState
 
@@ -21,7 +22,13 @@ class MozillaPackageManager(private val packageManager: PackageManager) {
      */
     private fun getPackageInfo(packageName: String): PackageInfo? {
         return try {
-            packageManager.getPackageInfo(packageName, 0)
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // API 33+
+                packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0))
+            } else {
+                // API 32 and below
+                packageManager.getPackageInfo(packageName, 0)
+            }
         } catch (_: PackageManager.NameNotFoundException) {
             Log.d("MozillaPackageManager", "Package not found: $packageName")
             null
