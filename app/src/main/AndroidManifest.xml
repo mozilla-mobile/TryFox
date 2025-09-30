@@ -12,7 +12,7 @@
     </queries>
 
     <application
-        android:name=".FenixInstallerApplication"
+        android:name=".TryFoxApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -20,13 +20,13 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.FenixInstaller">
+        android:theme="@style/Theme.TryFox">
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTop" 
-            android:theme="@style/Theme.FenixInstaller">
+            android:theme="@style/Theme.TryFox">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -57,7 +57,7 @@
             android:name=".InstallResultReceiver"
             android:exported="true">
             <intent-filter>
-                <action android:name="org.mozilla.fenixinstaller.INSTALL_COMPLETE" />
+                <action android:name="org.mozilla.tryfox.INSTALL_COMPLETE" />
             </intent-filter>
         </receiver>
 

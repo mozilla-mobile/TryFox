@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Fenix Installer"
+rootProject.name = "TryFox"
 include(":app")

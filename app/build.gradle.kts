@@ -7,13 +7,13 @@ plugins {
 }
 
 android {
-    namespace = "org.mozilla.fenixinstaller"
+    namespace = "org.mozilla.tryfox"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "org.mozilla.fenixinstaller"
+        applicationId = "org.mozilla.tryfox"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
