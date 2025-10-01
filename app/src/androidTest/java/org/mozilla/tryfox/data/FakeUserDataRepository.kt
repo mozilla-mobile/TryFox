@@ -1,8 +1,7 @@
-package org.mozilla.tryfox.ui.screens
+package org.mozilla.tryfox.data
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.mozilla.tryfox.data.UserDataRepository
 
 /**
  * A fake implementation of [UserDataRepository] for testing purposes.
