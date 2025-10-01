@@ -4,26 +4,29 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.After
-import org.junit.Assert.*
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
-import org.junit.runner.RunWith
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.extension.RegisterExtension
+import org.junit.jupiter.api.io.TempDir
 import org.mockito.Mock
-import org.mockito.junit.MockitoJUnitRunner
+import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.whenever
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.UserDataRepository
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import java.io.File
-import java.nio.file.Files
 
 @ExperimentalCoroutinesApi
-@RunWith(MockitoJUnitRunner::class)
+@ExtendWith(MockitoExtension::class)
 class ProfileViewModelTest {
 
-    @get:Rule
+    @JvmField
+    @RegisterExtension
     val mainCoroutineRule = MainCoroutineRule()
 
     private lateinit var viewModel: ProfileViewModel
@@ -35,11 +38,11 @@ class ProfileViewModelTest {
     @Mock
     private lateinit var mockUserDataRepository: UserDataRepository
 
-    private lateinit var tempCacheDir: File
+    @TempDir
+    lateinit var tempCacheDir: File
 
-    @Before
+    @BeforeEach
     fun setUp() = runTest {
-        tempCacheDir = Files.createTempDirectory("testCache").toFile()
         fakeCacheManager = FakeCacheManager(tempCacheDir)
 
         // Mock the behavior of userDataRepository
@@ -48,15 +51,12 @@ class ProfileViewModelTest {
         viewModel = ProfileViewModel(
             fenixRepository = mockFenixRepository,
             userDataRepository = mockUserDataRepository,
-            cacheManager = fakeCacheManager
+            cacheManager = fakeCacheManager,
         )
     }
 
-    @After
+    @AfterEach
     fun tearDown() {
-        if (::tempCacheDir.isInitialized && tempCacheDir.exists()) {
-            tempCacheDir.deleteRecursively()
-        }
         fakeCacheManager.reset()
     }
 

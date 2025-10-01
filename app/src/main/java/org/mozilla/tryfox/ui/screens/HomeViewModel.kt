@@ -12,6 +12,10 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.format
+import kotlinx.datetime.format.FormatStringsInDatetimeFormats
+import kotlinx.datetime.format.byUnicodePattern
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.MozillaArchiveRepository
@@ -28,9 +32,8 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import java.io.File
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
+@OptIn(FormatStringsInDatetimeFormats::class)
 class HomeViewModel(
     private val mozillaArchiveRepository: MozillaArchiveRepository,
     private val fenixRepository: IFenixRepository,
@@ -236,9 +239,9 @@ class HomeViewModel(
 
     private fun String.formatApkDate(): String {
         return try {
-            val inputFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
-            val outputFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-            LocalDateTime.parse(this, inputFormatter).format(outputFormatter)
+            val inputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd-HH-mm-ss") }
+            val outputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd HH:mm") }
+            LocalDateTime.parse(this, inputFormat).format(outputFormat)
         } catch (_: Exception) {
             this
         }

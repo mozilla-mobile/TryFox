@@ -2,8 +2,9 @@ package org.mozilla.tryfox
 
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
-import org.junit.Assert
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.mozilla.tryfox.data.JobDetails
 import org.mozilla.tryfox.data.JobDetailsSerializer
 
@@ -12,7 +13,7 @@ class JobDetailsSerializerTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun testDeserializeValidJson() {
+    fun `test deserialize valid json`() {
         val jsonString = """
             [
               1,
@@ -39,14 +40,14 @@ class JobDetailsSerializerTest {
             appName = "?",
             jobName = "Gecko Decision Task",
             jobSymbol = "D",
-            taskId = "YtQZ5UEQRRmVgQNlqvzyhw"
+            taskId = "YtQZ5UEQRRmVgQNlqvzyhw",
         )
         val actualJobDetails = json.decodeFromString(JobDetailsSerializer, jsonString)
-        Assert.assertEquals(expectedJobDetails, actualJobDetails)
+        assertEquals(expectedJobDetails, actualJobDetails)
     }
 
     @Test
-    fun testDeserializeShortJsonArray() {
+    fun `test deserialize short json array`() {
         val jsonString = """
             [
               1,
@@ -57,37 +58,37 @@ class JobDetailsSerializerTest {
               "D" 
             ]
         """ // Array with only 6 elements, expecting at least 15
-        val exception = Assert.assertThrows(SerializationException::class.java) {
+        val exception = assertThrows<SerializationException> {
             json.decodeFromString(JobDetailsSerializer, jsonString)
         }
-        Assert.assertEquals(
+        assertEquals(
             "JsonArray too short to deserialize into JobDetails. Size: 6, expected at least 15 elements.",
-            exception.message
+            exception.message,
         )
     }
 
     @Test
-    fun testDeserializeInvalidJsonType() {
+    fun `test deserialize invalid json type`() {
         val jsonString = """
             {
               "key": "value"
             }
         """ // JSON object instead of JsonArray
-        val exception = Assert.assertThrows(SerializationException::class.java) {
+        val exception = assertThrows<SerializationException> {
             json.decodeFromString(JobDetailsSerializer, jsonString)
         }
-        Assert.assertEquals("Expected JsonArray", exception.message)
+        assertEquals("Expected JsonArray", exception.message)
     }
 
     @Test
-    fun testSerializeNotSupported() {
+    fun `test serialize not supported`() {
         val jobDetails = JobDetails(
             appName = "TestApp",
             jobName = "TestJob",
             jobSymbol = "T",
-            taskId = "test-task-id"
+            taskId = "test-task-id",
         )
-        Assert.assertThrows(UnsupportedOperationException::class.java) {
+        assertThrows<UnsupportedOperationException> {
             json.encodeToString(JobDetailsSerializer, jobDetails)
         }
     }

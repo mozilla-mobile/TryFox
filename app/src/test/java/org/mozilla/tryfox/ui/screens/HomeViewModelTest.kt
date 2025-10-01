@@ -3,20 +3,27 @@ package org.mozilla.tryfox.ui.screens
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import org.junit.After
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
-import org.junit.Before
-import org.junit.Rule
-import org.junit.Test
-import org.junit.runner.RunWith
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.format
+import kotlinx.datetime.format.FormatStringsInDatetimeFormats
+import kotlinx.datetime.format.byUnicodePattern
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
+import org.junit.jupiter.api.extension.RegisterExtension
+import org.junit.jupiter.api.io.TempDir
 import org.mockito.Mock
-import org.mockito.junit.MockitoJUnitRunner
+import org.mockito.junit.jupiter.MockitoExtension
+import org.mockito.junit.jupiter.MockitoSettings
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
+import org.mockito.quality.Strictness
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.MozillaArchiveRepository
@@ -29,15 +36,15 @@ import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksState
 import java.io.File
-import java.nio.file.Files
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
 
 @ExperimentalCoroutinesApi
-@RunWith(MockitoJUnitRunner::class)
+@ExtendWith(MockitoExtension::class)
+@MockitoSettings(strictness = Strictness.LENIENT)
+@OptIn(FormatStringsInDatetimeFormats::class)
 class HomeViewModelTest {
 
-    @get:Rule
+    @JvmField
+    @RegisterExtension
     val mainCoroutineRule = MainCoroutineRule()
 
     private lateinit var viewModel: HomeViewModel
@@ -52,7 +59,8 @@ class HomeViewModelTest {
     @Mock
     private lateinit var mockMozillaPackageManager: MozillaPackageManager
 
-    private lateinit var tempCacheDir: File
+    @TempDir
+    lateinit var tempCacheDir: File
 
     private val testFenixAppName = "fenix"
     private val testFocusAppName = "focus"
@@ -122,9 +130,9 @@ class HomeViewModelTest {
         )
     }
 
-    @Before
+    @BeforeEach
     fun setUp() = runTest { // Wrap setUp in runTest
-        tempCacheDir = Files.createTempDirectory("testCache").toFile()
+        // tempCacheDir is now managed by @TempDir
         whenever(mockMozillaPackageManager.fenix).thenReturn(null)
         whenever(mockMozillaPackageManager.focus).thenReturn(null)
         whenever(mockMozillaPackageManager.referenceBrowser).thenReturn(null) // Added for Reference Browser
@@ -148,25 +156,23 @@ class HomeViewModelTest {
 
     private fun String.formatApkDateForTest(): String {
         return try {
-            val inputFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
-            val outputFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-            LocalDateTime.parse(this, inputFormatter).format(outputFormatter)
+            val inputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd-HH-mm-ss") }
+            val outputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd HH:mm") }
+            LocalDateTime.parse(this, inputFormat).format(outputFormat)
         } catch (e: Exception) {
             this // Return original if parsing fails (e.g. already formatted)
         }
     }
 
-    @After
+    @AfterEach
     fun tearDown() {
-        if (::tempCacheDir.isInitialized && tempCacheDir.exists()) {
-            tempCacheDir.deleteRecursively()
-        }
+        // tempCacheDir is cleaned up automatically by @TempDir
         fakeCacheManager.reset()
     }
 
     @Test
     fun `initialLoad when no data then homeScreenState is InitialLoading before load completes`() = runTest {
-        assertTrue("Initial HomeScreenState should be InitialLoading", viewModel.homeScreenState.value is HomeScreenState.InitialLoading)
+        assertTrue(viewModel.homeScreenState.value is HomeScreenState.InitialLoading, "Initial HomeScreenState should be InitialLoading")
     }
 
     @Test
@@ -183,14 +189,14 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.homeScreenState.value
-        assertTrue("HomeScreenState should be Loaded", state is HomeScreenState.Loaded)
+        assertTrue(state is HomeScreenState.Loaded, "HomeScreenState should be Loaded")
         val loadedState = state as HomeScreenState.Loaded
 
-        assertTrue("Fenix builds should be Success", loadedState.fenixBuildsState is ApksState.Success)
+        assertTrue(loadedState.fenixBuildsState is ApksState.Success, "Fenix builds should be Success")
         assertEquals(1, (loadedState.fenixBuildsState as ApksState.Success).apks.size)
-        assertTrue("Focus builds should be Success", loadedState.focusBuildsState is ApksState.Success)
+        assertTrue(loadedState.focusBuildsState is ApksState.Success, "Focus builds should be Success")
         assertEquals(1, (loadedState.focusBuildsState as ApksState.Success).apks.size)
-        assertTrue("Reference Browser builds should be Success", loadedState.referenceBrowserBuildsState is ApksState.Success) // Added for RB
+        assertTrue(loadedState.referenceBrowserBuildsState is ApksState.Success, "Reference Browser builds should be Success") // Added for RB
         assertEquals(1, (loadedState.referenceBrowserBuildsState as ApksState.Success).apks.size) // Added for RB
         assertEquals(CacheManagementState.IdleEmpty, loadedState.cacheManagementState)
         assertTrue(fakeCacheManager.checkCacheStatusCalled)
@@ -205,8 +211,8 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.homeScreenState.value as? HomeScreenState.Loaded
-        assertNotNull("State should be Loaded", state)
-        assertEquals("Cache state should be IdleEmpty", CacheManagementState.IdleEmpty, state!!.cacheManagementState)
+        assertNotNull(state, "State should be Loaded")
+        assertEquals(CacheManagementState.IdleEmpty, state!!.cacheManagementState, "Cache state should be IdleEmpty")
         assertTrue(fakeCacheManager.checkCacheStatusCalled)
         // Check that all build states are Success with empty lists
         assertTrue((state.fenixBuildsState as? ApksState.Success)?.apks?.isEmpty() ?: false)
@@ -230,8 +236,8 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         val state = viewModel.homeScreenState.value as? HomeScreenState.Loaded
-        assertNotNull("State should be Loaded", state)
-        assertEquals("Cache state should be IdleNonEmpty", CacheManagementState.IdleNonEmpty, state!!.cacheManagementState)
+        assertNotNull(state, "State should be Loaded")
+        assertEquals(CacheManagementState.IdleNonEmpty, state!!.cacheManagementState, "Cache state should be IdleNonEmpty")
         assertTrue(fakeCacheManager.checkCacheStatusCalled)
         val fenixApks = (state.fenixBuildsState as? ApksState.Success)?.apks
         assertTrue(fenixApks?.first()?.downloadState is DownloadState.Downloaded)
@@ -248,7 +254,7 @@ class HomeViewModelTest {
         fenixCacheActualDir.mkdirs()
         val cachedFenixFile = File(fenixCacheActualDir, fenixApkUiForCache.fileName)
         cachedFenixFile.createNewFile()
-        assertTrue("Cache file for Fenix should exist before test action", cachedFenixFile.exists())
+        assertTrue(cachedFenixFile.exists(), "Cache file for Fenix should exist before test action")
 
         // Setup cache for Reference Browser
         val rbApkUiForCache = createTestApkUiModel(rbParsed)
@@ -256,7 +262,7 @@ class HomeViewModelTest {
         rbCacheActualDir.mkdirs()
         val cachedRbFile = File(rbCacheActualDir, rbApkUiForCache.fileName)
         cachedRbFile.createNewFile()
-        assertTrue("Cache file for RB should exist before test action", cachedRbFile.exists())
+        assertTrue(cachedRbFile.exists(), "Cache file for RB should exist before test action")
 
         fakeCacheManager.setCacheState(CacheManagementState.IdleNonEmpty)
 
@@ -270,29 +276,29 @@ class HomeViewModelTest {
         var loadedState = viewModel.homeScreenState.value as HomeScreenState.Loaded
         // Fenix assertions pre-clear
         val fenixSuccessStatePre = loadedState.fenixBuildsState as ApksState.Success
-        assertFalse("Fenix APK list should not be empty", fenixSuccessStatePre.apks.isEmpty())
-        assertTrue("Fenix APK download state should be Downloaded", fenixSuccessStatePre.apks.first().downloadState is DownloadState.Downloaded)
+        assertFalse(fenixSuccessStatePre.apks.isEmpty(), "Fenix APK list should not be empty")
+        assertTrue(fenixSuccessStatePre.apks.first().downloadState is DownloadState.Downloaded, "Fenix APK download state should be Downloaded")
         // RB assertions pre-clear
         val rbSuccessStatePre = loadedState.referenceBrowserBuildsState as ApksState.Success
-        assertFalse("RB APK list should not be empty", rbSuccessStatePre.apks.isEmpty())
-        assertTrue("RB APK download state should be Downloaded", rbSuccessStatePre.apks.first().downloadState is DownloadState.Downloaded)
+        assertFalse(rbSuccessStatePre.apks.isEmpty(), "RB APK list should not be empty")
+        assertTrue(rbSuccessStatePre.apks.first().downloadState is DownloadState.Downloaded, "RB APK download state should be Downloaded")
 
-        assertEquals("Cache state should be IdleNonEmpty initially", CacheManagementState.IdleNonEmpty, loadedState.cacheManagementState)
+        assertEquals(CacheManagementState.IdleNonEmpty, loadedState.cacheManagementState, "Cache state should be IdleNonEmpty initially")
 
         viewModel.clearAppCache()
         advanceUntilIdle()
 
         assertTrue(fakeCacheManager.clearCacheCalled)
         loadedState = viewModel.homeScreenState.value as HomeScreenState.Loaded
-        assertEquals("Cache state should be IdleEmpty after clear", CacheManagementState.IdleEmpty, loadedState.cacheManagementState)
+        assertEquals(CacheManagementState.IdleEmpty, loadedState.cacheManagementState, "Cache state should be IdleEmpty after clear")
         
         val fenixStateAfterClear = loadedState.fenixBuildsState as ApksState.Success
-        assertFalse("Fenix APK list should not be empty after clear", fenixStateAfterClear.apks.isEmpty())
-        assertTrue("Fenix APK download state should be NotDownloaded after clear", fenixStateAfterClear.apks.first().downloadState is DownloadState.NotDownloaded)
+        assertFalse(fenixStateAfterClear.apks.isEmpty(), "Fenix APK list should not be empty after clear")
+        assertTrue(fenixStateAfterClear.apks.first().downloadState is DownloadState.NotDownloaded, "Fenix APK download state should be NotDownloaded after clear")
 
         val rbStateAfterClear = loadedState.referenceBrowserBuildsState as ApksState.Success
-        assertFalse("RB APK list should not be empty after clear", rbStateAfterClear.apks.isEmpty())
-        assertTrue("RB APK download state should be NotDownloaded after clear", rbStateAfterClear.apks.first().downloadState is DownloadState.NotDownloaded)
+        assertFalse(rbStateAfterClear.apks.isEmpty(), "RB APK list should not be empty after clear")
+        assertTrue(rbStateAfterClear.apks.first().downloadState is DownloadState.NotDownloaded, "RB APK download state should be NotDownloaded after clear")
     }
 
     @Test
@@ -334,12 +340,12 @@ class HomeViewModelTest {
         val fenixBuildsState = loadedState.fenixBuildsState as ApksState.Success
         val downloadedApkInfo = fenixBuildsState.apks.find { it.uniqueKey == apkToDownload.uniqueKey }
 
-        assertNotNull("Downloaded APK info should not be null", downloadedApkInfo)
-        assertTrue("DownloadState should be Downloaded", downloadedApkInfo!!.downloadState is DownloadState.Downloaded)
+        assertNotNull(downloadedApkInfo, "Downloaded APK info should not be null")
+        assertTrue(downloadedApkInfo!!.downloadState is DownloadState.Downloaded, "DownloadState should be Downloaded")
         assertEquals(expectedApkFile.path, (downloadedApkInfo.downloadState as DownloadState.Downloaded).file.path)
         assertTrue(fakeCacheManager.checkCacheStatusCalled) 
         assertEquals(expectedApkFile, installLambdaCalledWith)
-        assertFalse("isDownloadingAnyFile should be false after success", loadedState.isDownloadingAnyFile)
+        assertFalse(loadedState.isDownloadingAnyFile, "isDownloadingAnyFile should be false after success")
     }
 
     @Test
@@ -371,10 +377,10 @@ class HomeViewModelTest {
         val fenixBuildsState = loadedState.fenixBuildsState as ApksState.Success
         val failedApkInfo = fenixBuildsState.apks.find { it.uniqueKey == apkToDownload.uniqueKey }
 
-        assertNotNull("Failed APK info should not be null", failedApkInfo)
-        assertTrue("DownloadState should be DownloadFailed", failedApkInfo!!.downloadState is DownloadState.DownloadFailed)
+        assertNotNull(failedApkInfo, "Failed APK info should not be null")
+        assertTrue(failedApkInfo!!.downloadState is DownloadState.DownloadFailed, "DownloadState should be DownloadFailed")
         assertEquals(downloadErrorMessage, (failedApkInfo.downloadState as DownloadState.DownloadFailed).errorMessage)
         assertTrue(fakeCacheManager.checkCacheStatusCalled) 
-        assertFalse("isDownloadingAnyFile should be false after failure", loadedState.isDownloadingAnyFile)
+        assertFalse(loadedState.isDownloadingAnyFile, "isDownloadingAnyFile should be false after failure")
     }
 }
