@@ -17,13 +17,12 @@ import org.mozilla.tryfox.R
 import org.mozilla.tryfox.ui.models.AbiUiModel
 
 @Composable
-fun AbiChip(
-    abi: AbiUiModel
-) {
-    val (containerColor, labelColor) = when(abi.isSupported) {
-        false -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-        true -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
-    }
+fun AbiChip(abi: AbiUiModel) {
+    val (containerColor, labelColor) =
+        when (abi.isSupported) {
+            false -> MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
+            true -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+        }
 
     AssistChip(
         onClick = { /* No action */ },
@@ -34,14 +33,15 @@ fun AbiChip(
                     Icons.Filled.Warning,
                     contentDescription = stringResource(id = R.string.abi_chip_warning_unsupported_abi_description),
                     modifier = Modifier.size(AssistChipDefaults.IconSize),
-                    tint = MaterialTheme.colorScheme.error
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
         },
-        colors = AssistChipDefaults.assistChipColors(
-            containerColor = containerColor,
-            labelColor = labelColor
-        ),
-        modifier = Modifier.padding(end = 8.dp)
+        colors =
+            AssistChipDefaults.assistChipColors(
+                containerColor = containerColor,
+                labelColor = labelColor,
+            ),
+        modifier = Modifier.padding(end = 8.dp),
     )
 }

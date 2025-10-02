@@ -69,21 +69,20 @@ import org.mozilla.tryfox.util.FOCUS
 import java.util.Locale
 
 // Helper function to format app name for display
-private fun formatAppNameForDisplay(appName: String): String {
-    return when (appName.lowercase(Locale.getDefault())) {
+private fun formatAppNameForDisplay(appName: String): String =
+    when (appName.lowercase(Locale.getDefault())) {
         FENIX_NIGHTLY -> "Fenix Nightly"
         FENIX -> "Fenix"
         FOCUS -> "Focus"
         else -> appName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
     }
-}
 
 @Composable
 private fun ProfileSearchButton(
     onClick: () -> Unit,
     enabled: Boolean,
     isLoading: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Button(
         onClick = onClick,
@@ -91,19 +90,19 @@ private fun ProfileSearchButton(
         modifier = modifier.testTag("profile_search_button"),
         shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 8.dp, bottomEnd = 8.dp),
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-        contentPadding = PaddingValues(0.dp)
+        contentPadding = PaddingValues(0.dp),
     ) {
         if (isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp).padding(horizontal = 12.dp),
-                color = MaterialTheme.colorScheme.onPrimary
+                color = MaterialTheme.colorScheme.onPrimary,
             )
         } else {
             Icon(
                 Icons.Default.Search,
                 contentDescription = stringResource(id = R.string.profile_screen_search_button_description),
                 tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.padding(horizontal = 12.dp)
+                modifier = Modifier.padding(horizontal = 12.dp),
             )
         }
     }
@@ -116,56 +115,59 @@ private fun UserSearchCard(
     onEmailChange: (String) -> Unit,
     onSearchClick: () -> Unit,
     isLoading: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 text = stringResource(id = R.string.profile_screen_search_card_title),
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
             )
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-                verticalAlignment = Alignment.CenterVertically
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 OutlinedTextField(
                     value = email,
                     onValueChange = onEmailChange,
                     label = { Text(stringResource(id = R.string.profile_screen_user_email_label)) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("profile_email_input"),
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .testTag("profile_email_input"),
                     singleLine = true,
                     shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 0.dp, bottomEnd = 0.dp),
                     trailingIcon = {
                         if (email.isNotEmpty()) {
                             IconButton(
                                 onClick = { onEmailChange("") },
-                                modifier = Modifier.testTag("profile_email_clear_button")
+                                modifier = Modifier.testTag("profile_email_clear_button"),
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Close,
-                                    contentDescription = stringResource(id = R.string.profile_screen_clear_email_description)
+                                    contentDescription = stringResource(id = R.string.profile_screen_clear_email_description),
                                 )
                             }
                         }
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        onSearchClick() // Perform the original search action
-                        keyboardController?.hide()
-                    })
+                    keyboardActions =
+                        KeyboardActions(onSearch = {
+                            onSearchClick() // Perform the original search action
+                            keyboardController?.hide()
+                        }),
                 )
                 ProfileSearchButton(
                     onClick = {
@@ -174,7 +176,7 @@ private fun UserSearchCard(
                     },
                     enabled = !isLoading && email.isNotBlank(),
                     isLoading = isLoading,
-                    modifier = Modifier.fillMaxHeight().padding(top = 8.dp)
+                    modifier = Modifier.fillMaxHeight().padding(top = 8.dp),
                 )
             }
         }
@@ -182,27 +184,29 @@ private fun UserSearchCard(
 }
 
 @Composable
-private fun ErrorState(errorMessage: String, modifier: Modifier = Modifier) {
+private fun ErrorState(
+    errorMessage: String,
+    modifier: Modifier = Modifier,
+) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
     ) {
         Text(
             text = errorMessage,
             modifier = Modifier.padding(16.dp),
             color = MaterialTheme.colorScheme.onErrorContainer,
-            style = MaterialTheme.typography.bodyMedium
+            style = MaterialTheme.typography.bodyMedium,
         )
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
     modifier: Modifier = Modifier,
     onNavigateUp: () -> Unit,
-    profileViewModel: ProfileViewModel
+    profileViewModel: ProfileViewModel,
 ) {
     val authorEmail by profileViewModel.authorEmail.collectAsState()
     val pushes by profileViewModel.pushes.collectAsState()
@@ -210,15 +214,16 @@ fun ProfileScreen(
     val errorMessage by profileViewModel.errorMessage.collectAsState()
     val cacheState by profileViewModel.cacheState.collectAsState()
 
-    val isDownloading = remember(pushes) {
-        pushes.any { push ->
-            push.jobs.any { job ->
-                job.artifacts.any { artifact ->
-                    artifact.downloadState is DownloadState.InProgress
+    val isDownloading =
+        remember(pushes) {
+            pushes.any { push ->
+                push.jobs.any { job ->
+                    job.artifacts.any { artifact ->
+                        artifact.downloadState is DownloadState.InProgress
+                    }
                 }
             }
         }
-    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -229,7 +234,7 @@ fun ProfileScreen(
                     IconButton(onClick = onNavigateUp) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(id = R.string.common_back_button_description)
+                            contentDescription = stringResource(id = R.string.common_back_button_description),
                         )
                     }
                 },
@@ -242,37 +247,39 @@ fun ProfileScreen(
                                 Text(stringResource(id = R.string.bin_button_tooltip_clear_downloaded_apks))
                             }
                         },
-                        state = tooltipState
+                        state = tooltipState,
                     ) {
                         BinButton(
                             cacheState = cacheState,
                             onConfirm = { profileViewModel.clearAppCache() },
-                            enabled = !isDownloading && cacheState == CacheManagementState.IdleNonEmpty
+                            enabled = !isDownloading && cacheState == CacheManagementState.IdleNonEmpty,
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    ),
             )
-        }
+        },
     ) { innerPadding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp)
-                .padding(top = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 16.dp)
+                    .padding(top = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             UserSearchCard(
                 email = authorEmail,
                 onEmailChange = { profileViewModel.updateAuthorEmail(it) },
                 onSearchClick = { profileViewModel.searchByAuthor() },
-                isLoading = isLoading && pushes.isEmpty()
+                isLoading = isLoading && pushes.isEmpty(),
             )
 
             when {
@@ -280,12 +287,12 @@ fun ProfileScreen(
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
+                        verticalArrangement = Arrangement.Center,
                     ) {
                         CircularProgressIndicator()
                         Text(
                             text = stringResource(id = R.string.profile_screen_loading_pushes),
-                            modifier = Modifier.padding(top = 8.dp)
+                            modifier = Modifier.padding(top = 8.dp),
                         )
                     }
                 }
@@ -294,18 +301,23 @@ fun ProfileScreen(
                 }
                 pushes.isNotEmpty() -> {
                     LazyColumn(
-                        contentPadding = PaddingValues(bottom = 16.dp)
+                        contentPadding = PaddingValues(bottom = 16.dp),
                     ) {
                         items(pushes, key = { push -> push.pushComment + push.author + (push.jobs.firstOrNull()?.taskId ?: "") }) { push ->
                             ElevatedCard(
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
                             ) {
                                 Column(
                                     modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    PushCommentCard(comment = push.pushComment, author = push.author, revision = push.revision ?: "unknown_revision")
+                                    PushCommentCard(
+                                        comment = push.pushComment,
+                                        author = push.author,
+                                        revision =
+                                            push.revision ?: "unknown_revision",
+                                    )
                                     push.jobs.forEach { job ->
                                         JobCard(job = job, profileViewModel = profileViewModel)
                                     }
@@ -317,13 +329,14 @@ fun ProfileScreen(
                 !isLoading && errorMessage == null && pushes.isEmpty() -> {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        contentAlignment = Alignment.Center
+                        contentAlignment = Alignment.Center,
                     ) {
-                        val message = if (authorEmail.isBlank()) {
-                            stringResource(id = R.string.profile_screen_no_pushes_enter_email)
-                        } else {
-                            stringResource(id = R.string.profile_screen_no_pushes_found)
-                        }
+                        val message =
+                            if (authorEmail.isBlank()) {
+                                stringResource(id = R.string.profile_screen_no_pushes_enter_email)
+                            } else {
+                                stringResource(id = R.string.profile_screen_no_pushes_found)
+                            }
                         Text(message)
                     }
                 }
@@ -335,42 +348,44 @@ fun ProfileScreen(
 @Composable
 private fun JobCard(
     job: JobDetailsUiModel,
-    profileViewModel: ProfileViewModel
+    profileViewModel: ProfileViewModel,
 ) {
     val appNameForIconAndLogic = job.appName
     val displayAppName = formatAppNameForDisplay(appNameForIconAndLogic)
-    val apk = remember(job.artifacts) {
-        job.artifacts.firstOrNull { it.abi.isSupported }
-    }
+    val apk =
+        remember(job.artifacts) {
+            job.artifacts.firstOrNull { it.abi.isSupported }
+        }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 AppIcon(appName = appNameForIconAndLogic, modifier = Modifier.size(40.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = displayAppName,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
                 )
                 Spacer(Modifier.weight(1f))
                 apk?.let {
                     DownloadButton(
                         downloadState = it.downloadState,
                         onDownloadClick = { profileViewModel.downloadArtifact(it) },
-                        onInstallClick = { file -> profileViewModel.onInstallApk?.invoke(file) }
+                        onInstallClick = { file -> profileViewModel.onInstallApk?.invoke(file) },
                     )
                 }
             }

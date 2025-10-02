@@ -39,7 +39,7 @@ import org.mozilla.tryfox.ui.theme.TryFoxTheme
 fun BinButton(
     cacheState: CacheManagementState,
     onConfirm: () -> Unit,
-    enabled: Boolean
+    enabled: Boolean,
 ) {
     var isActuallyConfirming by remember { mutableStateOf(false) }
     var timerJob by remember { mutableStateOf<Job?>(null) }
@@ -54,7 +54,7 @@ fun BinButton(
     val iconSize by animateDpAsState(
         targetValue = if (cacheState == CacheManagementState.Clearing || isFillingCompletionProgress) 18.dp else 24.dp,
         animationSpec = tween(durationMillis = 300),
-        label = "IconSizeAnimation"
+        label = "IconSizeAnimation",
     )
 
     LaunchedEffect(isActuallyConfirming, timerJob) {
@@ -77,7 +77,6 @@ fun BinButton(
             cacheState != CacheManagementState.Clearing &&
             !showCompletionAnimation
         ) {
-
             showCompletionAnimation = true
             isFillingCompletionProgress = true
             completionProgress = 0f
@@ -99,16 +98,21 @@ fun BinButton(
 
     LaunchedEffect(cacheState, enabled) {
         if (isActuallyConfirming &&
-            (!enabled || cacheState == CacheManagementState.IdleEmpty
-                    || cacheState == CacheManagementState.Clearing)) {
+            (
+                !enabled ||
+                    cacheState == CacheManagementState.IdleEmpty ||
+                    cacheState == CacheManagementState.Clearing
+            )
+        ) {
             isActuallyConfirming = false
         }
     }
 
-    val (currentIcon, contentDescription) = when (isActuallyConfirming) {
-        true -> Icons.Filled.DeleteForever to R.string.bin_button_confirm_clear_cache_description
-        false -> Icons.Outlined.Delete to R.string.bin_button_clear_cache_description
-    }
+    val (currentIcon, contentDescription) =
+        when (isActuallyConfirming) {
+            true -> Icons.Filled.DeleteForever to R.string.bin_button_confirm_clear_cache_description
+            false -> Icons.Outlined.Delete to R.string.bin_button_clear_cache_description
+        }
 
     Box(contentAlignment = Alignment.Center) {
         IconButton(
@@ -122,12 +126,12 @@ fun BinButton(
                     isActuallyConfirming = true
                 }
             },
-            enabled = enabled
+            enabled = enabled,
         ) {
             Icon(
                 imageVector = currentIcon,
                 contentDescription = stringResource(id = contentDescription),
-                modifier = Modifier.size(iconSize)
+                modifier = Modifier.size(iconSize),
             )
         }
 
@@ -136,16 +140,17 @@ fun BinButton(
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
                 color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
             )
         } else if (showCompletionAnimation) {
             CircularProgressIndicator(
                 progress = { completionProgress },
-                modifier = Modifier
-                    .size(24.dp)
-                    .alpha(completionAlpha),
+                modifier =
+                    Modifier
+                        .size(24.dp)
+                        .alpha(completionAlpha),
                 color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 2.dp
+                strokeWidth = 2.dp,
             )
         }
     }
@@ -154,7 +159,7 @@ fun BinButton(
 @BinButtonPreview
 @Composable
 fun BinButtonDisabledDownloadingPreview(
-    @PreviewParameter(CacheStateProvider::class) state: CacheManagementState
+    @PreviewParameter(CacheStateProvider::class) state: CacheManagementState,
 ) {
     TryFoxTheme {
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
@@ -162,7 +167,7 @@ fun BinButtonDisabledDownloadingPreview(
                 BinButton(
                     cacheState = state,
                     onConfirm = {},
-                    enabled = true
+                    enabled = true,
                 )
             }
         }
@@ -173,7 +178,7 @@ fun BinButtonDisabledDownloadingPreview(
     showBackground = true,
     name = "Completion Cycle Simulation (Button initially enabled)",
     widthDp = 100,
-    heightDp = 100
+    heightDp = 100,
 )
 @Composable
 fun BinButtonCompletionCyclePreview() {
@@ -182,7 +187,7 @@ fun BinButtonCompletionCyclePreview() {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 var currentCacheState by remember {
                     mutableStateOf<CacheManagementState>(
-                        CacheManagementState.IdleNonEmpty
+                        CacheManagementState.IdleNonEmpty,
                     )
                 }
                 // Button is enabled when cache is IdleNonEmpty and not clearing
@@ -200,7 +205,7 @@ fun BinButtonCompletionCyclePreview() {
                     onConfirm = {
                         currentCacheState = CacheManagementState.Clearing
                     },
-                    enabled = buttonEnabled
+                    enabled = buttonEnabled,
                 )
             }
         }
@@ -210,10 +215,11 @@ fun BinButtonCompletionCyclePreview() {
 @Preview(widthDp = 100, heightDp = 100, showBackground = true)
 annotation class BinButtonPreview
 
-private class CacheStateProvider() : PreviewParameterProvider<CacheManagementState> {
-    override val values: Sequence<CacheManagementState> = sequenceOf(
-        CacheManagementState.IdleNonEmpty,
-        CacheManagementState.Clearing,
-        CacheManagementState.IdleEmpty,
-    )
+private class CacheStateProvider : PreviewParameterProvider<CacheManagementState> {
+    override val values: Sequence<CacheManagementState> =
+        sequenceOf(
+            CacheManagementState.IdleNonEmpty,
+            CacheManagementState.Clearing,
+            CacheManagementState.IdleEmpty,
+        )
 }

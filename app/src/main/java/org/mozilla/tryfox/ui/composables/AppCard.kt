@@ -31,8 +31,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import org.mozilla.tryfox.TryFoxViewModel
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.TryFoxViewModel
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
@@ -41,47 +41,49 @@ import org.mozilla.tryfox.ui.screens.ErrorState
 @Composable
 fun AppCard(
     job: JobDetailsUiModel,
-    viewModel: TryFoxViewModel
+    viewModel: TryFoxViewModel,
 ) {
     val context = LocalContext.current
     val jobArtifacts = job.artifacts
-    val (supportedArtifacts, unsupportedArtifacts) = remember(jobArtifacts) {
-        jobArtifacts.partition { it.abi.isSupported }
-    }
+    val (supportedArtifacts, unsupportedArtifacts) =
+        remember(jobArtifacts) {
+            jobArtifacts.partition { it.abi.isSupported }
+        }
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 4.dp)
+                modifier = Modifier.padding(bottom = 4.dp),
             ) {
                 AppIcon(appName = job.appName, modifier = Modifier.size(24.dp))
                 Text(
                     text = job.jobName,
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
                 )
             }
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 12.dp)
+                modifier = Modifier.padding(bottom = 12.dp),
             ) {
                 AssistChip(
                     onClick = { /* No action needed */ },
                     label = { Text(job.jobSymbol, style = MaterialTheme.typography.labelSmall) },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onTertiaryContainer
-                    )
+                    colors =
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        ),
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = stringResource(id = R.string.app_card_task_id, job.taskId),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -91,27 +93,27 @@ fun AppCard(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         stringResource(id = R.string.app_card_loading_artifacts),
-                        style = MaterialTheme.typography.bodyMedium
+                        style = MaterialTheme.typography.bodyMedium,
                     )
                 }
             } else if (job.artifacts.isEmpty() && viewModel.isLoadingJobArtifacts[job.taskId] == false) {
                 Text(
                     stringResource(id = R.string.app_card_no_apks_found),
                     style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             } else {
                 if (supportedArtifacts.isNotEmpty()) {
                     Text(
                         text = stringResource(id = R.string.app_card_supported_apks_title),
                         style = MaterialTheme.typography.titleMedium,
-                        modifier = Modifier.padding(bottom = 8.dp)
+                        modifier = Modifier.padding(bottom = 8.dp),
                     )
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         supportedArtifacts.forEach { artifactUiModel ->
                             DisplayArtifactCard(
                                 artifact = artifactUiModel,
-                                viewModel = viewModel
+                                viewModel = viewModel,
                             )
                         }
                     }
@@ -123,31 +125,39 @@ fun AppCard(
                     Spacer(modifier = Modifier.padding(top = topPadding))
 
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { isExpanded = !isExpanded }
-                            .padding(vertical = 8.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .clickable { isExpanded = !isExpanded }
+                                .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
                             text = stringResource(id = R.string.app_card_unsupported_apks_title, unsupportedArtifacts.size),
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
                         )
                         Icon(
                             imageVector = if (isExpanded) Icons.Filled.ArrowDropUp else Icons.Filled.ArrowDropDown,
-                            contentDescription = if (isExpanded) stringResource(id = R.string.app_card_collapse_description) else stringResource(id = R.string.app_card_expand_description)
+                            contentDescription =
+                                if (isExpanded) {
+                                    stringResource(
+                                        id = R.string.app_card_collapse_description,
+                                    )
+                                } else {
+                                    stringResource(id = R.string.app_card_expand_description)
+                                },
                         )
                     }
                     if (isExpanded) {
                         Column(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.padding(top = 8.dp)
+                            modifier = Modifier.padding(top = 8.dp),
                         ) {
                             unsupportedArtifacts.forEach { artifactUiModel ->
                                 DisplayArtifactCard(
                                     artifact = artifactUiModel,
-                                    viewModel = viewModel
+                                    viewModel = viewModel,
                                 )
                             }
                         }
@@ -161,11 +171,17 @@ fun AppCard(
 @Composable
 private fun DisplayArtifactCard(
     artifact: ArtifactUiModel,
-    viewModel: TryFoxViewModel
+    viewModel: TryFoxViewModel,
 ) {
     if (artifact.downloadState is DownloadState.DownloadFailed) {
         val errorMessage = (artifact.downloadState as DownloadState.DownloadFailed).errorMessage
-        ErrorState(errorMessage = stringResource(id = R.string.app_card_download_failed_message, errorMessage ?: stringResource(id = R.string.common_unknown_error)))
+        ErrorState(
+            errorMessage =
+                stringResource(
+                    id = R.string.app_card_download_failed_message,
+                    errorMessage ?: stringResource(id = R.string.common_unknown_error),
+                ),
+        )
         Spacer(modifier = Modifier.padding(top = 4.dp))
     }
 
@@ -175,6 +191,6 @@ private fun DisplayArtifactCard(
         onDownloadClick = {
             viewModel.downloadArtifact(artifact)
         },
-        onInstallClick = { viewModel.onInstallApk?.invoke(it) }
+        onInstallClick = { viewModel.onInstallApk?.invoke(it) },
     )
 }

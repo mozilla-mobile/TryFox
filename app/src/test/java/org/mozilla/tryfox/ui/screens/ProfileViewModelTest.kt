@@ -24,7 +24,6 @@ import java.io.File
 @ExperimentalCoroutinesApi
 @ExtendWith(MockitoExtension::class)
 class ProfileViewModelTest {
-
     @JvmField
     @RegisterExtension
     val mainCoroutineRule = MainCoroutineRule()
@@ -42,18 +41,20 @@ class ProfileViewModelTest {
     lateinit var tempCacheDir: File
 
     @BeforeEach
-    fun setUp() = runTest {
-        fakeCacheManager = FakeCacheManager(tempCacheDir)
+    fun setUp() =
+        runTest {
+            fakeCacheManager = FakeCacheManager(tempCacheDir)
 
-        // Mock the behavior of userDataRepository
-        whenever(mockUserDataRepository.lastSearchedEmailFlow).thenReturn(flowOf("test@example.com"))
+            // Mock the behavior of userDataRepository
+            whenever(mockUserDataRepository.lastSearchedEmailFlow).thenReturn(flowOf("test@example.com"))
 
-        viewModel = ProfileViewModel(
-            fenixRepository = mockFenixRepository,
-            userDataRepository = mockUserDataRepository,
-            cacheManager = fakeCacheManager,
-        )
-    }
+            viewModel =
+                ProfileViewModel(
+                    fenixRepository = mockFenixRepository,
+                    userDataRepository = mockUserDataRepository,
+                    cacheManager = fakeCacheManager,
+                )
+        }
 
     @AfterEach
     fun tearDown() {
@@ -61,24 +62,27 @@ class ProfileViewModelTest {
     }
 
     @Test
-    fun `init loads last searched email`() = runTest {
-        advanceUntilIdle()
-        assertEquals("test@example.com", viewModel.authorEmail.value)
-    }
+    fun `init loads last searched email`() =
+        runTest {
+            advanceUntilIdle()
+            assertEquals("test@example.com", viewModel.authorEmail.value)
+        }
 
     @Test
-    fun `searchByAuthor with blank email sets error`() = runTest {
-        viewModel.updateAuthorEmail("")
-        viewModel.searchByAuthor()
-        advanceUntilIdle()
-        assertNotNull(viewModel.errorMessage.value)
-        assertTrue(viewModel.pushes.value.isEmpty())
-    }
+    fun `searchByAuthor with blank email sets error`() =
+        runTest {
+            viewModel.updateAuthorEmail("")
+            viewModel.searchByAuthor()
+            advanceUntilIdle()
+            assertNotNull(viewModel.errorMessage.value)
+            assertTrue(viewModel.pushes.value.isEmpty())
+        }
 
     @Test
-    fun `clearAppCache calls cacheManager`() = runTest {
-        viewModel.clearAppCache()
-        advanceUntilIdle()
-        assertTrue(fakeCacheManager.clearCacheCalled)
-    }
+    fun `clearAppCache calls cacheManager`() =
+        runTest {
+            viewModel.clearAppCache()
+            advanceUntilIdle()
+            assertTrue(fakeCacheManager.clearCacheCalled)
+        }
 }

@@ -25,7 +25,7 @@ fun DownloadButton(
         is DownloadState.Downloaded -> {
             Button(
                 onClick = { onInstallClick(downloadState.file) },
-                modifier = Modifier.testTag("action_button_install_ready") // Tag for Install state
+                modifier = Modifier.testTag("action_button_install_ready"), // Tag for Install state
             ) {
                 Text(stringResource(id = R.string.download_button_install))
             }
@@ -34,22 +34,26 @@ fun DownloadButton(
             Button(
                 onClick = {}, // Corrected: was missing comma
                 enabled = false,
-                modifier = Modifier.testTag("action_button_downloading") // Tag for Downloading state
+                modifier = Modifier.testTag("action_button_downloading"), // Tag for Downloading state
             ) {
                 if (downloadState.progress > 0f) {
                     CircularProgressIndicator(
                         progress = { downloadState.progress },
-                        modifier = Modifier
-                            .size(ButtonDefaults.IconSize)
-                            .testTag("progress_indicator_determinate"), // Tag for determinate progress
-                        strokeWidth = 2.dp
+                        modifier =
+                            Modifier
+                                .size(ButtonDefaults.IconSize)
+                                .testTag("progress_indicator_determinate"),
+                        // Tag for determinate progress
+                        strokeWidth = 2.dp,
                     )
                 } else {
                     CircularProgressIndicator(
-                        modifier = Modifier
-                            .size(ButtonDefaults.IconSize)
-                            .testTag("progress_indicator_indeterminate"), // Tag for indeterminate progress
-                        strokeWidth = 2.dp
+                        modifier =
+                            Modifier
+                                .size(ButtonDefaults.IconSize)
+                                .testTag("progress_indicator_indeterminate"),
+                        // Tag for indeterminate progress
+                        strokeWidth = 2.dp,
                     )
                 }
                 Spacer(Modifier.size(ButtonDefaults.IconSpacing))
@@ -59,7 +63,7 @@ fun DownloadButton(
         is DownloadState.NotDownloaded, is DownloadState.DownloadFailed -> {
             Button(
                 onClick = onDownloadClick,
-                modifier = Modifier.testTag("action_button_download_initial") // Tag for Download state
+                modifier = Modifier.testTag("action_button_download_initial"), // Tag for Download state
             ) {
                 Text(stringResource(id = R.string.download_button_download))
             }

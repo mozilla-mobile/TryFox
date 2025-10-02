@@ -6,8 +6,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.mozilla.tryfox.model.CacheManagementState
 import java.io.File
 
-class FakeCacheManager(private val cacheDir: File) : CacheManager {
-
+class FakeCacheManager(
+    private val cacheDir: File,
+) : CacheManager {
     private val _cacheState = MutableStateFlow<CacheManagementState>(CacheManagementState.IdleEmpty)
     override val cacheState: StateFlow<CacheManagementState> = _cacheState.asStateFlow()
 

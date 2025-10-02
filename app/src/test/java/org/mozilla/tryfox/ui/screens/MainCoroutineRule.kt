@@ -2,8 +2,8 @@ package org.mozilla.tryfox.ui.screens
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.jupiter.api.extension.AfterEachCallback
@@ -13,8 +13,8 @@ import org.junit.jupiter.api.extension.ExtensionContext
 @ExperimentalCoroutinesApi
 class MainCoroutineRule(
     val testDispatcher: TestDispatcher = StandardTestDispatcher(),
-) : BeforeEachCallback, AfterEachCallback {
-
+) : BeforeEachCallback,
+    AfterEachCallback {
     override fun beforeEach(context: ExtensionContext) {
         Dispatchers.setMain(testDispatcher)
     }

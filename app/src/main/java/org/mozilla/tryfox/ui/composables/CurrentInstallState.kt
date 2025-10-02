@@ -25,49 +25,52 @@ import java.util.concurrent.TimeUnit
 fun CurrentInstallState(
     appState: AppState?,
     apkDisplayDateString: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val apkDateMillis: Long = remember(apkDisplayDateString) {
-        try {
-            val parser = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-            parser.parse(apkDisplayDateString)?.time ?: 0L
-        } catch (_: Exception) {
-            0L // Fallback in case of parsing error
+    val apkDateMillis: Long =
+        remember(apkDisplayDateString) {
+            try {
+                val parser = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                parser.parse(apkDisplayDateString)?.time ?: 0L
+            } catch (_: Exception) {
+                0L // Fallback in case of parsing error
+            }
         }
-    }
 
     Row(
         modifier = modifier.padding(bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         when {
             appState == null || !appState.isInstalled -> {
                 AssistChip(
                     onClick = { /* No action */ },
                     label = { Text("Not installed") },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        labelColor = MaterialTheme.colorScheme.onErrorContainer
-                    ),
-                    border = null
+                    colors =
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            labelColor = MaterialTheme.colorScheme.onErrorContainer,
+                        ),
+                    border = null,
                 )
             }
             apkDateMillis == 0L || appState.installDateMillis == null -> {
                 AssistChip(
                     onClick = { /* No action */ },
                     label = { Text("Installed") },
-                    border = AssistChipDefaults.assistChipBorder(true)
+                    border = AssistChipDefaults.assistChipBorder(true),
                 )
             }
             appState.installDateMillis >= apkDateMillis -> {
                 AssistChip(
                     onClick = { /* No action */ },
                     label = { Text("Up to date") },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
-                    border = null
+                    colors =
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        ),
+                    border = null,
                 )
             }
             else -> {
@@ -75,12 +78,13 @@ fun CurrentInstallState(
                 val daysBehind = TimeUnit.MILLISECONDS.toDays(diffMillis)
                 val hoursBehind = TimeUnit.MILLISECONDS.toHours(diffMillis)
 
-                val timeBehindText = when {
-                    daysBehind > 31 -> "${daysBehind / 7} weeks behind"
-                    daysBehind > 0 -> "$daysBehind days behind"
-                    hoursBehind > 0 -> "$hoursBehind hours behind"
-                    else -> "Less than an hour behind"
-                }
+                val timeBehindText =
+                    when {
+                        daysBehind > 31 -> "${daysBehind / 7} weeks behind"
+                        daysBehind > 0 -> "$daysBehind days behind"
+                        hoursBehind > 0 -> "$hoursBehind hours behind"
+                        else -> "Less than an hour behind"
+                    }
                 AssistChip(
                     onClick = { /* No action */ },
                     label = { Text(timeBehindText) },
@@ -88,14 +92,15 @@ fun CurrentInstallState(
                         Icon(
                             Icons.Filled.Warning,
                             contentDescription = "Warning",
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
                     },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onTertiaryContainer
-                    ),
-                    border = null
+                    colors =
+                        AssistChipDefaults.assistChipColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                        ),
+                    border = null,
                 )
             }
         }
@@ -105,7 +110,7 @@ fun CurrentInstallState(
             Text(
                 text = "v${appState.version ?: "N/A"} - ${appState.formattedInstallDate ?: "N/A"}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

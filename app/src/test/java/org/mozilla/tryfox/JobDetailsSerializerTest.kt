@@ -9,7 +9,6 @@ import org.mozilla.tryfox.data.JobDetails
 import org.mozilla.tryfox.data.JobDetailsSerializer
 
 class JobDetailsSerializerTest {
-
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
@@ -36,12 +35,13 @@ class JobDetailsSerializerTest {
               "opt"
             ]
         """
-        val expectedJobDetails = JobDetails(
-            appName = "?",
-            jobName = "Gecko Decision Task",
-            jobSymbol = "D",
-            taskId = "YtQZ5UEQRRmVgQNlqvzyhw",
-        )
+        val expectedJobDetails =
+            JobDetails(
+                appName = "?",
+                jobName = "Gecko Decision Task",
+                jobSymbol = "D",
+                taskId = "YtQZ5UEQRRmVgQNlqvzyhw",
+            )
         val actualJobDetails = json.decodeFromString(JobDetailsSerializer, jsonString)
         assertEquals(expectedJobDetails, actualJobDetails)
     }
@@ -58,9 +58,10 @@ class JobDetailsSerializerTest {
               "D" 
             ]
         """ // Array with only 6 elements, expecting at least 15
-        val exception = assertThrows<SerializationException> {
-            json.decodeFromString(JobDetailsSerializer, jsonString)
-        }
+        val exception =
+            assertThrows<SerializationException> {
+                json.decodeFromString(JobDetailsSerializer, jsonString)
+            }
         assertEquals(
             "JsonArray too short to deserialize into JobDetails. Size: 6, expected at least 15 elements.",
             exception.message,
@@ -74,20 +75,22 @@ class JobDetailsSerializerTest {
               "key": "value"
             }
         """ // JSON object instead of JsonArray
-        val exception = assertThrows<SerializationException> {
-            json.decodeFromString(JobDetailsSerializer, jsonString)
-        }
+        val exception =
+            assertThrows<SerializationException> {
+                json.decodeFromString(JobDetailsSerializer, jsonString)
+            }
         assertEquals("Expected JsonArray", exception.message)
     }
 
     @Test
     fun `test serialize not supported`() {
-        val jobDetails = JobDetails(
-            appName = "TestApp",
-            jobName = "TestJob",
-            jobSymbol = "T",
-            taskId = "test-task-id",
-        )
+        val jobDetails =
+            JobDetails(
+                appName = "TestApp",
+                jobName = "TestJob",
+                jobSymbol = "T",
+                taskId = "test-task-id",
+            )
         assertThrows<UnsupportedOperationException> {
             json.encodeToString(JobDetailsSerializer, jobDetails)
         }

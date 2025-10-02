@@ -11,31 +11,38 @@ import retrofit2.http.Streaming
 import retrofit2.http.Url
 
 interface ApiService {
-
     @GET("project/{project}/push/")
     suspend fun getPushByRevision(
         @Path("project") project: String,
-        @Query("revision") revision: String
+        @Query("revision") revision: String,
     ): TreeherderRevisionResponse
 
     @GET("project/try/push/")
     suspend fun getPushByAuthor(
         @Query("full") full: Boolean = true,
         @Query("count") count: Int = 10,
-        @Query("author") author: String
+        @Query("author") author: String,
     ): TreeherderRevisionResponse
 
     @GET("jobs/")
-    suspend fun getJobsForPush(@Query("push_id") pushId: Int): TreeherderJobsResponse
+    suspend fun getJobsForPush(
+        @Query("push_id") pushId: Int,
+    ): TreeherderJobsResponse
 
     @GET
-    suspend fun getArtifactsForTask(@Url url: String): ArtifactsResponse
+    suspend fun getArtifactsForTask(
+        @Url url: String,
+    ): ArtifactsResponse
 
     @DisableLogs
     @Streaming
     @GET
-    suspend fun downloadFile(@Url downloadUrl: String): ResponseBody
+    suspend fun downloadFile(
+        @Url downloadUrl: String,
+    ): ResponseBody
 
     @GET
-    suspend fun getHtmlPage(@Url url: String): String
+    suspend fun getHtmlPage(
+        @Url url: String,
+    ): String
 }

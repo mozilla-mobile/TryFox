@@ -15,7 +15,6 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 @LargeTest
 class MainActivityDeeplinkTest {
-
     @get:Rule
     val composeTestRule = createComposeRule()
 
@@ -24,10 +23,11 @@ class MainActivityDeeplinkTest {
         val project = "try"
         val revision = "abcdef123456"
         val deeplinkUri = Uri.parse("https://treeherder.mozilla.org/#/jobs?repo=$project&revision=$revision")
-        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = deeplinkUri
-        }
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = deeplinkUri
+            }
 
         ActivityScenario.launch<MainActivity>(intent).use {
             composeTestRule.waitForIdle()
@@ -40,10 +40,11 @@ class MainActivityDeeplinkTest {
         val project = "mozilla-central"
         val revision = "fedcba654321"
         val deeplinkUri = Uri.parse("https://treeherder.mozilla.org/jobs?repo=$project&revision=$revision")
-        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = deeplinkUri
-        }
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = deeplinkUri
+            }
 
         ActivityScenario.launch<MainActivity>(intent).use {
             composeTestRule.waitForIdle()

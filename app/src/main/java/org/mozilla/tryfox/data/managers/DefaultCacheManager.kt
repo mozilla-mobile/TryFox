@@ -7,26 +7,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import org.mozilla.tryfox.model.CacheManagementState
-import java.io.File
 import logcat.LogPriority
 import logcat.logcat
+import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TREEHERDER
+import java.io.File
 
 class DefaultCacheManager(
     private val cacheDir: File,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : CacheManager {
-
     private val _cacheState = MutableStateFlow<CacheManagementState>(CacheManagementState.IdleEmpty)
     override val cacheState: StateFlow<CacheManagementState> = _cacheState.asStateFlow()
 
-    override fun getCacheDir(appName: String): File {
-        return File(cacheDir, appName)
-    }
+    override fun getCacheDir(appName: String): File = File(cacheDir, appName)
 
     private fun isAppCachePopulated(appName: String): Boolean {
         val appSpecificCacheDir = getCacheDir(appName)
@@ -67,7 +64,7 @@ class DefaultCacheManager(
         } catch (e: Exception) {
             logcat(
                 LogPriority.ERROR,
-                TAG
+                TAG,
             ) { "Error clearing cache: ${e.message}\n${Log.getStackTraceString(e)}" }
         } finally {
             checkCacheStatus() // Update state to IdleEmpty or whatever is actual

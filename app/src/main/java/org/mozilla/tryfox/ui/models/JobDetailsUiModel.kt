@@ -6,6 +6,6 @@ data class JobDetailsUiModel(
     val jobSymbol: String,
     val taskId: String,
     val isSignedBuild: Boolean, // From original JobDetails
-    val isTest: Boolean,        // From original JobDetails
-    var artifacts: List<ArtifactUiModel> = emptyList() // To hold associated artifacts directly
+    val isTest: Boolean, // From original JobDetails
+    var artifacts: List<ArtifactUiModel> = emptyList(), // To hold associated artifacts directly
 )

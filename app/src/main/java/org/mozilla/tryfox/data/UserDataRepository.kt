@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.Flow
  * A repository that stores the last searched email.
  */
 interface UserDataRepository {
-
     /**
      * A flow that emits the last searched email.
      */

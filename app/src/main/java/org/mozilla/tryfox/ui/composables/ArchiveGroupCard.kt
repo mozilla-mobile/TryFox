@@ -15,7 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag 
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,11 +32,11 @@ fun ArchiveGroupCard(
     modifier: Modifier = Modifier,
     apks: List<ApkUiModel>,
     homeViewModel: HomeViewModel,
-    appState: AppState?
+    appState: AppState?,
 ) {
     ElevatedCard(
         modifier = modifier.fillMaxWidth().padding(top = 4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
     ) {
         val firstApk = apks.firstOrNull()
         if (firstApk == null) {
@@ -53,7 +53,7 @@ fun ArchiveGroupCard(
         Column(modifier = Modifier.padding(16.dp)) {
             CurrentInstallState(
                 appState = appState,
-                apkDisplayDateString = date
+                apkDisplayDateString = date,
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -62,7 +62,7 @@ fun ArchiveGroupCard(
                     text = "$appName $version",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.testTag("app_title_text_${appName.lowercase()}") // Applied testTag
+                    modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"), // Applied testTag
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 if (date.isNotBlank()) {
@@ -76,14 +76,14 @@ fun ArchiveGroupCard(
             if (supportedApks.isNotEmpty()) {
                 ExpandableListView(
                     title = stringResource(id = R.string.archive_group_card_supported_apks, supportedApks.size),
-                    initiallyExpanded = true
+                    initiallyExpanded = true,
                 ) {
                     supportedApks.forEach { apk ->
                         ArtifactCard(
                             downloadState = apk.downloadState,
                             abi = apk.abi,
                             onDownloadClick = { homeViewModel.downloadNightlyApk(apk) },
-                            onInstallClick = { homeViewModel.onInstallApk?.invoke(it) }
+                            onInstallClick = { homeViewModel.onInstallApk?.invoke(it) },
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                     }
@@ -94,30 +94,35 @@ fun ArchiveGroupCard(
                 Spacer(modifier = Modifier.height(if (supportedApks.isNotEmpty()) 16.dp else 0.dp))
                 ExpandableListView(
                     title = stringResource(id = R.string.archive_group_card_unsupported_apks, unsupportedApks.size),
-                    initiallyExpanded = false
+                    initiallyExpanded = false,
                 ) {
                     unsupportedApks.forEach { apk ->
                         ArtifactCard(
                             downloadState = apk.downloadState,
                             abi = apk.abi,
                             onDownloadClick = { homeViewModel.downloadNightlyApk(apk) },
-                            onInstallClick = { homeViewModel.onInstallApk?.invoke(it) }
+                            onInstallClick = { homeViewModel.onInstallApk?.invoke(it) },
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
             if (supportedApks.isEmpty() && unsupportedApks.isEmpty()) {
-                Text(stringResource(id = R.string.archive_group_card_no_apks_for_date), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))
+                Text(
+                    stringResource(id = R.string.archive_group_card_no_apks_for_date),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
             }
         }
     }
 }
 
 @Composable
-private fun getFriendlyAppName(appName: String) = when(appName) {
-    FENIX -> stringResource(id = R.string.app_name_fenix)
-    FOCUS -> stringResource(id = R.string.app_name_focus)
-    REFERENCE_BROWSER -> stringResource(R.string.app_name_reference_browser)
-    else -> "Unknown"
-}
+private fun getFriendlyAppName(appName: String) =
+    when (appName) {
+        FENIX -> stringResource(id = R.string.app_name_fenix)
+        FOCUS -> stringResource(id = R.string.app_name_focus)
+        REFERENCE_BROWSER -> stringResource(R.string.app_name_reference_browser)
+        else -> "Unknown"
+    }

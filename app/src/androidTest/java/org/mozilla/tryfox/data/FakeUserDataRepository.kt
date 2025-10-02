@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * A fake implementation of [UserDataRepository] for testing purposes.
  */
 class FakeUserDataRepository : UserDataRepository {
-
     private val _lastSearchedEmailFlow = MutableStateFlow("")
     override val lastSearchedEmailFlow: Flow<String> = _lastSearchedEmailFlow
 

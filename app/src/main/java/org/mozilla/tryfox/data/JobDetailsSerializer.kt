@@ -24,7 +24,9 @@ object JobDetailsSerializer : KSerializer<JobDetails> {
         // jobSymbol: index 5
         // taskId: index 14
         if (jsonArray.size <= 14) { // Ensure all required indices are accessible
-            throw SerializationException("JsonArray too short to deserialize into JobDetails. Size: ${jsonArray.size}, expected at least 15 elements.")
+            throw SerializationException(
+                "JsonArray too short to deserialize into JobDetails. Size: ${jsonArray.size}, expected at least 15 elements.",
+            )
         }
 
         try {
@@ -38,7 +40,10 @@ object JobDetailsSerializer : KSerializer<JobDetails> {
         }
     }
 
-    override fun serialize(encoder: Encoder, value: JobDetails) {
+    override fun serialize(
+        encoder: Encoder,
+        value: JobDetails,
+    ) {
         // Serialization back to JsonArray is not strictly needed for this use case
         // as we are only deserializing the response.
         throw UnsupportedOperationException("Serialization of JobDetails to JsonArray not supported.")

@@ -30,9 +30,8 @@ import java.io.File
 class ProfileViewModel(
     private val fenixRepository: IFenixRepository,
     private val userDataRepository: UserDataRepository,
-    private val cacheManager: CacheManager
+    private val cacheManager: CacheManager,
 ) : ViewModel() {
-
     companion object {
         private const val TAG = "ProfileViewModel"
     }
@@ -60,18 +59,26 @@ class ProfileViewModel(
             _authorEmail.value = userDataRepository.lastSearchedEmailFlow.first()
             logcat(LogPriority.DEBUG, TAG) { "Initial author email loaded: ${_authorEmail.value}" }
         }
-        cacheManager.cacheState.onEach { state ->
-            if (state is CacheManagementState.IdleEmpty) {
-                val updatedPushes = _pushes.value.map {
-                    it.copy(jobs = it.jobs.map { job ->
-                        job.copy(artifacts = job.artifacts.map { artifact ->
-                            artifact.copy(downloadState = DownloadState.NotDownloaded)
-                        })
-                    })
+        cacheManager.cacheState
+            .onEach { state ->
+                if (state is CacheManagementState.IdleEmpty) {
+                    val updatedPushes =
+                        _pushes.value.map {
+                            it.copy(
+                                jobs =
+                                    it.jobs.map { job ->
+                                        job.copy(
+                                            artifacts =
+                                                job.artifacts.map { artifact ->
+                                                    artifact.copy(downloadState = DownloadState.NotDownloaded)
+                                                },
+                                        )
+                                    },
+                            )
+                        }
+                    _pushes.value = updatedPushes
                 }
-                _pushes.value = updatedPushes
-            }
-        }.launchIn(viewModelScope)
+            }.launchIn(viewModelScope)
     }
 
     fun updateAuthorEmail(email: String) {
@@ -96,62 +103,73 @@ class ProfileViewModel(
             when (val result = fenixRepository.getPushesByAuthor(_authorEmail.value)) {
                 is NetworkResult.Success -> {
                     logcat(LogPriority.DEBUG, TAG) { "getPushesByAuthor success, processing ${result.data.results.size} pushes" }
-                    val pushesWithJobsAndArtifacts = result.data.results.map { pushResult ->
-                        async {
-                            val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
-                            if (jobsResult is NetworkResult.Success) {
-                                val filteredJobs = jobsResult.data.results.filter { it.isSignedBuild && !it.isTest }
-                                if (filteredJobs.isNotEmpty()) {
-                                    val jobsWithArtifacts = filteredJobs.map { jobDetails ->
-                                        async {
-                                            val artifacts = fetchArtifacts(jobDetails.taskId)
-                                            if (artifacts.isNotEmpty()) {
-                                                JobDetailsUiModel(
-                                                    appName = jobDetails.appName,
-                                                    jobName = jobDetails.jobName,
-                                                    jobSymbol = jobDetails.jobSymbol,
-                                                    taskId = jobDetails.taskId,
-                                                    isSignedBuild = jobDetails.isSignedBuild,
-                                                    isTest = jobDetails.isTest,
-                                                    artifacts = artifacts
+                    val pushesWithJobsAndArtifacts =
+                        result.data.results
+                            .map { pushResult ->
+                                async {
+                                    val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
+                                    if (jobsResult is NetworkResult.Success) {
+                                        val filteredJobs = jobsResult.data.results.filter { it.isSignedBuild && !it.isTest }
+                                        if (filteredJobs.isNotEmpty()) {
+                                            val jobsWithArtifacts =
+                                                filteredJobs
+                                                    .map { jobDetails ->
+                                                        async {
+                                                            val artifacts = fetchArtifacts(jobDetails.taskId)
+                                                            if (artifacts.isNotEmpty()) {
+                                                                JobDetailsUiModel(
+                                                                    appName = jobDetails.appName,
+                                                                    jobName = jobDetails.jobName,
+                                                                    jobSymbol = jobDetails.jobSymbol,
+                                                                    taskId = jobDetails.taskId,
+                                                                    isSignedBuild = jobDetails.isSignedBuild,
+                                                                    isTest = jobDetails.isTest,
+                                                                    artifacts = artifacts,
+                                                                )
+                                                            } else {
+                                                                null
+                                                            }
+                                                        }
+                                                    }.awaitAll()
+                                                    .filterNotNull()
+
+                                            if (jobsWithArtifacts.isNotEmpty()) {
+                                                var determinedPushComment: String? = null
+                                                for (revDetail in pushResult.revisions) {
+                                                    if (revDetail.comments.startsWith("Bug ")) {
+                                                        determinedPushComment = revDetail.comments
+                                                        break
+                                                    }
+                                                }
+                                                if (determinedPushComment == null) {
+                                                    determinedPushComment = pushResult.revisions.firstOrNull()?.comments ?: "No comment"
+                                                }
+                                                PushUiModel(
+                                                    pushComment = determinedPushComment,
+                                                    author = pushResult.author,
+                                                    jobs = jobsWithArtifacts,
+                                                    revision = pushResult.revision,
                                                 )
                                             } else {
+                                                logcat(LogPriority.VERBOSE, TAG) { "No jobs with artifacts for push ID: ${pushResult.id}" }
                                                 null
                                             }
+                                        } else {
+                                            logcat(LogPriority.VERBOSE, TAG) { "No signed, non-test jobs for push ID: ${pushResult.id}" }
+                                            null
                                         }
-                                    }.awaitAll().filterNotNull()
-
-                                    if (jobsWithArtifacts.isNotEmpty()) {
-                                        var determinedPushComment: String? = null
-                                        for (revDetail in pushResult.revisions) {
-                                            if (revDetail.comments.startsWith("Bug ")) {
-                                                determinedPushComment = revDetail.comments
-                                                break
-                                            }
-                                        }
-                                        if (determinedPushComment == null) {
-                                            determinedPushComment = pushResult.revisions.firstOrNull()?.comments ?: "No comment"
-                                        }
-                                        PushUiModel(
-                                            pushComment = determinedPushComment,
-                                            author = pushResult.author,
-                                            jobs = jobsWithArtifacts,
-                                            revision = pushResult.revision
-                                        )
                                     } else {
-                                        logcat(LogPriority.VERBOSE, TAG) { "No jobs with artifacts for push ID: ${pushResult.id}" }
+                                        logcat(
+                                            LogPriority.WARN,
+                                            TAG,
+                                        ) {
+                                            "getJobsForPush failed for push ID: ${pushResult.id}: ${(jobsResult as NetworkResult.Error).message}"
+                                        }
                                         null
                                     }
-                                } else {
-                                    logcat(LogPriority.VERBOSE, TAG) { "No signed, non-test jobs for push ID: ${pushResult.id}" }
-                                    null
                                 }
-                            } else {
-                                logcat(LogPriority.WARN, TAG) { "getJobsForPush failed for push ID: ${pushResult.id}: ${(jobsResult as NetworkResult.Error).message}" }
-                                null
-                            }
-                        }
-                    }.awaitAll().filterNotNull()
+                            }.awaitAll()
+                            .filterNotNull()
 
                     _pushes.value = pushesWithJobsAndArtifacts
                     logcat(TAG) { "Search finished, ${_pushes.value.size} pushes with artifacts found." }
@@ -173,28 +191,33 @@ class ProfileViewModel(
         logcat(LogPriority.DEBUG, TAG) { "fetchArtifacts called for taskId: $taskId" }
         return when (val artifactsResult = fenixRepository.getArtifactsForTask(taskId)) {
             is NetworkResult.Success -> {
-                val filteredApks = artifactsResult.data.artifacts.filter {
-                    it.name.endsWith(".apk", ignoreCase = true)
-                }
+                val filteredApks =
+                    artifactsResult.data.artifacts.filter {
+                        it.name.endsWith(".apk", ignoreCase = true)
+                    }
                 logcat(LogPriority.VERBOSE, TAG) { "Found ${filteredApks.size} APKs for taskId: $taskId" }
                 filteredApks.map { artifact ->
                     val artifactFileName = artifact.name.substringAfterLast('/')
                     val downloadedFile = getDownloadedFile(artifactFileName, taskId)
-                    val downloadState = if (downloadedFile != null) {
-                        DownloadState.Downloaded(downloadedFile)
-                    } else {
-                        DownloadState.NotDownloaded
-                    }
-                    val isCompatible = artifact.abi != null && deviceSupportedAbis.any { deviceAbi ->
-                        deviceAbi.equals(artifact.abi, ignoreCase = true)
-                    }
+                    val downloadState =
+                        if (downloadedFile != null) {
+                            DownloadState.Downloaded(downloadedFile)
+                        } else {
+                            DownloadState.NotDownloaded
+                        }
+                    val isCompatible =
+                        artifact.abi != null &&
+                            deviceSupportedAbis.any { deviceAbi ->
+                                deviceAbi.equals(artifact.abi, ignoreCase = true)
+                            }
                     ArtifactUiModel(
                         name = artifact.name,
                         taskId = taskId,
-                        abi = AbiUiModel(
-                            name = artifact.abi,
-                            isSupported = isCompatible
-                        ),
+                        abi =
+                            AbiUiModel(
+                                name = artifact.abi,
+                                isSupported = isCompatible,
+                            ),
                         downloadUrl = artifact.getDownloadUrl(taskId),
                         expires = artifact.expires,
                         downloadState = downloadState,
@@ -209,7 +232,10 @@ class ProfileViewModel(
         }
     }
 
-    fun getDownloadedFile(artifactName: String, taskId: String): File? {
+    fun getDownloadedFile(
+        artifactName: String,
+        taskId: String,
+    ): File? {
         if (taskId.isBlank()) return null
         val taskSpecificDir = File(cacheManager.getCacheDir("treeherder"), taskId)
         val outputFile = File(taskSpecificDir, artifactName)
@@ -234,7 +260,7 @@ class ProfileViewModel(
             logcat(LogPriority.WARN, TAG) { "Download attempt for already in progress or downloaded artifact: ${artifactUiModel.name}" }
             return
         }
-         if (taskId.isBlank()) {
+        if (taskId.isBlank()) {
             val blankTaskIdMsg = "Task ID is blank for $artifactFileName"
             logcat(LogPriority.ERROR, TAG) { blankTaskIdMsg }
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(blankTaskIdMsg))
@@ -259,41 +285,46 @@ class ProfileViewModel(
             var lastLoggedNumericProgress = 0f
 
             logcat(TAG) { "Calling fenixRepository.downloadArtifact for ${artifactUiModel.name}" }
-            val result = fenixRepository.downloadArtifact(
-                downloadUrl = downloadUrl,
-                outputFile = outputFile,
-                onProgress = { bytesDownloaded, totalBytes ->
-                    val currentProgressFloat = if (totalBytes > 0) {
-                        bytesDownloaded.toFloat() / totalBytes.toFloat()
-                    } else {
-                        0f
-                    }
+            val result =
+                fenixRepository.downloadArtifact(
+                    downloadUrl = downloadUrl,
+                    outputFile = outputFile,
+                    onProgress = { bytesDownloaded, totalBytes ->
+                        val currentProgressFloat =
+                            if (totalBytes > 0) {
+                                bytesDownloaded.toFloat() / totalBytes.toFloat()
+                            } else {
+                                0f
+                            }
 
-                    var shouldLog = false
-                    if (bytesDownloaded == 0L) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = 0f
-                    } else if (bytesDownloaded == totalBytes) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = currentProgressFloat
-                    } else if (currentProgressFloat - lastLoggedNumericProgress >= 0.02f) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = currentProgressFloat
-                    }
+                        var shouldLog = false
+                        if (bytesDownloaded == 0L) {
+                            shouldLog = true
+                            lastLoggedNumericProgress = 0f
+                        } else if (bytesDownloaded == totalBytes) {
+                            shouldLog = true
+                            lastLoggedNumericProgress = currentProgressFloat
+                        } else if (currentProgressFloat - lastLoggedNumericProgress >= 0.02f) {
+                            shouldLog = true
+                            lastLoggedNumericProgress = currentProgressFloat
+                        }
 
-                    if (shouldLog) {
-                         logcat(LogPriority.VERBOSE, TAG) { "Download progress for ${artifactUiModel.name}: $bytesDownloaded / $totalBytes ($currentProgressFloat)" }
-                    }
-                    updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(currentProgressFloat))
-                }
-            )
+                        if (shouldLog) {
+                            logcat(
+                                LogPriority.VERBOSE,
+                                TAG,
+                            ) { "Download progress for ${artifactUiModel.name}: $bytesDownloaded / $totalBytes ($currentProgressFloat)" }
+                        }
+                        updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(currentProgressFloat))
+                    },
+                )
 
             logcat(TAG) { "fenixRepository.downloadArtifact result for ${artifactUiModel.name}: $result" }
             when (result) {
                 is NetworkResult.Success -> {
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.Downloaded(result.data))
                     cacheManager.checkCacheStatus()
-                    logcat(TAG) { "Download success for ${artifactUiModel.name}. APK is ready to be installed." } 
+                    logcat(TAG) { "Download success for ${artifactUiModel.name}. APK is ready to be installed." }
                     onInstallApk?.invoke(result.data)
                 }
                 is NetworkResult.Error -> {
@@ -310,17 +341,32 @@ class ProfileViewModel(
         }
     }
 
-    private fun updateArtifactDownloadState(taskIdToUpdate: String, artifactNameToUpdate: String, newState: DownloadState) {
-        _pushes.value = _pushes.value.map { push ->
-            push.copy(jobs = push.jobs.map { job ->
-                if (job.taskId == taskIdToUpdate) {
-                    job.copy(artifacts = job.artifacts.map { artifact ->
-                        if (artifact.name == artifactNameToUpdate) {
-                            artifact.copy(downloadState = newState)
-                        } else artifact
-                    })
-                } else job
-            })
-        }
+    private fun updateArtifactDownloadState(
+        taskIdToUpdate: String,
+        artifactNameToUpdate: String,
+        newState: DownloadState,
+    ) {
+        _pushes.value =
+            _pushes.value.map { push ->
+                push.copy(
+                    jobs =
+                        push.jobs.map { job ->
+                            if (job.taskId == taskIdToUpdate) {
+                                job.copy(
+                                    artifacts =
+                                        job.artifacts.map { artifact ->
+                                            if (artifact.name == artifactNameToUpdate) {
+                                                artifact.copy(downloadState = newState)
+                                            } else {
+                                                artifact
+                                            }
+                                        },
+                                )
+                            } else {
+                                job
+                            }
+                        },
+                )
+            }
     }
 }

@@ -21,18 +21,18 @@ import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ProfileScreenTest {
-
     @get:Rule
     val composeTestRule = createComposeRule()
 
     private val fenixRepository = FakeFenixRepository(downloadProgressDelayMillis = 100L)
     private val userDataRepository: UserDataRepository = FakeUserDataRepository()
     private val cacheManager: CacheManager = FakeCacheManager()
-    private val profileViewModel = ProfileViewModel(
-        fenixRepository = fenixRepository,
-        userDataRepository = userDataRepository,
-        cacheManager = cacheManager
-    )
+    private val profileViewModel =
+        ProfileViewModel(
+            fenixRepository = fenixRepository,
+            userDataRepository = userDataRepository,
+            cacheManager = cacheManager,
+        )
     private val emailInputTag = "profile_email_input"
     private val emailClearButtonTag = "profile_email_clear_button"
     private val searchButtonTag = "profile_search_button"
@@ -54,7 +54,7 @@ class ProfileScreenTest {
         composeTestRule.setContent {
             ProfileScreen(
                 profileViewModel = profileViewModel,
-                onNavigateUp = {  }
+                onNavigateUp = { },
             )
         }
 
@@ -67,11 +67,14 @@ class ProfileScreenTest {
         composeTestRule.onNodeWithTag(searchButtonTag).performClick()
 
         composeTestRule.waitUntil("Wait for at least one download button", longTimeoutMillis) {
-            composeTestRule.onAllNodesWithTag(downloadButtonInitialTag, useUnmergedTree = true)
-                .fetchSemanticsNodes().isNotEmpty()
+            composeTestRule
+                .onAllNodesWithTag(downloadButtonInitialTag, useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty()
         }
 
-        composeTestRule.onNodeWithTag(downloadButtonInitialTag, useUnmergedTree = true)
+        composeTestRule
+            .onNodeWithTag(downloadButtonInitialTag, useUnmergedTree = true)
             .performClick()
 
         composeTestRule.waitUntil("Download button enters loading state", longTimeoutMillis) {
@@ -82,7 +85,8 @@ class ProfileScreenTest {
 
         composeTestRule.waitUntil("Download button enters install state", longTimeoutMillis) {
             tryOrFalse {
-                composeTestRule.onNodeWithTag(downloadButtonInstallTag, useUnmergedTree = true)
+                composeTestRule
+                    .onNodeWithTag(downloadButtonInstallTag, useUnmergedTree = true)
                     .assertIsDisplayed()
             }
         }
@@ -90,10 +94,11 @@ class ProfileScreenTest {
         assertNotNull("APK file should have been captured by onInstallApk callback", capturedApkFile)
     }
 
-    private fun tryOrFalse(block: () -> Unit): Boolean = try {
+    private fun tryOrFalse(block: () -> Unit): Boolean =
+        try {
             block()
             true
         } catch (_: AssertionError) {
             false
-    }
+        }
 }

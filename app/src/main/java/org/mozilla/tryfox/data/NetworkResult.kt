@@ -10,12 +10,17 @@ sealed class NetworkResult<out T> {
      * @param data The data returned by the successful operation.
      * @param T The type of the data.
      */
-    data class Success<out T>(val data: T) : NetworkResult<T>()
+    data class Success<out T>(
+        val data: T,
+    ) : NetworkResult<T>()
 
     /**
      * Represents a failed network operation.
      * @property message A message describing the error.
      * @property cause An optional [Exception] that caused the error.
      */
-    data class Error(val message: String, val cause: Exception? = null) : NetworkResult<Nothing>()
+    data class Error(
+        val message: String,
+        val cause: Exception? = null,
+    ) : NetworkResult<Nothing>()
 }

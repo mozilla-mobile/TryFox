@@ -13,7 +13,6 @@ import org.mozilla.tryfox.R
 
 @RunWith(AndroidJUnit4::class)
 class HomeScreenTest {
-
     @get:Rule
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 

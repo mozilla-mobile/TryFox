@@ -31,51 +31,59 @@ import retrofit2.converter.scalars.ScalarsConverterFactory
 const val TREEHERDER_BASE_URL = "https://treeherder.mozilla.org/api/"
 const val ARCHIVE_MOZILLA_BASE_URL = "https://archive.mozilla.org/"
 
-val dispatchersModule = module {
-    single<CoroutineDispatcher>(named("IODispatcher")) { Dispatchers.IO }
-    single<CoroutineDispatcher>(named("DefaultDispatcher")) { Dispatchers.Default }
-    single<CoroutineDispatcher>(named("MainDispatcher")) { Dispatchers.Main }
-}
-
-val networkModule = module {
-    single {
-        OkHttpClient.Builder().apply {
-            if (BuildConfig.DEBUG) {
-                val loggingInterceptor = HttpLoggingInterceptor()
-                loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.HEADERS)
-                addInterceptor(loggingInterceptor)
-            }
-        }.build()
+val dispatchersModule =
+    module {
+        single<CoroutineDispatcher>(named("IODispatcher")) { Dispatchers.IO }
+        single<CoroutineDispatcher>(named("DefaultDispatcher")) { Dispatchers.Default }
+        single<CoroutineDispatcher>(named("MainDispatcher")) { Dispatchers.Main }
     }
 
-    single {
-        val json = Json {
-            ignoreUnknownKeys = true
-            coerceInputValues = true
+val networkModule =
+    module {
+        single {
+            OkHttpClient
+                .Builder()
+                .apply {
+                    if (BuildConfig.DEBUG) {
+                        val loggingInterceptor = HttpLoggingInterceptor()
+                        loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.HEADERS)
+                        addInterceptor(loggingInterceptor)
+                    }
+                }.build()
         }
-        Retrofit.Builder()
-            .baseUrl(TREEHERDER_BASE_URL)
-            .client(get<OkHttpClient>())
-            .addConverterFactory(ScalarsConverterFactory.create())
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build()
+
+        single {
+            val json =
+                Json {
+                    ignoreUnknownKeys = true
+                    coerceInputValues = true
+                }
+            Retrofit
+                .Builder()
+                .baseUrl(TREEHERDER_BASE_URL)
+                .client(get<OkHttpClient>())
+                .addConverterFactory(ScalarsConverterFactory.create())
+                .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+                .build()
+        }
+
+        single { get<Retrofit>().create(ApiService::class.java) }
     }
 
-    single { get<Retrofit>().create(ApiService::class.java) }
-}
+val repositoryModule =
+    module {
+        single<IFenixRepository> { FenixRepository(get()) }
+        single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
+        single<MozillaArchiveRepository> { MozillaArchiveRepositoryImpl(get()) }
+        single { MozillaPackageManager(androidContext().packageManager) }
+        single<CacheManager> { DefaultCacheManager(androidContext().cacheDir, get(named("IODispatcher"))) }
+    }
 
-val repositoryModule = module {
-    single<IFenixRepository> { FenixRepository(get()) }
-    single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
-    single<MozillaArchiveRepository> { MozillaArchiveRepositoryImpl(get()) }
-    single { MozillaPackageManager(androidContext().packageManager) }
-    single<CacheManager> { DefaultCacheManager(androidContext().cacheDir, get(named("IODispatcher"))) }
-}
-
-val viewModelModule = module {
-    viewModel { TryFoxViewModel(get(), get()) }
-    viewModel { HomeViewModel(get(), get(), get(), get(), get(named("IODispatcher"))) }
-    viewModel { ProfileViewModel(get(), get(), get()) }
-}
+val viewModelModule =
+    module {
+        viewModel { TryFoxViewModel(get(), get()) }
+        viewModel { HomeViewModel(get(), get(), get(), get(), get(named("IODispatcher"))) }
+        viewModel { ProfileViewModel(get(), get(), get()) }
+    }
 
 val appModules = listOf(dispatchersModule, networkModule, repositoryModule, viewModelModule)

@@ -1,0 +1,9 @@
+root = true
+
+[*.kt]
+indent_size = 4
+indent_style = space
+
+[*.{kt,kts}]
+ktlint_experimental = true
+ktlint_function_naming_ignore_when_annotated_with = Composable,Preview

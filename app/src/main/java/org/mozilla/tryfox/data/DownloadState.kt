@@ -15,17 +15,23 @@ sealed class DownloadState {
      * Indicates that the download is currently in progress.
      * @property progress A float value between 0.0 and 1.0 representing the download progress.
      */
-    data class InProgress(val progress: Float) : DownloadState()
+    data class InProgress(
+        val progress: Float,
+    ) : DownloadState()
 
     /**
      * Indicates that the download has completed successfully.
      * @property file The [File] object representing the downloaded file.
      */
-    data class Downloaded(val file: File) : DownloadState()
+    data class Downloaded(
+        val file: File,
+    ) : DownloadState()
 
     /**
      * Indicates that the download has failed.
      * @property errorMessage An optional string containing a message describing the reason for the failure.
      */
-    data class DownloadFailed(val errorMessage: String?) : DownloadState()
+    data class DownloadFailed(
+        val errorMessage: String?,
+    ) : DownloadState()
 }

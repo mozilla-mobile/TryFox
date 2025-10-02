@@ -29,7 +29,7 @@ import java.io.File
 
 class TryFoxViewModel(
     private val repository: IFenixRepository,
-    private val cacheManager: CacheManager // Injected CacheManager
+    private val cacheManager: CacheManager, // Injected CacheManager
 ) : ViewModel() {
     var revision by mutableStateOf("c2f3f652a3a063cb7933c2781038a25974cd09ec")
         private set
@@ -65,27 +65,31 @@ class TryFoxViewModel(
     private val deviceSupportedAbis: List<String> by lazy { Build.SUPPORTED_ABIS.toList() }
 
     init {
-        cacheManager.cacheState.onEach { state ->
-            if (state is CacheManagementState.IdleEmpty) {
-                // Reset download states for artifacts in this ViewModel
-                // This logic was moved from clearAppCache
-                val updatedSelectedJobs = selectedJobs.map {
-                    val updatedArtifacts = it.artifacts.map { artifact ->
-                        artifact.copy(downloadState = DownloadState.NotDownloaded)
-                    }
-                    it.copy(artifacts = updatedArtifacts)
+        cacheManager.cacheState
+            .onEach { state ->
+                if (state is CacheManagementState.IdleEmpty) {
+                    // Reset download states for artifacts in this ViewModel
+                    // This logic was moved from clearAppCache
+                    val updatedSelectedJobs =
+                        selectedJobs.map {
+                            val updatedArtifacts =
+                                it.artifacts.map { artifact ->
+                                    artifact.copy(downloadState = DownloadState.NotDownloaded)
+                                }
+                            it.copy(artifacts = updatedArtifacts)
+                        }
+                    selectedJobs = updatedSelectedJobs
+                    checkAndUpdateDownloadingStatus() // Downloads are effectively cancelled
                 }
-                selectedJobs = updatedSelectedJobs
-                checkAndUpdateDownloadingStatus() // Downloads are effectively cancelled
-            }
-            // Potentially update _isDownloadingAnyFile or other states if they depend on cache state changes
-        }.launchIn(viewModelScope)
+                // Potentially update _isDownloadingAnyFile or other states if they depend on cache state changes
+            }.launchIn(viewModelScope)
     }
 
     private fun checkAndUpdateDownloadingStatus() {
-        val isDownloading = selectedJobs.any { job ->
-            job.artifacts.any { artifact -> artifact.downloadState is DownloadState.InProgress }
-        }
+        val isDownloading =
+            selectedJobs.any { job ->
+                job.artifacts.any { artifact -> artifact.downloadState is DownloadState.InProgress }
+            }
         _isDownloadingAnyFile.value = isDownloading
     }
 
@@ -99,8 +103,14 @@ class TryFoxViewModel(
         selectedProject = newProject
     }
 
-    fun setRevisionFromDeepLinkAndSearch(project: String?, newRevision: String) {
-        Log.i("FenixInstallerViewModel", "Setting project to: ${project ?: "default (try)"}, revision from deep link to: $newRevision and triggering search.")
+    fun setRevisionFromDeepLinkAndSearch(
+        project: String?,
+        newRevision: String,
+    ) {
+        Log.i(
+            "FenixInstallerViewModel",
+            "Setting project to: ${project ?: "default (try)"}, revision from deep link to: $newRevision and triggering search.",
+        )
         selectedProject = project ?: "try"
         revision = newRevision
         relevantPushComment = null
@@ -111,7 +121,10 @@ class TryFoxViewModel(
         searchJobsAndArtifacts()
     }
 
-    fun getDownloadedFile(artifactName: String, taskId: String): File? {
+    fun getDownloadedFile(
+        artifactName: String,
+        taskId: String,
+    ): File? {
         if (taskId.isBlank()) return null
         // The cache directory for Treeherder artifacts is now under a "treeherder" subdirectory
         val taskSpecificDir = File(cacheManager.getCacheDir("treeherder"), taskId)
@@ -186,33 +199,41 @@ class TryFoxViewModel(
         Log.d("FenixInstallerViewModel", "Fetching jobs for push ID: $pushId")
         when (val jobsResult = repository.getJobsForPush(pushId)) {
             is NetworkResult.Success -> {
-                val networkJobDetailsList = jobsResult.data.results
-                    .filter { it.isSignedBuild && !it.isTest }
+                val networkJobDetailsList =
+                    jobsResult.data.results
+                        .filter { it.isSignedBuild && !it.isTest }
 
                 if (networkJobDetailsList.isEmpty()) {
                     errorMessage = "No jobs found matching the criteria for this push."
                 } else {
-                    val initialJobUiModels = networkJobDetailsList.map { netJob ->
-                        Log.i("FenixInstallerViewModel", "Preparing to fetch artifacts for job: '${netJob.jobName}' (TaskID: ${netJob.taskId})")
-                        isLoadingJobArtifacts[netJob.taskId] = true
-                        JobDetailsUiModel(
-                            appName = netJob.appName,
-                            jobName = netJob.jobName,
-                            jobSymbol = netJob.jobSymbol,
-                            taskId = netJob.taskId,
-                            isSignedBuild = netJob.isSignedBuild,
-                            isTest = netJob.isTest,
-                            artifacts = emptyList()
-                        )
-                    }
-
-                    val updatedJobUiModels = initialJobUiModels.map {
-                        viewModelScope.async(Dispatchers.IO) { // Consider ioDispatcher if repository calls are blocking
-                            val fetchedArtifacts = fetchArtifacts(it.taskId)
-                            isLoadingJobArtifacts[it.taskId] = false
-                            it.copy(artifacts = fetchedArtifacts)
+                    val initialJobUiModels =
+                        networkJobDetailsList.map { netJob ->
+                            Log.i(
+                                "FenixInstallerViewModel",
+                                "Preparing to fetch artifacts for job: '${netJob.jobName}' (TaskID: ${netJob.taskId})",
+                            )
+                            isLoadingJobArtifacts[netJob.taskId] = true
+                            JobDetailsUiModel(
+                                appName = netJob.appName,
+                                jobName = netJob.jobName,
+                                jobSymbol = netJob.jobSymbol,
+                                taskId = netJob.taskId,
+                                isSignedBuild = netJob.isSignedBuild,
+                                isTest = netJob.isTest,
+                                artifacts = emptyList(),
+                            )
                         }
-                    }.awaitAll()
+
+                    val updatedJobUiModels =
+                        initialJobUiModels
+                            .map {
+                                viewModelScope.async(Dispatchers.IO) {
+                                    // Consider ioDispatcher if repository calls are blocking
+                                    val fetchedArtifacts = fetchArtifacts(it.taskId)
+                                    isLoadingJobArtifacts[it.taskId] = false
+                                    it.copy(artifacts = fetchedArtifacts)
+                                }
+                            }.awaitAll()
 
                     val finalJobsToShow = updatedJobUiModels.filter { it.artifacts.isNotEmpty() }
 
@@ -235,9 +256,10 @@ class TryFoxViewModel(
         Log.d("FenixInstallerViewModel", "Fetching artifacts for task ID: $taskId")
         return when (val artifactsResult = repository.getArtifactsForTask(taskId)) {
             is NetworkResult.Success -> {
-                val filteredApks = artifactsResult.data.artifacts.filter {
-                    it.name.endsWith(".apk", ignoreCase = true)
-                }
+                val filteredApks =
+                    artifactsResult.data.artifacts.filter {
+                        it.name.endsWith(".apk", ignoreCase = true)
+                    }
                 Log.i("FenixInstallerViewModel", "Found ${filteredApks.size} APK(s) for task ID: $taskId.")
                 if (filteredApks.isEmpty()) {
                     Log.w("FenixInstallerViewModel", "No APKs found for task ID: $taskId. Check the build logs.")
@@ -245,21 +267,25 @@ class TryFoxViewModel(
                 filteredApks.map { artifact ->
                     val artifactFileName = artifact.name.substringAfterLast('/')
                     val downloadedFile = getDownloadedFile(artifactFileName, taskId)
-                    val downloadState = if (downloadedFile != null) {
-                        DownloadState.Downloaded(downloadedFile)
-                    } else {
-                        DownloadState.NotDownloaded
-                    }
-                    val isCompatible = artifact.abi != null && deviceSupportedAbis.any { deviceAbi ->
-                        deviceAbi.equals(artifact.abi, ignoreCase = true)
-                    }
+                    val downloadState =
+                        if (downloadedFile != null) {
+                            DownloadState.Downloaded(downloadedFile)
+                        } else {
+                            DownloadState.NotDownloaded
+                        }
+                    val isCompatible =
+                        artifact.abi != null &&
+                            deviceSupportedAbis.any { deviceAbi ->
+                                deviceAbi.equals(artifact.abi, ignoreCase = true)
+                            }
                     ArtifactUiModel(
                         name = artifact.name,
                         taskId = taskId,
-                        abi = AbiUiModel(
-                            name = artifact.abi,
-                            isSupported = isCompatible
-                        ),
+                        abi =
+                            AbiUiModel(
+                                name = artifact.abi,
+                                isSupported = isCompatible,
+                            ),
                         downloadUrl = artifact.getDownloadUrl(taskId),
                         expires = artifact.expires,
                         downloadState = downloadState,
@@ -268,7 +294,11 @@ class TryFoxViewModel(
                 }
             }
             is NetworkResult.Error -> {
-                Log.e("FenixInstallerViewModel", "Error fetching artifacts for task ID $taskId: ${artifactsResult.message}", artifactsResult.cause)
+                Log.e(
+                    "FenixInstallerViewModel",
+                    "Error fetching artifacts for task ID $taskId: ${artifactsResult.message}",
+                    artifactsResult.cause,
+                )
                 emptyList()
             }
         }
@@ -280,10 +310,13 @@ class TryFoxViewModel(
         val downloadKey = artifactUiModel.uniqueKey
 
         if (artifactUiModel.downloadState is DownloadState.InProgress || artifactUiModel.downloadState is DownloadState.Downloaded) {
-            Log.d("FenixInstallerViewModel", "Download action for $downloadKey - already in progress or downloaded. State: ${artifactUiModel.downloadState}")
+            Log.d(
+                "FenixInstallerViewModel",
+                "Download action for $downloadKey - already in progress or downloaded. State: ${artifactUiModel.downloadState}",
+            )
             return
         }
-         if (taskId.isBlank()) {
+        if (taskId.isBlank()) {
             val blankTaskIdMsg = "Task ID is blank for $artifactFileName"
             Log.e("FenixInstallerViewModel", blankTaskIdMsg)
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(blankTaskIdMsg))
@@ -306,19 +339,21 @@ class TryFoxViewModel(
             }
             val outputFile = File(outputDir, artifactFileName)
 
-            val result = repository.downloadArtifact(
-                downloadUrl = downloadUrl,
-                outputFile = outputFile,
-                onProgress = { bytesDownloaded, totalBytes ->
-                    val progress = if (totalBytes > 0) {
-                        bytesDownloaded.toFloat() / totalBytes.toFloat()
-                    } else {
-                        0f
-                    }
-                    updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(progress))
-                    Log.d("FenixInstallerViewModel", "Download progress for $downloadKey: ${(progress * 100).toInt()}%")
-                }
-            )
+            val result =
+                repository.downloadArtifact(
+                    downloadUrl = downloadUrl,
+                    outputFile = outputFile,
+                    onProgress = { bytesDownloaded, totalBytes ->
+                        val progress =
+                            if (totalBytes > 0) {
+                                bytesDownloaded.toFloat() / totalBytes.toFloat()
+                            } else {
+                                0f
+                            }
+                        updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(progress))
+                        Log.d("FenixInstallerViewModel", "Download progress for $downloadKey: ${(progress * 100).toInt()}%")
+                    },
+                )
 
             when (result) {
                 is NetworkResult.Success -> {
@@ -337,16 +372,28 @@ class TryFoxViewModel(
         }
     }
 
-    private fun updateArtifactDownloadState(taskIdToUpdate: String, artifactNameToUpdate: String, newState: DownloadState) {
-        selectedJobs = selectedJobs.map {
-            if (it.taskId == taskIdToUpdate) {
-                it.copy(artifacts = it.artifacts.map {
-                    if (it.name == artifactNameToUpdate) {
-                        it.copy(downloadState = newState)
-                    } else it
-                })
-            } else it
-        }
+    private fun updateArtifactDownloadState(
+        taskIdToUpdate: String,
+        artifactNameToUpdate: String,
+        newState: DownloadState,
+    ) {
+        selectedJobs =
+            selectedJobs.map {
+                if (it.taskId == taskIdToUpdate) {
+                    it.copy(
+                        artifacts =
+                            it.artifacts.map {
+                                if (it.name == artifactNameToUpdate) {
+                                    it.copy(downloadState = newState)
+                                } else {
+                                    it
+                                }
+                            },
+                    )
+                } else {
+                    it
+                }
+            }
         checkAndUpdateDownloadingStatus()
     }
 }

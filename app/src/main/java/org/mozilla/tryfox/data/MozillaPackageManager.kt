@@ -11,16 +11,17 @@ import org.mozilla.tryfox.model.AppState
  *
  * @property packageManager The Android [PackageManager] instance used to query package information.
  */
-class MozillaPackageManager(private val packageManager: PackageManager) {
-
+class MozillaPackageManager(
+    private val packageManager: PackageManager,
+) {
     /**
      * Retrieves [PackageInfo] for a given package name.
      *
      * @param packageName The name of the package to retrieve information for.
      * @return [PackageInfo] if the package is found and no error occurs, null otherwise.
      */
-    private fun getPackageInfo(packageName: String): PackageInfo? {
-        return try {
+    private fun getPackageInfo(packageName: String): PackageInfo? =
+        try {
             packageManager.getPackageInfo(packageName, 0)
         } catch (_: PackageManager.NameNotFoundException) {
             Log.d("MozillaPackageManager", "Package not found: $packageName")
@@ -29,7 +30,6 @@ class MozillaPackageManager(private val packageManager: PackageManager) {
             Log.e("MozillaPackageManager", "Error getting package info for $packageName", e)
             null
         }
-    }
 
     /**
      * Constructs an [AppState] object for a given package name and friendly name.
@@ -38,14 +38,17 @@ class MozillaPackageManager(private val packageManager: PackageManager) {
      * @param friendlyName A user-friendly name for the application.
      * @return An [AppState] object representing the application's state.
      */
-    private fun getAppState(packageName: String, friendlyName: String): AppState {
+    private fun getAppState(
+        packageName: String,
+        friendlyName: String,
+    ): AppState {
         val packageInfo = getPackageInfo(packageName)
 
         return AppState(
             name = friendlyName,
             packageName = packageName,
             version = packageInfo?.versionName,
-            installDateMillis = packageInfo?.lastUpdateTime
+            installDateMillis = packageInfo?.lastUpdateTime,
         )
     }
 

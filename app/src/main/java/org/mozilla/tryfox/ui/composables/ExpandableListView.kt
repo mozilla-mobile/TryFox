@@ -28,25 +28,26 @@ import androidx.compose.ui.unit.dp
 fun ExpandableListView(
     title: String,
     initiallyExpanded: Boolean = false,
-    content: @Composable () -> Unit
+    content: @Composable () -> Unit,
 ) {
     var isExpanded by remember { mutableStateOf(initiallyExpanded) }
     val rotationAngle by animateFloatAsState(targetValue = if (isExpanded) 180f else 0f, label = "ArrowRotation")
 
     Column {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { isExpanded = !isExpanded }
-                .padding(vertical = 8.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded }
+                    .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Icon(
                 imageVector = Icons.Filled.ArrowDropDown,
                 contentDescription = if (isExpanded) "Collapse" else "Expand",
-                modifier = Modifier.rotate(rotationAngle)
+                modifier = Modifier.rotate(rotationAngle),
             )
         }
         AnimatedVisibility(visible = isExpanded) {

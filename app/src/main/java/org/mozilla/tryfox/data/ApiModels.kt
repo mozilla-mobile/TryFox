@@ -6,14 +6,14 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class TreeherderRevisionResponse(
     val meta: RevisionMeta,
-    val results: List<RevisionResult>
+    val results: List<RevisionResult>,
 )
 
 @Serializable
 data class RevisionMeta(
     val revision: String? = null,
     val count: Int,
-    val repository: String
+    val repository: String,
 )
 
 @Serializable
@@ -27,7 +27,7 @@ data class RevisionResult(
     @SerialName("push_timestamp")
     val pushTimestamp: Long,
     @SerialName("repository_id")
-    val repositoryId: Int
+    val repositoryId: Int,
 )
 
 @Serializable
@@ -38,7 +38,7 @@ data class RevisionDetail(
     val repositoryId: Int,
     val revision: String,
     val author: String,
-    val comments: String
+    val comments: String,
 )
 
 @Serializable(with = JobDetailsSerializer::class) // Serializer is now in a separate file
@@ -46,23 +46,23 @@ data class JobDetails(
     val appName: String,
     val jobName: String,
     val jobSymbol: String,
-    val taskId: String
+    val taskId: String,
 ) {
-    val isSignedBuild: Boolean 
+    val isSignedBuild: Boolean
         get() = jobSymbol.contains("B") && jobSymbol.contains("s")
 
-    val isTest: Boolean 
+    val isTest: Boolean
         get() = jobSymbol.contains("t")
 }
 
 @Serializable
 data class TreeherderJobsResponse(
-    val results: List<JobDetails> 
+    val results: List<JobDetails>,
 )
 
 @Serializable
 data class ArtifactsResponse(
-    val artifacts: List<Artifact>
+    val artifacts: List<Artifact>,
 )
 
 @Serializable
@@ -70,15 +70,18 @@ data class Artifact(
     val storageType: String,
     val name: String,
     val expires: String,
-    val contentType: String
+    val contentType: String,
 ) {
-    fun getDownloadUrl(taskId: String): String {
-        return "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/$taskId/runs/0/artifacts/$name"
-    }
-    
+    fun getDownloadUrl(taskId: String): String =
+        "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/task/$taskId/runs/0/artifacts/$name"
+
     val abi: String?
         get() {
             val regex = "target\\.([^.]+)\\.apk$".toRegex()
-            return regex.find(name)?.groups?.get(1)?.value
+            return regex
+                .find(name)
+                ?.groups
+                ?.get(1)
+                ?.value
         }
 }
