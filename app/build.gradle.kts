@@ -21,31 +21,35 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = System.getenv("KEYSTORE_FILE")
+            val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
+            val keyAlias = System.getenv("KEY_ALIAS")
+            val keyPassword = System.getenv("KEY_PASSWORD")
+
+            if (!keystoreFile.isNullOrBlank() &&
+                !keystorePassword.isNullOrBlank() &&
+                !keyAlias.isNullOrBlank() &&
+                !keyPassword.isNullOrBlank()
+            ) {
+                storeFile = file(keystoreFile)
+                storePassword = keystorePassword
+                this.keyAlias = keyAlias
+                this.keyPassword = keyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfigs {
-                create("release") {
-                    val keystoreFile = System.getenv("KEYSTORE_FILE")
-                    val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-                    val keyAlias = System.getenv("KEY_ALIAS")
-                    val keyPassword = System.getenv("KEY_PASSWORD")
-
-                    if (keystoreFile != null && keystorePassword != null && keyAlias != null && keyPassword != null) {
-                        this.storeFile = file(keystoreFile)
-                        this.storePassword = keystorePassword
-                        this.keyAlias = keyAlias
-                        this.keyPassword = keyPassword
-                    } else if (System.getenv("GITHUB_ACTIONS") == "true") {
-                        throw GradleException("Missing one or more release signing environment variables. Please set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.")
-                    }
-                }
-            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            // Always point to the release signingConfig. It may be empty in non-release tasks.
             signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -76,6 +80,22 @@ tasks.register("lintChecks") {
     dependsOn("detekt", "ktlintCheck")
     group = "verification"
     description = "Runs Detekt and KtLint checks for the app module."
+}
+
+gradle.taskGraph.whenReady {
+    val buildingRelease =
+        allTasks.any { task ->
+            task.path.endsWith(":assembleRelease") || task.path.endsWith(":bundleRelease")
+        }
+    if (buildingRelease && System.getenv("GITHUB_ACTIONS") == "true") {
+        val required = listOf("KEYSTORE_FILE", "KEYSTORE_PASSWORD", "KEY_ALIAS", "KEY_PASSWORD")
+        val missing = required.filter { System.getenv(it).isNullOrBlank() }
+        if (missing.isNotEmpty()) {
+            throw GradleException(
+                "Missing release signing env vars for a release build: ${missing.joinToString(", ")}",
+            )
+        }
+    }
 }
 
 dependencies {
