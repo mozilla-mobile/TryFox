@@ -9,9 +9,7 @@ plugins {
 
 android {
     namespace = "org.mozilla.tryfox"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "org.mozilla.tryfox"
