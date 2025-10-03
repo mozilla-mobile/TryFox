@@ -21,11 +21,11 @@ import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
 import org.koin.androidx.compose.koinViewModel
 import org.koin.androidx.viewmodel.ext.android.viewModel
-import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
 import org.mozilla.tryfox.ui.screens.HomeScreen
 import org.mozilla.tryfox.ui.screens.HomeViewModel
 import org.mozilla.tryfox.ui.screens.ProfileScreen
 import org.mozilla.tryfox.ui.screens.ProfileViewModel
+import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 import java.io.File
 
@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
         val fileUri: Uri = FileProvider.getUriForFile(
             this,
             "${BuildConfig.APPLICATION_ID}.provider",
-            file
+            file,
         )
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(fileUri, "application/vnd.android.package-archive")
@@ -88,8 +88,8 @@ class MainActivity : ComponentActivity() {
                 homeViewModel.onInstallApk = ::installApk
                 HomeScreen(
                     onNavigateToTreeherder = { localNavController.navigate(NavScreen.TreeherderSearch.route) },
-                    onNavigateToProfile = { localNavController.navigate(NavScreen.Profile.route) }, 
-                    homeViewModel = homeViewModel
+                    onNavigateToProfile = { localNavController.navigate(NavScreen.Profile.route) },
+                    homeViewModel = homeViewModel,
                 )
             }
             composable(NavScreen.TreeherderSearch.route) {
@@ -97,14 +97,14 @@ class MainActivity : ComponentActivity() {
                 mainActivityViewModel.onInstallApk = ::installApk
                 TryFoxMainScreen(
                     tryFoxViewModel = mainActivityViewModel,
-                    onNavigateUp = { localNavController.popBackStack() }
+                    onNavigateUp = { localNavController.popBackStack() },
                 )
             }
             composable(
                 route = NavScreen.TreeherderSearchWithArgs.route,
                 arguments = listOf(
                     navArgument("project") { type = NavType.StringType },
-                    navArgument("revision") { type = NavType.StringType }
+                    navArgument("revision") { type = NavType.StringType },
                 ),
                 deepLinks = listOf(
                     navDeepLink {
@@ -114,19 +114,20 @@ class MainActivity : ComponentActivity() {
                     navDeepLink {
                         uriPattern =
                             "https://treeherder.mozilla.org/jobs?repo={project}&revision={revision}"
-                    })
+                    },
+                ),
             ) { backStackEntry ->
                 val project = backStackEntry.arguments?.getString("project") ?: "try"
                 val revision = backStackEntry.arguments?.getString("revision") ?: ""
                 Log.d(
                     "MainActivity",
-                    "TreeherderSearchWithArgs composable: project='${project}', revision='${revision}' from NavBackStackEntry. ID: ${backStackEntry.id}"
+                    "TreeherderSearchWithArgs composable: project='$project', revision='$revision' from NavBackStackEntry. ID: ${backStackEntry.id}",
                 )
 
                 LaunchedEffect(project, revision) {
                     Log.d(
                         "MainActivity",
-                        "TreeherderSearchWithArgs LaunchedEffect: project='${project}', revision='${revision}'"
+                        "TreeherderSearchWithArgs LaunchedEffect: project='$project', revision='$revision'",
                     )
                     mainActivityViewModel.setRevisionFromDeepLinkAndSearch(
                         project,
@@ -136,7 +137,7 @@ class MainActivity : ComponentActivity() {
                 mainActivityViewModel.onInstallApk = ::installApk
                 TryFoxMainScreen(
                     tryFoxViewModel = mainActivityViewModel,
-                    onNavigateUp = { localNavController.popBackStack() }
+                    onNavigateUp = { localNavController.popBackStack() },
                 )
             }
             composable(NavScreen.Profile.route) {
@@ -144,8 +145,8 @@ class MainActivity : ComponentActivity() {
                 val profileViewModel: ProfileViewModel = koinViewModel()
                 profileViewModel.onInstallApk = ::installApk // Assuming ProfileViewModel also needs this
                 ProfileScreen(
-                    onNavigateUp = { localNavController.popBackStack() }, 
-                    profileViewModel = profileViewModel
+                    onNavigateUp = { localNavController.popBackStack() },
+                    profileViewModel = profileViewModel,
                 )
             }
         }

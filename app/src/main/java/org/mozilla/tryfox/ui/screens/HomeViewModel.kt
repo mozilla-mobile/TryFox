@@ -39,7 +39,7 @@ class HomeViewModel(
     private val fenixRepository: IFenixRepository,
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
     internal var deviceSupportedAbisForTesting: List<String>? = null
@@ -73,7 +73,9 @@ class HomeViewModel(
                         val newFenixState =
                             if (updatedFenixApks != null) {
                                 currentLoadedState.fenixBuildsState.copy(apks = updatedFenixApks)
-                            } else currentLoadedState.fenixBuildsState
+                            } else {
+                                currentLoadedState.fenixBuildsState
+                            }
 
                         val updatedFocusApks =
                             (currentLoadedState.focusBuildsState as? ApksState.Success)?.apks?.map {
@@ -82,7 +84,9 @@ class HomeViewModel(
                         val newFocusState =
                             if (updatedFocusApks != null) {
                                 currentLoadedState.focusBuildsState.copy(apks = updatedFocusApks)
-                            } else currentLoadedState.focusBuildsState
+                            } else {
+                                currentLoadedState.focusBuildsState
+                            }
 
                         val updatedReferenceBrowserApks =
                             (currentLoadedState.referenceBrowserBuildsState as? ApksState.Success)?.apks?.map {
@@ -91,13 +95,15 @@ class HomeViewModel(
                         val newReferenceBrowserState =
                             if (updatedReferenceBrowserApks != null) {
                                 currentLoadedState.referenceBrowserBuildsState.copy(apks = updatedReferenceBrowserApks)
-                            } else currentLoadedState.referenceBrowserBuildsState
+                            } else {
+                                currentLoadedState.referenceBrowserBuildsState
+                            }
 
                         nextState = currentLoadedState.copy(
                             fenixBuildsState = newFenixState,
                             focusBuildsState = newFocusState,
                             referenceBrowserBuildsState = newReferenceBrowserState,
-                            isDownloadingAnyFile = false
+                            isDownloadingAnyFile = false,
                         )
                     }
                     nextState
@@ -122,7 +128,7 @@ class HomeViewModel(
                     focusBuildsState = ApksState.Loading,
                     referenceBrowserBuildsState = ApksState.Loading,
                     cacheManagementState = currentCacheState,
-                    isDownloadingAnyFile = false
+                    isDownloadingAnyFile = false,
                 )
             }
 
@@ -135,7 +141,7 @@ class HomeViewModel(
             val referenceBrowserApksState = processRepositoryResult(
                 referenceBrowserResult,
                 REFERENCE_BROWSER,
-                referenceBrowserAppInfo
+                referenceBrowserAppInfo,
             )
 
             val isDownloading =
@@ -147,7 +153,7 @@ class HomeViewModel(
                         fenixBuildsState = fenixApksState,
                         focusBuildsState = focusApksState,
                         referenceBrowserBuildsState = referenceBrowserApksState,
-                        isDownloadingAnyFile = isDownloading
+                        isDownloadingAnyFile = isDownloading,
                     )
                 } else {
                     it
@@ -159,7 +165,7 @@ class HomeViewModel(
     private fun checkIsDownloading(
         fenixState: ApksState,
         focusState: ApksState,
-        referenceBrowserState: ApksState
+        referenceBrowserState: ApksState,
     ): Boolean {
         val fenixDownloading =
             (fenixState as? ApksState.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
@@ -173,7 +179,7 @@ class HomeViewModel(
     private fun processRepositoryResult(
         result: NetworkResult<List<ParsedNightlyApk>>,
         appName: String,
-        appState: AppState?
+        appState: AppState?,
     ): ApksState {
         return when (result) {
             is NetworkResult.Success -> {
@@ -184,7 +190,7 @@ class HomeViewModel(
             is NetworkResult.Error -> {
                 ApksState.Error(
                     "Error fetching $appName nightly builds: ${result.message}",
-                    appState
+                    appState,
                 )
             }
         }
@@ -196,7 +202,7 @@ class HomeViewModel(
             val isCompatible = deviceSupportedAbis.any { deviceAbi ->
                 deviceAbi.equals(
                     parsedApk.abiName,
-                    ignoreCase = true
+                    ignoreCase = true,
                 )
             }
 
@@ -250,7 +256,7 @@ class HomeViewModel(
     private fun updateApkListState(
         apkState: ApksState,
         uniqueKey: String,
-        newDownloadState: DownloadState
+        newDownloadState: DownloadState,
     ): ApksState {
         val state = apkState as? ApksState.Success ?: return apkState
 
@@ -263,7 +269,7 @@ class HomeViewModel(
     private fun updateApkDownloadStateInScreenState(
         app: String,
         uniqueKey: String,
-        newDownloadState: DownloadState
+        newDownloadState: DownloadState,
     ) {
         _homeScreenState.update { currentState ->
             if (currentState !is HomeScreenState.Loaded) return@update currentState
@@ -285,7 +291,7 @@ class HomeViewModel(
                     updateApkListState(
                         currentState.referenceBrowserBuildsState,
                         uniqueKey,
-                        newDownloadState
+                        newDownloadState,
                     )
                 } else {
                     currentState.referenceBrowserBuildsState
@@ -298,8 +304,8 @@ class HomeViewModel(
                 isDownloadingAnyFile = checkIsDownloading(
                     updatedFenixState,
                     updatedFocusState,
-                    updatedReferenceBrowserState
-                )
+                    updatedReferenceBrowserState,
+                ),
             )
         }
     }
@@ -313,7 +319,7 @@ class HomeViewModel(
             updateApkDownloadStateInScreenState(
                 apkInfo.appName,
                 apkInfo.uniqueKey,
-                DownloadState.InProgress(0f)
+                DownloadState.InProgress(0f),
             )
 
             val outputDir = apkInfo.apkDir
@@ -329,9 +335,9 @@ class HomeViewModel(
                     updateApkDownloadStateInScreenState(
                         apkInfo.appName,
                         apkInfo.uniqueKey,
-                        DownloadState.InProgress(progress)
+                        DownloadState.InProgress(progress),
                     )
-                }
+                },
             )
 
             when (result) {
@@ -339,7 +345,7 @@ class HomeViewModel(
                     updateApkDownloadStateInScreenState(
                         apkInfo.appName,
                         apkInfo.uniqueKey,
-                        DownloadState.Downloaded(result.data)
+                        DownloadState.Downloaded(result.data),
                     )
                     cacheManager.checkCacheStatus() // Notify cache manager about new file
                     onInstallApk?.invoke(result.data)
@@ -349,7 +355,7 @@ class HomeViewModel(
                     updateApkDownloadStateInScreenState(
                         apkInfo.appName,
                         apkInfo.uniqueKey,
-                        DownloadState.DownloadFailed(result.message)
+                        DownloadState.DownloadFailed(result.message),
                     )
                     cacheManager.checkCacheStatus() // Check cache even on error
                 }

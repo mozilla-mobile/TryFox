@@ -25,7 +25,7 @@ import java.util.concurrent.TimeUnit
 fun CurrentInstallState(
     appState: AppState?,
     apkDisplayDateString: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val apkDateMillis: Long = remember(apkDisplayDateString) {
         try {
@@ -38,7 +38,7 @@ fun CurrentInstallState(
 
     Row(
         modifier = modifier.padding(bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         when {
             appState == null || !appState.isInstalled -> {
@@ -47,16 +47,16 @@ fun CurrentInstallState(
                     label = { Text("Not installed") },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
-                        labelColor = MaterialTheme.colorScheme.onErrorContainer
+                        labelColor = MaterialTheme.colorScheme.onErrorContainer,
                     ),
-                    border = null
+                    border = null,
                 )
             }
             apkDateMillis == 0L || appState.installDateMillis == null -> {
                 AssistChip(
                     onClick = { /* No action */ },
                     label = { Text("Installed") },
-                    border = AssistChipDefaults.assistChipBorder(true)
+                    border = AssistChipDefaults.assistChipBorder(true),
                 )
             }
             appState.installDateMillis >= apkDateMillis -> {
@@ -65,9 +65,9 @@ fun CurrentInstallState(
                     label = { Text("Up to date") },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     ),
-                    border = null
+                    border = null,
                 )
             }
             else -> {
@@ -88,14 +88,14 @@ fun CurrentInstallState(
                         Icon(
                             Icons.Filled.Warning,
                             contentDescription = "Warning",
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
                         )
                     },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
                     ),
-                    border = null
+                    border = null,
                 )
             }
         }
@@ -105,7 +105,7 @@ fun CurrentInstallState(
             Text(
                 text = "v${appState.version ?: "N/A"} - ${appState.formattedInstallDate ?: "N/A"}",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
     }

@@ -94,7 +94,7 @@ class HomeViewModelTest {
             version = if (appName == testReferenceBrowserAppName) "latest" else version,
             abiName = abi,
             fullUrl = fullUrl,
-            fileName = fileName
+            fileName = fileName,
         )
     }
 
@@ -126,12 +126,13 @@ class HomeViewModelTest {
             fileName = parsed.fileName,
             downloadState = downloadState,
             uniqueKey = uniqueKey,
-            apkDir = apkDir
+            apkDir = apkDir,
         )
     }
 
     @BeforeEach
-    fun setUp() = runTest { // Wrap setUp in runTest
+    fun setUp() = runTest {
+        // Wrap setUp in runTest
         // tempCacheDir is now managed by @TempDir
         whenever(mockMozillaPackageManager.fenix).thenReturn(null)
         whenever(mockMozillaPackageManager.focus).thenReturn(null)
@@ -149,7 +150,7 @@ class HomeViewModelTest {
             fenixRepository = mockFenixRepository,
             mozillaPackageManager = mockMozillaPackageManager,
             cacheManager = fakeCacheManager,
-            ioDispatcher = mainCoroutineRule.testDispatcher
+            ioDispatcher = mainCoroutineRule.testDispatcher,
         )
         viewModel.deviceSupportedAbisForTesting = listOf("arm64-v8a", "x86_64", "armeabi-v7a")
     }
@@ -247,7 +248,7 @@ class HomeViewModelTest {
     fun `clearAppCache should call CacheManager and update states to NotDownloaded`() = runTest {
         val fenixParsed = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
         val rbParsed = createTestParsedNightlyApk(testReferenceBrowserAppName, testDateRaw, "latest", testAbi)
-        
+
         // Setup cache for Fenix
         val fenixApkUiForCache = createTestApkUiModel(fenixParsed)
         val fenixCacheActualDir = File(tempCacheDir, "${fenixApkUiForCache.appName}/${fenixApkUiForCache.date.substring(0, 10)}")
@@ -291,7 +292,7 @@ class HomeViewModelTest {
         assertTrue(fakeCacheManager.clearCacheCalled)
         loadedState = viewModel.homeScreenState.value as HomeScreenState.Loaded
         assertEquals(CacheManagementState.IdleEmpty, loadedState.cacheManagementState, "Cache state should be IdleEmpty after clear")
-        
+
         val fenixStateAfterClear = loadedState.fenixBuildsState as ApksState.Success
         assertFalse(fenixStateAfterClear.apks.isEmpty(), "Fenix APK list should not be empty after clear")
         assertTrue(fenixStateAfterClear.apks.first().downloadState is DownloadState.NotDownloaded, "Fenix APK download state should be NotDownloaded after clear")
@@ -320,7 +321,7 @@ class HomeViewModelTest {
         assertTrue(initialLoadedState.fenixBuildsState is ApksState.Success)
 
         whenever(
-            mockFenixRepository.downloadArtifact(eq(apkToDownload.url), eq(expectedApkFile), any())
+            mockFenixRepository.downloadArtifact(eq(apkToDownload.url), eq(expectedApkFile), any()),
         ).thenAnswer { invocation ->
             val onProgress = invocation.arguments[2] as (Long, Long) -> Unit
             onProgress(50L, 100L) // Simulate some progress
@@ -343,7 +344,7 @@ class HomeViewModelTest {
         assertNotNull(downloadedApkInfo, "Downloaded APK info should not be null")
         assertTrue(downloadedApkInfo!!.downloadState is DownloadState.Downloaded, "DownloadState should be Downloaded")
         assertEquals(expectedApkFile.path, (downloadedApkInfo.downloadState as DownloadState.Downloaded).file.path)
-        assertTrue(fakeCacheManager.checkCacheStatusCalled) 
+        assertTrue(fakeCacheManager.checkCacheStatusCalled)
         assertEquals(expectedApkFile, installLambdaCalledWith)
         assertFalse(loadedState.isDownloadingAnyFile, "isDownloadingAnyFile should be false after success")
     }
@@ -367,7 +368,7 @@ class HomeViewModelTest {
         assertTrue(initialLoadedState.fenixBuildsState is ApksState.Success)
 
         whenever(
-            mockFenixRepository.downloadArtifact(eq(apkToDownload.url), eq(expectedApkFile), any())
+            mockFenixRepository.downloadArtifact(eq(apkToDownload.url), eq(expectedApkFile), any()),
         ).thenAnswer { NetworkResult.Error(downloadErrorMessage) }
 
         viewModel.downloadNightlyApk(apkToDownload)
@@ -380,7 +381,7 @@ class HomeViewModelTest {
         assertNotNull(failedApkInfo, "Failed APK info should not be null")
         assertTrue(failedApkInfo!!.downloadState is DownloadState.DownloadFailed, "DownloadState should be DownloadFailed")
         assertEquals(downloadErrorMessage, (failedApkInfo.downloadState as DownloadState.DownloadFailed).errorMessage)
-        assertTrue(fakeCacheManager.checkCacheStatusCalled) 
+        assertTrue(fakeCacheManager.checkCacheStatusCalled)
         assertFalse(loadedState.isDownloadingAnyFile, "isDownloadingAnyFile should be false after failure")
     }
 }

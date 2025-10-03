@@ -53,16 +53,16 @@ class MozillaArchiveRepositoryImpl(
     override suspend fun getReferenceBrowserNightlyBuilds(): NetworkResult<List<ParsedNightlyApk>> {
         return try {
             val parsedApks = REFERENCE_BROWSER_ABIS.map { abi ->
-                val fullUrl = "${REFERENCE_BROWSER_TASK_BASE_URL}${abi}/artifacts/public/target.${abi}.apk"
-                val fileName = "target.${abi}.apk"
+                val fullUrl = "${REFERENCE_BROWSER_TASK_BASE_URL}$abi/artifacts/public/target.$abi.apk"
+                val fileName = "target.$abi.apk"
                 ParsedNightlyApk(
-                    originalString = "reference-browser-latest-android-${abi}/",
+                    originalString = "reference-browser-latest-android-$abi/",
                     rawDateString = null,
                     appName = "reference-browser",
                     version = "",
                     abiName = abi,
                     fullUrl = fullUrl,
-                    fileName = fileName
+                    fileName = fileName,
                 )
             }
             NetworkResult.Success(parsedApks)
@@ -83,8 +83,8 @@ class MozillaArchiveRepositoryImpl(
 
     private fun parseNightlyBuildsFromHtml(
         html: String,
-        archiveUrl: String, // This parameter is the fully constructed URL for the month
-        app: String // "fenix" or "focus"
+        archiveUrl: String,
+        app: String,
     ): List<ParsedNightlyApk> {
         val htmlPattern = Regex("""<td>Dir</td>\s*<td><a href="[^"]*">([^<]+/)</a></td>""")
         val rawBuildStrings = htmlPattern.findAll(html)
@@ -110,8 +110,8 @@ class MozillaArchiveRepositoryImpl(
                 val version = matcher.group(3) ?: ""
                 val abi = matcher.group(4) ?: ""
 
-                val fileName = "${appNameResult}-${version}.multi.android-${abi}.apk"
-                val fullUrl = "${archiveUrl}${buildString}${fileName}"
+                val fileName = "$appNameResult-$version.multi.android-$abi.apk"
+                val fullUrl = "${archiveUrl}${buildString}$fileName"
 
                 ParsedNightlyApk(
                     originalString = buildString,
@@ -120,9 +120,11 @@ class MozillaArchiveRepositoryImpl(
                     version = version,
                     abiName = abi,
                     fullUrl = fullUrl,
-                    fileName = fileName
+                    fileName = fileName,
                 )
-            } else null
+            } else {
+                null
+            }
         }
     }
 
@@ -133,7 +135,6 @@ class MozillaArchiveRepositoryImpl(
                 char('-'); hour(); char('-'); minute(); char('-'); second()
             }
             LocalDateTime.parse(dateStr, format)
-
         } catch (_: Exception) {
             // Return a very old date so that it's never chosen as the max
             LocalDateTime(1, 1, 1, 0, 0)

@@ -15,14 +15,14 @@ interface ApiService {
     @GET("project/{project}/push/")
     suspend fun getPushByRevision(
         @Path("project") project: String,
-        @Query("revision") revision: String
+        @Query("revision") revision: String,
     ): TreeherderRevisionResponse
 
     @GET("project/try/push/")
     suspend fun getPushByAuthor(
         @Query("full") full: Boolean = true,
         @Query("count") count: Int = 10,
-        @Query("author") author: String
+        @Query("author") author: String,
     ): TreeherderRevisionResponse
 
     @GET("jobs/")

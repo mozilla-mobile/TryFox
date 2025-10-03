@@ -29,7 +29,7 @@ import java.io.File
 
 class TryFoxViewModel(
     private val repository: IFenixRepository,
-    private val cacheManager: CacheManager // Injected CacheManager
+    private val cacheManager: CacheManager,
 ) : ViewModel() {
     var revision by mutableStateOf("c2f3f652a3a063cb7933c2781038a25974cd09ec")
         private set
@@ -202,12 +202,13 @@ class TryFoxViewModel(
                             taskId = netJob.taskId,
                             isSignedBuild = netJob.isSignedBuild,
                             isTest = netJob.isTest,
-                            artifacts = emptyList()
+                            artifacts = emptyList(),
                         )
                     }
 
                     val updatedJobUiModels = initialJobUiModels.map {
-                        viewModelScope.async(Dispatchers.IO) { // Consider ioDispatcher if repository calls are blocking
+                        viewModelScope.async(Dispatchers.IO) {
+                            // Consider ioDispatcher if repository calls are blocking
                             val fetchedArtifacts = fetchArtifacts(it.taskId)
                             isLoadingJobArtifacts[it.taskId] = false
                             it.copy(artifacts = fetchedArtifacts)
@@ -258,7 +259,7 @@ class TryFoxViewModel(
                         taskId = taskId,
                         abi = AbiUiModel(
                             name = artifact.abi,
-                            isSupported = isCompatible
+                            isSupported = isCompatible,
                         ),
                         downloadUrl = artifact.getDownloadUrl(taskId),
                         expires = artifact.expires,
@@ -317,7 +318,7 @@ class TryFoxViewModel(
                     }
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(progress))
                     Log.d("FenixInstallerViewModel", "Download progress for $downloadKey: ${(progress * 100).toInt()}%")
-                }
+                },
             )
 
             when (result) {
@@ -340,12 +341,18 @@ class TryFoxViewModel(
     private fun updateArtifactDownloadState(taskIdToUpdate: String, artifactNameToUpdate: String, newState: DownloadState) {
         selectedJobs = selectedJobs.map {
             if (it.taskId == taskIdToUpdate) {
-                it.copy(artifacts = it.artifacts.map {
+                it.copy(
+                    artifacts = it.artifacts.map {
                     if (it.name == artifactNameToUpdate) {
                         it.copy(downloadState = newState)
-                    } else it
-                })
-            } else it
+                    } else {
+                        it
+                    }
+                },
+                )
+            } else {
+                it
+            }
         }
         checkAndUpdateDownloadingStatus()
     }
