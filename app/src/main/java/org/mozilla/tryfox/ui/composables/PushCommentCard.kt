@@ -35,8 +35,8 @@ import java.util.regex.Pattern
 private data class LinkableSpan(
     val start: Int,
     val end: Int,
-    val displayText: String, // The text to show (e.g., "Bug 12345" or "http://example.com")
-    val url: String          // The actual URL to link to
+    val displayText: String,
+    val url: String,
 )
 
 @Composable
@@ -44,16 +44,17 @@ fun PushCommentCard(comment: String, author: String?, revision: String) { // Add
     val urlPattern = remember {
         Pattern.compile(
             "(https?://|www\\.)" + // Scheme or www.
-            "([\\da-zA-Z.-]+)" +  // Domain name
+            "([\\da-zA-Z.-]+)" + // Domain name
             "(\\.[a-zA-Z.]{2,6})" + // TLD
-            "([/\\w .-]*)*/?"     // Path and query
+            "([/\\w .-]*)*/?", // Path and query
         )
     }
     val bugPattern = remember {
         Pattern.compile("Bug\\s*(\\d+)", Pattern.CASE_INSENSITIVE)
     }
 
-    val linkSpans = remember(comment) { // Recalculate if comment changes
+    val linkSpans = remember(comment) {
+        // Recalculate if comment changes
         val spans = mutableListOf<LinkableSpan>()
 
         val urlMatcher = urlPattern.matcher(comment)
@@ -63,8 +64,8 @@ fun PushCommentCard(comment: String, author: String?, revision: String) { // Add
                     start = urlMatcher.start(),
                     end = urlMatcher.end(),
                     displayText = urlMatcher.group(0) ?: "",
-                    url = urlMatcher.group(0) ?: ""
-                )
+                    url = urlMatcher.group(0) ?: "",
+                ),
             )
         }
 
@@ -77,8 +78,8 @@ fun PushCommentCard(comment: String, author: String?, revision: String) { // Add
                         start = bugMatcher.start(),
                         end = bugMatcher.end(),
                         displayText = bugMatcher.group(0) ?: "",
-                        url = "https://bugzilla.mozilla.org/show_bug.cgi?id=$bugNumber"
-                    )
+                        url = "https://bugzilla.mozilla.org/show_bug.cgi?id=$bugNumber",
+                    ),
                 )
             }
         }
@@ -95,12 +96,14 @@ fun PushCommentCard(comment: String, author: String?, revision: String) { // Add
             withLink(
                 link = LinkAnnotation.Url(
                     url = span.url,
-                    styles = TextLinkStyles(style = SpanStyle(
+                    styles = TextLinkStyles(
+                        style = SpanStyle(
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
-                        textDecoration = TextDecoration.Underline
-                    ))
-                )
+                        textDecoration = TextDecoration.Underline,
+                    ),
+                    ),
+                ),
             ) {
                 append(span.displayText)
             }
@@ -116,21 +119,21 @@ fun PushCommentCard(comment: String, author: String?, revision: String) { // Add
             .fillMaxWidth()
             .testTag("push_card_$revision"), // Applied testTag
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
                     imageVector = Icons.Filled.Info,
                     contentDescription = "Push Comment Info",
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 )
                 Text(
                     text = annotatedString,
-                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSecondaryContainer),
                 )
             }
 
@@ -142,9 +145,9 @@ fun PushCommentCard(comment: String, author: String?, revision: String) { // Add
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Filled.Person,
-                            contentDescription = "Author"
+                            contentDescription = "Author",
                         )
-                    }
+                    },
                 )
             }
         }

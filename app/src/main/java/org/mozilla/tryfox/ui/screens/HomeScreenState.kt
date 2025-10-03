@@ -22,8 +22,8 @@ sealed class HomeScreenState {
         val focusBuildsState: ApksState,
         val referenceBrowserBuildsState: ApksState,
         val cacheManagementState: CacheManagementState,
-        val isDownloadingAnyFile: Boolean
-    ): HomeScreenState()
+        val isDownloadingAnyFile: Boolean,
+    ) : HomeScreenState()
 
     // Consider if a global error state for the whole screen is needed,
     // e.g., if initial cache access fails catastrophically.

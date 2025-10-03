@@ -3,16 +3,16 @@ package org.mozilla.tryfox.data
 import android.util.Log // Added import
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import logcat.LogPriority
+import logcat.logcat
+import org.mozilla.tryfox.network.ApiService
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
-import logcat.LogPriority
-import logcat.logcat
-import org.mozilla.tryfox.network.ApiService
 
 class FenixRepository(
-    private val treeherderApiService: ApiService
+    private val treeherderApiService: ApiService,
 ) : IFenixRepository {
 
     companion object {
@@ -31,7 +31,7 @@ class FenixRepository(
 
     override suspend fun getPushByRevision(
         project: String,
-        revision: String
+        revision: String,
     ): NetworkResult<TreeherderRevisionResponse> {
         return safeApiCall { treeherderApiService.getPushByRevision(project, revision) }
     }
@@ -52,7 +52,7 @@ class FenixRepository(
     override suspend fun downloadArtifact(
         downloadUrl: String,
         outputFile: File,
-        onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit
+        onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit,
     ): NetworkResult<File> {
         logcat(TAG) { "downloadArtifact called. URL: $downloadUrl, OutputFile: ${outputFile.absolutePath}" }
         return try {

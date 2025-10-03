@@ -9,5 +9,5 @@ data class ArtifactUiModel(
     val downloadUrl: String,
     val expires: String,
     var downloadState: DownloadState,
-    val uniqueKey: String
+    val uniqueKey: String,
 )

@@ -30,7 +30,7 @@ import java.io.File
 class ProfileViewModel(
     private val fenixRepository: IFenixRepository,
     private val userDataRepository: UserDataRepository,
-    private val cacheManager: CacheManager
+    private val cacheManager: CacheManager,
 ) : ViewModel() {
 
     companion object {
@@ -63,11 +63,15 @@ class ProfileViewModel(
         cacheManager.cacheState.onEach { state ->
             if (state is CacheManagementState.IdleEmpty) {
                 val updatedPushes = _pushes.value.map {
-                    it.copy(jobs = it.jobs.map { job ->
-                        job.copy(artifacts = job.artifacts.map { artifact ->
+                    it.copy(
+                        jobs = it.jobs.map { job ->
+                        job.copy(
+                            artifacts = job.artifacts.map { artifact ->
                             artifact.copy(downloadState = DownloadState.NotDownloaded)
-                        })
-                    })
+                        },
+                        )
+                    },
+                    )
                 }
                 _pushes.value = updatedPushes
             }
@@ -113,7 +117,7 @@ class ProfileViewModel(
                                                     taskId = jobDetails.taskId,
                                                     isSignedBuild = jobDetails.isSignedBuild,
                                                     isTest = jobDetails.isTest,
-                                                    artifacts = artifacts
+                                                    artifacts = artifacts,
                                                 )
                                             } else {
                                                 null
@@ -136,7 +140,7 @@ class ProfileViewModel(
                                             pushComment = determinedPushComment,
                                             author = pushResult.author,
                                             jobs = jobsWithArtifacts,
-                                            revision = pushResult.revision
+                                            revision = pushResult.revision,
                                         )
                                     } else {
                                         logcat(LogPriority.VERBOSE, TAG) { "No jobs with artifacts for push ID: ${pushResult.id}" }
@@ -193,7 +197,7 @@ class ProfileViewModel(
                         taskId = taskId,
                         abi = AbiUiModel(
                             name = artifact.abi,
-                            isSupported = isCompatible
+                            isSupported = isCompatible,
                         ),
                         downloadUrl = artifact.getDownloadUrl(taskId),
                         expires = artifact.expires,
@@ -285,7 +289,7 @@ class ProfileViewModel(
                          logcat(LogPriority.VERBOSE, TAG) { "Download progress for ${artifactUiModel.name}: $bytesDownloaded / $totalBytes ($currentProgressFloat)" }
                     }
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(currentProgressFloat))
-                }
+                },
             )
 
             logcat(TAG) { "fenixRepository.downloadArtifact result for ${artifactUiModel.name}: $result" }
@@ -293,7 +297,7 @@ class ProfileViewModel(
                 is NetworkResult.Success -> {
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.Downloaded(result.data))
                     cacheManager.checkCacheStatus()
-                    logcat(TAG) { "Download success for ${artifactUiModel.name}. APK is ready to be installed." } 
+                    logcat(TAG) { "Download success for ${artifactUiModel.name}. APK is ready to be installed." }
                     onInstallApk?.invoke(result.data)
                 }
                 is NetworkResult.Error -> {
@@ -312,15 +316,23 @@ class ProfileViewModel(
 
     private fun updateArtifactDownloadState(taskIdToUpdate: String, artifactNameToUpdate: String, newState: DownloadState) {
         _pushes.value = _pushes.value.map { push ->
-            push.copy(jobs = push.jobs.map { job ->
+            push.copy(
+                jobs = push.jobs.map { job ->
                 if (job.taskId == taskIdToUpdate) {
-                    job.copy(artifacts = job.artifacts.map { artifact ->
+                    job.copy(
+                        artifacts = job.artifacts.map { artifact ->
                         if (artifact.name == artifactNameToUpdate) {
                             artifact.copy(downloadState = newState)
-                        } else artifact
-                    })
-                } else job
-            })
+                        } else {
+                            artifact
+                        }
+                    },
+                    )
+                } else {
+                    job
+                }
+            },
+            )
         }
     }
 }

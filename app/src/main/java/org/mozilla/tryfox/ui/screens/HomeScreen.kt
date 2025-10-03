@@ -48,7 +48,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     onNavigateToTreeherder: () -> Unit,
     onNavigateToProfile: () -> Unit,
-    homeViewModel: HomeViewModel = viewModel() // Assuming ViewModel is provided by Hilt or default factory later
+    homeViewModel: HomeViewModel = viewModel(),
 ) {
     val screenState by homeViewModel.homeScreenState.collectAsState()
 
@@ -69,19 +69,19 @@ fun HomeScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ),
                 actions = {
                     IconButton(onClick = onNavigateToProfile) {
                         Icon(
                             imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = stringResource(id = R.string.home_profile_button_description)
+                            contentDescription = stringResource(id = R.string.home_profile_button_description),
                         )
                     }
                     IconButton(onClick = onNavigateToTreeherder) {
                         Icon(
                             imageVector = Icons.Filled.Search,
-                            contentDescription = stringResource(id = R.string.home_search_treeherder_button_description)
+                            contentDescription = stringResource(id = R.string.home_search_treeherder_button_description),
                         )
                     }
                     val tooltipState = rememberTooltipState()
@@ -92,17 +92,17 @@ fun HomeScreen(
                                 Text(stringResource(id = R.string.bin_button_tooltip_clear_downloaded_apks))
                             }
                         },
-                        state = tooltipState
+                        state = tooltipState,
                     ) {
                         BinButton(
                             cacheState = currentCacheState,
                             onConfirm = { homeViewModel.clearAppCache() },
-                            enabled = binButtonEnabled
+                            enabled = binButtonEnabled,
                         )
                     }
-                }
+                },
             )
-        }
+        },
     ) { innerPadding ->
         when (val currentScreenState = screenState) {
             is HomeScreenState.InitialLoading -> {
@@ -110,7 +110,7 @@ fun HomeScreen(
                     CircularProgressIndicator()
                     Text(
                         stringResource(id = R.string.home_loading_initial_data),
-                        modifier = Modifier.padding(top = 70.dp) // Adjust as needed to place below indicator
+                        modifier = Modifier.padding(top = 70.dp), // Adjust as needed to place below indicator
                     )
                 }
             }
@@ -121,7 +121,7 @@ fun HomeScreen(
                         .padding(innerPadding)
                         .padding(horizontal = 16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Top
+                    verticalArrangement = Arrangement.Top,
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
                     LazyColumn(modifier = Modifier.fillMaxWidth()) {
@@ -157,7 +157,7 @@ fun AppNightlyComponent(
 ) {
     when (state) {
         is ApksState.Loading -> {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical=16.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
                 CircularProgressIndicator()
                 Text(stringResource(id = R.string.home_fetching_nightly_builds), modifier = Modifier.padding(top = 8.dp))
             }
@@ -167,13 +167,13 @@ fun AppNightlyComponent(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    .padding(vertical = 8.dp),
             ) {
                 Text(
                     text = state.message ?: stringResource(id = R.string.common_unknown_error),
                     modifier = Modifier.padding(16.dp),
                     color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
                 )
             }
         }

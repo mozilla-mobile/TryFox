@@ -10,6 +10,6 @@ interface IFenixRepository {
     suspend fun downloadArtifact(
         downloadUrl: String,
         outputFile: File,
-        onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit
+        onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit,
     ): NetworkResult<File>
 }

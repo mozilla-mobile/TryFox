@@ -11,7 +11,7 @@ class FakeFenixRepository(
 
     override suspend fun getPushByRevision(
         project: String,
-        revision: String
+        revision: String,
     ): NetworkResult<TreeherderRevisionResponse> {
         return if (simulateNetworkError) {
             NetworkResult.Error(networkErrorMessage)
@@ -19,8 +19,8 @@ class FakeFenixRepository(
             NetworkResult.Success(
                 TreeherderRevisionResponse(
                     meta = RevisionMeta(count = 0, repository = "mozilla-central", revision = revision),
-                    results = emptyList()
-                )
+                    results = emptyList(),
+                ),
             )
         }
     }
@@ -34,7 +34,7 @@ class FakeFenixRepository(
                 repositoryId = 1,
                 revision = "fakerevision123",
                 author = author,
-                comments = "Fake Bug 123456 - Test push"
+                comments = "Fake Bug 123456 - Test push",
             )
             val dummyRevisionResult = RevisionResult(
                 id = 12345,
@@ -43,13 +43,13 @@ class FakeFenixRepository(
                 revisions = listOf(dummyRevisionDetail),
                 revisionCount = 1,
                 pushTimestamp = System.currentTimeMillis() / 1000,
-                repositoryId = 1
+                repositoryId = 1,
             )
             NetworkResult.Success(
                 TreeherderRevisionResponse(
                     meta = RevisionMeta(count = 1, repository = "mozilla-central"),
-                    results = listOf(dummyRevisionResult)
-                )
+                    results = listOf(dummyRevisionResult),
+                ),
             )
         }
     }
@@ -62,7 +62,7 @@ class FakeFenixRepository(
                 appName = "fenix",
                 jobName = "Build Fenix for arm64-v8a",
                 jobSymbol = "Bsfv",
-                taskId = "WDJb1HJaTr-dfSkshBxw4w"
+                taskId = "WDJb1HJaTr-dfSkshBxw4w",
             )
             NetworkResult.Success(TreeherderJobsResponse(results = listOf(dummyJobDetails)))
         }
@@ -76,7 +76,7 @@ class FakeFenixRepository(
                 storageType = "taskcluster",
                 name = "public/build/target.arm64-v8a.apk",
                 expires = "2025-12-31T23:59:59Z",
-                contentType = "application/vnd.android.package-archive"
+                contentType = "application/vnd.android.package-archive",
             )
             NetworkResult.Success(ArtifactsResponse(artifacts = listOf(dummyArtifact)))
         }
@@ -85,7 +85,7 @@ class FakeFenixRepository(
     override suspend fun downloadArtifact(
         downloadUrl: String,
         outputFile: File,
-        onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit
+        onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit,
     ): NetworkResult<File> {
         if (simulateNetworkError) {
             return NetworkResult.Error(networkErrorMessage, null)

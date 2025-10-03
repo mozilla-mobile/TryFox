@@ -25,12 +25,12 @@ fun ArtifactCard(
     downloadState: DownloadState,
     abi: AbiUiModel,
     onDownloadClick: () -> Unit,
-    onInstallClick: (File) -> Unit
+    onInstallClick: (File) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Column(
             modifier = Modifier.padding(16.dp),
@@ -38,7 +38,7 @@ fun ArtifactCard(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
             ) {
                 AbiChip(abi)
 
@@ -47,7 +47,7 @@ fun ArtifactCard(
                 DownloadButton(
                     downloadState = downloadState,
                     onDownloadClick = onDownloadClick,
-                    onInstallClick = onInstallClick
+                    onInstallClick = onInstallClick,
                 )
             }
         }

@@ -45,7 +45,7 @@ class MozillaPackageManager(private val packageManager: PackageManager) {
             name = friendlyName,
             packageName = packageName,
             version = packageInfo?.versionName,
-            installDateMillis = packageInfo?.lastUpdateTime
+            installDateMillis = packageInfo?.lastUpdateTime,
         )
     }
 

@@ -7,5 +7,5 @@ data class ParsedNightlyApk(
     val version: String,
     val abiName: String,
     val fullUrl: String,
-    val fileName: String
+    val fileName: String,
 )

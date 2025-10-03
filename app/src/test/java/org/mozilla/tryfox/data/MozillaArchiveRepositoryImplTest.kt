@@ -111,7 +111,7 @@ class MozillaArchiveRepositoryImplTest {
 
         val expectedApks = listOf(
             ParsedNightlyApk(fenixDirString1, DATE, FENIX, fenixVersion, "arm64-v8a", fenixFullUrl1, fenixFileName1),
-            ParsedNightlyApk(fenixDirString2, DATE, FENIX, fenixVersion, "x86_64", fenixFullUrl2, fenixFileName2)
+            ParsedNightlyApk(fenixDirString2, DATE, FENIX, fenixVersion, "x86_64", fenixFullUrl2, fenixFileName2),
         )
         assertEquals(expectedApks.first(), apks.first())
         assertTrue(apks.containsAll(expectedApks) && expectedApks.containsAll(apks))
@@ -175,7 +175,7 @@ class MozillaArchiveRepositoryImplTest {
         val previousMonthMockHtml = createMockHtmlResponse(previousMonthDirString)
 
         whenever(mockApiService.getHtmlPage(currentMonthUrl)).thenThrow(
-            HttpException(Response.error<Any>(404, "".toResponseBody(null)))
+            HttpException(Response.error<Any>(404, "".toResponseBody(null))),
         )
         whenever(mockApiService.getHtmlPage(previousMonthUrl)).thenReturn(previousMonthMockHtml)
 

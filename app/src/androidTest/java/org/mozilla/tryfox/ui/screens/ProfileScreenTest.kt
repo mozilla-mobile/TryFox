@@ -31,7 +31,7 @@ class ProfileScreenTest {
     private val profileViewModel = ProfileViewModel(
         fenixRepository = fenixRepository,
         userDataRepository = userDataRepository,
-        cacheManager = cacheManager
+        cacheManager = cacheManager,
     )
     private val emailInputTag = "profile_email_input"
     private val emailClearButtonTag = "profile_email_clear_button"
@@ -54,7 +54,7 @@ class ProfileScreenTest {
         composeTestRule.setContent {
             ProfileScreen(
                 profileViewModel = profileViewModel,
-                onNavigateUp = {  }
+                onNavigateUp = { },
             )
         }
 

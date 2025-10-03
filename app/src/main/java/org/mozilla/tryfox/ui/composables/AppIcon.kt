@@ -24,7 +24,7 @@ fun AppIcon(appName: String, modifier: Modifier = Modifier) {
         Image(
             painter = painterResource(id = iconResId),
             contentDescription = stringResource(id = contentDescResId),
-            modifier = modifier
+            modifier = modifier,
         )
         Spacer(modifier = Modifier.width(8.dp))
     }
