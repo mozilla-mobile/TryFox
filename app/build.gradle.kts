@@ -23,30 +23,12 @@ android {
 
     buildTypes {
         release {
-            signingConfigs {
-                create("release") {
-                    val keystoreFile = System.getenv("KEYSTORE_FILE")
-                    val keystorePassword = System.getenv("KEYSTORE_PASSWORD")
-                    val keyAlias = System.getenv("KEY_ALIAS")
-                    val keyPassword = System.getenv("KEY_PASSWORD")
-
-                    if (keystoreFile != null && keystorePassword != null && keyAlias != null && keyPassword != null) {
-                        this.storeFile = file(keystoreFile)
-                        this.storePassword = keystorePassword
-                        this.keyAlias = keyAlias
-                        this.keyPassword = keyPassword
-                    } else if (System.getenv("GITHUB_ACTIONS") == "true") {
-                        throw GradleException("Missing one or more release signing environment variables. Please set KEYSTORE_FILE, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD.")
-                    }
-                }
-            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
-            signingConfig = signingConfigs.getByName("release")
         }
     }
 
