@@ -12,8 +12,11 @@ import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mozilla.tryfox.data.FakeCacheManager
 import org.mozilla.tryfox.data.FakeFenixRepository
+import org.mozilla.tryfox.data.FakeUserDataRepository
 import org.mozilla.tryfox.data.UserDataRepository
+import org.mozilla.tryfox.data.managers.CacheManager
 import java.io.File
 
 @RunWith(AndroidJUnit4::class)
@@ -24,9 +27,11 @@ class ProfileScreenTest {
 
     private val fenixRepository = FakeFenixRepository(downloadProgressDelayMillis = 100L)
     private val userDataRepository: UserDataRepository = FakeUserDataRepository()
+    private val cacheManager: CacheManager = FakeCacheManager()
     private val profileViewModel = ProfileViewModel(
         fenixRepository = fenixRepository,
-        userDataRepository = userDataRepository
+        userDataRepository = userDataRepository,
+        cacheManager = cacheManager
     )
     private val emailInputTag = "profile_email_input"
     private val emailClearButtonTag = "profile_email_clear_button"
