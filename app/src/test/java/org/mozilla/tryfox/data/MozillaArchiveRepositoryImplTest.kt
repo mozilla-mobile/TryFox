@@ -98,7 +98,7 @@ class MozillaArchiveRepositoryImplTest {
 
     @Test
     fun `getFenixNightlyBuilds success - multiple builds on latest date`() = runTest {
-        val olderDateDir = "2023-9-31-00-00-00-$FENIX-$fenixVersion-android-arm64-v8a/"
+        val olderDateDir = "2023-09-30-00-00-00-$FENIX-$fenixVersion-android-arm64-v8a/"
         val mockHtml = createMockHtmlResponse(fenixDirString1, fenixDirString2, olderDateDir)
         val expectedUrl = "https://archive.mozilla.org/pub/fenix/nightly/2023/10/"
         whenever(mockApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
@@ -117,7 +117,7 @@ class MozillaArchiveRepositoryImplTest {
         assertTrue(apks.containsAll(expectedApks) && expectedApks.containsAll(apks))
     }
 
-     @Test
+    @Test
     fun `getFenixNightlyBuilds success - sorts by date correctly`() = runTest {
         val olderDateDir = "2023-09-31-23-59-59-$FENIX-$fenixVersion-android-arm64-v8a/"
         val middleDateDir = fenixDirString1

@@ -12,22 +12,26 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
 import kotlinx.datetime.format
 import kotlinx.datetime.format.FormatStringsInDatetimeFormats
 import kotlinx.datetime.format.byUnicodePattern
+import kotlinx.datetime.todayIn
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.MozillaArchiveRepository
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
-import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.ParsedNightlyApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
-import org.mozilla.tryfox.ui.models.ApksState
+import org.mozilla.tryfox.ui.models.ApksResult
+import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
@@ -57,56 +61,23 @@ class HomeViewModel(
         cacheManager.cacheState
             .onEach { newCacheState ->
                 _homeScreenState.update { currentState ->
-                    var nextState = if (currentState is HomeScreenState.Loaded) {
-                        currentState.copy(cacheManagementState = newCacheState)
+                    if (currentState !is HomeScreenState.Loaded) return@update currentState
+
+                    val updatedApps = if (newCacheState is CacheManagementState.IdleEmpty) {
+                        currentState.apps.mapValues { (_, app) ->
+                            val apksResult = app.apks as? ApksResult.Success ?: return@mapValues app
+                            val updatedApks = apksResult.apks.map { it.copy(downloadState = DownloadState.NotDownloaded) }
+                            app.copy(apks = ApksResult.Success(updatedApks))
+                        }
                     } else {
-                        currentState
+                        currentState.apps
                     }
 
-                    if (newCacheState is CacheManagementState.IdleEmpty && nextState is HomeScreenState.Loaded) {
-                        val currentLoadedState = nextState
-
-                        val updatedFenixApks =
-                            (currentLoadedState.fenixBuildsState as? ApksState.Success)?.apks?.map {
-                                it.copy(downloadState = DownloadState.NotDownloaded)
-                            }
-                        val newFenixState =
-                            if (updatedFenixApks != null) {
-                                currentLoadedState.fenixBuildsState.copy(apks = updatedFenixApks)
-                            } else {
-                                currentLoadedState.fenixBuildsState
-                            }
-
-                        val updatedFocusApks =
-                            (currentLoadedState.focusBuildsState as? ApksState.Success)?.apks?.map {
-                                it.copy(downloadState = DownloadState.NotDownloaded)
-                            }
-                        val newFocusState =
-                            if (updatedFocusApks != null) {
-                                currentLoadedState.focusBuildsState.copy(apks = updatedFocusApks)
-                            } else {
-                                currentLoadedState.focusBuildsState
-                            }
-
-                        val updatedReferenceBrowserApks =
-                            (currentLoadedState.referenceBrowserBuildsState as? ApksState.Success)?.apks?.map {
-                                it.copy(downloadState = DownloadState.NotDownloaded)
-                            }
-                        val newReferenceBrowserState =
-                            if (updatedReferenceBrowserApks != null) {
-                                currentLoadedState.referenceBrowserBuildsState.copy(apks = updatedReferenceBrowserApks)
-                            } else {
-                                currentLoadedState.referenceBrowserBuildsState
-                            }
-
-                        nextState = currentLoadedState.copy(
-                            fenixBuildsState = newFenixState,
-                            focusBuildsState = newFocusState,
-                            referenceBrowserBuildsState = newReferenceBrowserState,
-                            isDownloadingAnyFile = false,
-                        )
-                    }
-                    nextState
+                    currentState.copy(
+                        apps = updatedApps,
+                        cacheManagementState = newCacheState,
+                        isDownloadingAnyFile = if (newCacheState is CacheManagementState.IdleEmpty) false else currentState.isDownloadingAnyFile,
+                    )
                 }
             }
             .launchIn(viewModelScope)
@@ -117,44 +88,61 @@ class HomeViewModel(
             _homeScreenState.value = HomeScreenState.InitialLoading
             cacheManager.checkCacheStatus() // Initial check
 
-            val fenixAppInfo = mozillaPackageManager.fenix
-            val focusAppInfo = mozillaPackageManager.focus
-            val referenceBrowserAppInfo = mozillaPackageManager.referenceBrowser
+            val appInfoMap = mapOf(
+                FENIX to mozillaPackageManager.fenix,
+                FOCUS to mozillaPackageManager.focus,
+                REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
+            )
 
             _homeScreenState.update {
                 val currentCacheState = cacheManager.cacheState.value
+                val initialApps = appInfoMap.mapValues { (appName, appState) ->
+                    AppUiModel(
+                        name = appName,
+                        packageName = appState?.packageName ?: "",
+                        installedVersion = appState?.version,
+                        installedDate = appState?.formattedInstallDate,
+                        apks = ApksResult.Loading,
+                    )
+                }
                 HomeScreenState.Loaded(
-                    fenixBuildsState = ApksState.Loading,
-                    focusBuildsState = ApksState.Loading,
-                    referenceBrowserBuildsState = ApksState.Loading,
+                    apps = initialApps,
                     cacheManagementState = currentCacheState,
                     isDownloadingAnyFile = false,
                 )
             }
 
-            val fenixResult = mozillaArchiveRepository.getFenixNightlyBuilds()
-            val focusResult = mozillaArchiveRepository.getFocusNightlyBuilds()
-            val referenceBrowserResult = mozillaArchiveRepository.getReferenceBrowserNightlyBuilds()
-
-            val fenixApksState = processRepositoryResult(fenixResult, FENIX, fenixAppInfo)
-            val focusApksState = processRepositoryResult(focusResult, FOCUS, focusAppInfo)
-            val referenceBrowserApksState = processRepositoryResult(
-                referenceBrowserResult,
-                REFERENCE_BROWSER,
-                referenceBrowserAppInfo,
+            val results = mapOf(
+                FENIX to mozillaArchiveRepository.getFenixNightlyBuilds(),
+                FOCUS to mozillaArchiveRepository.getFocusNightlyBuilds(),
+                REFERENCE_BROWSER to mozillaArchiveRepository.getReferenceBrowserNightlyBuilds(),
             )
 
-            val isDownloading =
-                checkIsDownloading(fenixApksState, focusApksState, referenceBrowserApksState)
+            val newApps = results.mapValues { (appName, result) ->
+                val appState = appInfoMap[appName]
+                val apksResult = when (result) {
+                    is NetworkResult.Success -> {
+                        val latestApks = getLatestApks(result.data)
+                        ApksResult.Success(convertParsedApksToUiModels(latestApks))
+                    }
+                    is NetworkResult.Error -> ApksResult.Error("Error fetching $appName nightly builds: ${result.message}")
+                }
+                AppUiModel(
+                    name = appName,
+                    packageName = appState?.packageName ?: "",
+                    installedVersion = appState?.version,
+                    installedDate = appState?.formattedInstallDate,
+                    apks = apksResult,
+                )
+            }
+
+            val isDownloading = newApps.values.any { app ->
+                (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
+            }
 
             _homeScreenState.update {
                 if (it is HomeScreenState.Loaded) {
-                    it.copy(
-                        fenixBuildsState = fenixApksState,
-                        focusBuildsState = focusApksState,
-                        referenceBrowserBuildsState = referenceBrowserApksState,
-                        isDownloadingAnyFile = isDownloading,
-                    )
+                    it.copy(apps = newApps, isDownloadingAnyFile = isDownloading)
                 } else {
                     it
                 }
@@ -162,38 +150,14 @@ class HomeViewModel(
         }
     }
 
-    private fun checkIsDownloading(
-        fenixState: ApksState,
-        focusState: ApksState,
-        referenceBrowserState: ApksState,
-    ): Boolean {
-        val fenixDownloading =
-            (fenixState as? ApksState.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
-        val focusDownloading =
-            (focusState as? ApksState.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
-        val referenceBrowserDownloading =
-            (referenceBrowserState as? ApksState.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
-        return fenixDownloading || focusDownloading || referenceBrowserDownloading
-    }
-
-    private fun processRepositoryResult(
-        result: NetworkResult<List<ParsedNightlyApk>>,
-        appName: String,
-        appState: AppState?,
-    ): ApksState {
-        return when (result) {
-            is NetworkResult.Success -> {
-                val uiModels = convertParsedApksToUiModels(result.data)
-                ApksState.Success(uiModels, appState)
-            }
-
-            is NetworkResult.Error -> {
-                ApksState.Error(
-                    "Error fetching $appName nightly builds: ${result.message}",
-                    appState,
-                )
-            }
+    private fun getLatestApks(apks: List<ParsedNightlyApk>): List<ParsedNightlyApk> {
+        if (apks.isEmpty()) {
+            return emptyList()
+        } else if (apks.none { it.rawDateString != null }) {
+            return apks
         }
+        val latestDateString = apks.maxOfOrNull { it.rawDateString ?: "" }
+        return apks.filter { it.rawDateString == latestDateString }
     }
 
     private fun convertParsedApksToUiModels(parsedApks: List<ParsedNightlyApk>): List<ApkUiModel> {
@@ -208,11 +172,7 @@ class HomeViewModel(
 
             val datePart = date?.take(10)
             val appCacheDir = cacheManager.getCacheDir(parsedApk.appName)
-            val apkDir = if (datePart.isNullOrBlank()) {
-                appCacheDir
-            } else {
-                File(appCacheDir, datePart)
-            }
+            val apkDir = if (datePart.isNullOrBlank()) appCacheDir else File(appCacheDir, datePart)
             val cacheFile = File(apkDir, parsedApk.fileName)
 
             val downloadState = if (cacheFile.exists()) {
@@ -221,11 +181,7 @@ class HomeViewModel(
                 DownloadState.NotDownloaded
             }
 
-            val uniqueKeyPath = if (datePart.isNullOrBlank()) {
-                parsedApk.appName
-            } else {
-                "${parsedApk.appName}/$datePart"
-            }
+            val uniqueKeyPath = if (datePart.isNullOrBlank()) parsedApk.appName else "${parsedApk.appName}/$datePart"
             val uniqueKey = "$uniqueKeyPath/${parsedApk.fileName}"
 
             ApkUiModel(
@@ -247,66 +203,35 @@ class HomeViewModel(
         return try {
             val inputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd-HH-mm-ss") }
             val outputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd HH:mm") }
-            LocalDateTime.parse(this, inputFormat).format(outputFormat)
+            outputFormat.format(LocalDateTime.parse(this, inputFormat))
         } catch (_: Exception) {
             this
         }
     }
 
-    private fun updateApkListState(
-        apkState: ApksState,
-        uniqueKey: String,
-        newDownloadState: DownloadState,
-    ): ApksState {
-        val state = apkState as? ApksState.Success ?: return apkState
-
-        val updatedApks = state.apks.map {
-            if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
-        }
-        return apkState.copy(apks = updatedApks)
-    }
-
     private fun updateApkDownloadStateInScreenState(
-        app: String,
+        appName: String,
         uniqueKey: String,
         newDownloadState: DownloadState,
     ) {
         _homeScreenState.update { currentState ->
             if (currentState !is HomeScreenState.Loaded) return@update currentState
 
-            val updatedFenixState = if (app.equals(FENIX, ignoreCase = true)) {
-                updateApkListState(currentState.fenixBuildsState, uniqueKey, newDownloadState)
-            } else {
-                currentState.fenixBuildsState
+            val updatedApps = currentState.apps.toMutableMap()
+            val appToUpdate = updatedApps[appName] ?: return@update currentState
+            val apksResult = appToUpdate.apks as? ApksResult.Success ?: return@update currentState
+
+            val updatedApks = apksResult.apks.map {
+                if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
             }
 
-            val updatedFocusState = if (app.equals(FOCUS, ignoreCase = true)) {
-                updateApkListState(currentState.focusBuildsState, uniqueKey, newDownloadState)
-            } else {
-                currentState.focusBuildsState
+            updatedApps[appName] = appToUpdate.copy(apks = ApksResult.Success(updatedApks))
+
+            val isDownloading = updatedApps.values.any { app ->
+                (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
             }
 
-            val updatedReferenceBrowserState =
-                if (app.equals(REFERENCE_BROWSER, ignoreCase = true)) {
-                    updateApkListState(
-                        currentState.referenceBrowserBuildsState,
-                        uniqueKey,
-                        newDownloadState,
-                    )
-                } else {
-                    currentState.referenceBrowserBuildsState
-                }
-
-            currentState.copy(
-                fenixBuildsState = updatedFenixState,
-                focusBuildsState = updatedFocusState,
-                referenceBrowserBuildsState = updatedReferenceBrowserState,
-                isDownloadingAnyFile = checkIsDownloading(
-                    updatedFenixState,
-                    updatedFocusState,
-                    updatedReferenceBrowserState,
-                ),
-            )
+            currentState.copy(apps = updatedApps, isDownloadingAnyFile = isDownloading)
         }
     }
 
@@ -366,6 +291,102 @@ class HomeViewModel(
     fun clearAppCache() {
         viewModelScope.launch {
             cacheManager.clearCache()
+        }
+    }
+
+    fun onDateSelected(appName: String, date: LocalDate) {
+        if (appName == REFERENCE_BROWSER) {
+            return
+        }
+
+        viewModelScope.launch {
+            val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
+
+            val appToUpdate = currentState.apps[appName] ?: return@launch
+
+            val updatedApp = appToUpdate.copy(userPickedDate = date, apks = ApksResult.Loading)
+
+            val updatedApps = currentState.apps.toMutableMap()
+            updatedApps[appName] = updatedApp
+
+            _homeScreenState.value = currentState.copy(apps = updatedApps)
+
+            val result = when (appName) {
+                FENIX -> mozillaArchiveRepository.getFenixNightlyBuilds(date)
+                FOCUS -> mozillaArchiveRepository.getFocusNightlyBuilds(date)
+                else -> return@launch
+            }
+
+            val newApksResult = when (result) {
+                is NetworkResult.Success -> {
+                    val latestApks = getLatestApks(result.data)
+                    ApksResult.Success(convertParsedApksToUiModels(latestApks))
+                }
+                is NetworkResult.Error -> ApksResult.Error("Error fetching $appName nightly builds for $date: ${result.message}")
+            }
+
+            val latestState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
+            val latestAppToUpdate = latestState.apps[appName] ?: return@launch
+
+            val finalUpdatedApp = latestAppToUpdate.copy(apks = newApksResult)
+
+            val finalUpdatedApps = latestState.apps.toMutableMap()
+            finalUpdatedApps[appName] = finalUpdatedApp
+            _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
+        }
+    }
+
+    fun onClearDate(appName: String) {
+        viewModelScope.launch {
+            val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
+            val appToUpdate = currentState.apps[appName] ?: return@launch
+
+            val updatedApp = appToUpdate.copy(userPickedDate = null, apks = ApksResult.Loading)
+            val updatedApps = currentState.apps.toMutableMap()
+            updatedApps[appName] = updatedApp
+
+            _homeScreenState.value = currentState.copy(apps = updatedApps)
+
+            val result = when (appName) {
+                FENIX -> mozillaArchiveRepository.getFenixNightlyBuilds()
+                FOCUS -> mozillaArchiveRepository.getFocusNightlyBuilds()
+                else -> return@launch
+            }
+
+            val newApksResult = when (result) {
+                is NetworkResult.Success -> {
+                    val latestApks = getLatestApks(result.data)
+                    ApksResult.Success(convertParsedApksToUiModels(latestApks))
+                }
+                is NetworkResult.Error -> ApksResult.Error("Error fetching $appName nightly builds: ${result.message}")
+            }
+
+            val latestState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
+            val latestAppToUpdate = latestState.apps[appName] ?: return@launch
+
+            val finalUpdatedApp = latestAppToUpdate.copy(apks = newApksResult)
+
+            val finalUpdatedApps = latestState.apps.toMutableMap()
+            finalUpdatedApps[appName] = finalUpdatedApp
+            _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
+        }
+    }
+
+    fun getDateValidator(appName: String): (LocalDate) -> Boolean {
+        val today = Clock.System.todayIn(TimeZone.currentSystemDefault())
+        val fenixMinDate = LocalDate(2021, 12, 21)
+        val focusMinDate = LocalDate(2023, 7, 13)
+
+        return { date ->
+            if (date > today) {
+                false
+            } else {
+                when (appName) {
+                    FENIX -> date >= fenixMinDate
+                    FOCUS -> date >= focusMinDate
+                    else -> true
+                }
+            }
         }
     }
 
