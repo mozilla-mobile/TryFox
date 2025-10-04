@@ -3,9 +3,7 @@ package org.mozilla.tryfox.data
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.format.char
 import kotlinx.datetime.minus
 import kotlinx.datetime.todayIn
 import org.mozilla.tryfox.model.ParsedNightlyApk
@@ -33,22 +31,27 @@ class MozillaArchiveRepositoryImpl(
         }
     }
 
-    private suspend fun getNightlyBuilds(appName: String): NetworkResult<List<ParsedNightlyApk>> {
+    private suspend fun getNightlyBuilds(appName: String, date: LocalDate? = null): NetworkResult<List<ParsedNightlyApk>> {
+        if (date != null) {
+            val url = archiveUrlForDate(appName, date)
+            return fetchAndParseNightlyBuilds(url, appName, date)
+        }
+
         val today = clock.todayIn(TimeZone.currentSystemDefault())
         val currentMonthUrl = archiveUrlForDate(appName, today)
-        val result = fetchAndParseNightlyBuilds(currentMonthUrl, appName)
+        val result = fetchAndParseNightlyBuilds(currentMonthUrl, appName, null)
 
         if (result is NetworkResult.Error && (result.cause as? HttpException)?.code() == 404) {
             val lastMonth = today.minus(1, DateTimeUnit.MONTH)
             val lastMonthUrl = archiveUrlForDate(appName, lastMonth)
-            return fetchAndParseNightlyBuilds(lastMonthUrl, appName)
+            return fetchAndParseNightlyBuilds(lastMonthUrl, appName, null)
         }
         return result
     }
 
-    override suspend fun getFenixNightlyBuilds(): NetworkResult<List<ParsedNightlyApk>> = getNightlyBuilds(FENIX)
+    override suspend fun getFenixNightlyBuilds(date: LocalDate?): NetworkResult<List<ParsedNightlyApk>> = getNightlyBuilds(FENIX, date)
 
-    override suspend fun getFocusNightlyBuilds(): NetworkResult<List<ParsedNightlyApk>> = getNightlyBuilds(FOCUS)
+    override suspend fun getFocusNightlyBuilds(date: LocalDate?): NetworkResult<List<ParsedNightlyApk>> = getNightlyBuilds(FOCUS, date)
 
     override suspend fun getReferenceBrowserNightlyBuilds(): NetworkResult<List<ParsedNightlyApk>> {
         return try {
@@ -71,10 +74,10 @@ class MozillaArchiveRepositoryImpl(
         }
     }
 
-    private suspend fun fetchAndParseNightlyBuilds(archiveBaseUrl: String, appNameFilter: String): NetworkResult<List<ParsedNightlyApk>> {
+    private suspend fun fetchAndParseNightlyBuilds(archiveBaseUrl: String, appNameFilter: String, date: LocalDate?): NetworkResult<List<ParsedNightlyApk>> {
         return try {
             val htmlResult = archiveApiService.getHtmlPage(archiveBaseUrl)
-            val parsedApks = parseNightlyBuildsFromHtml(htmlResult, archiveBaseUrl, appNameFilter)
+            val parsedApks = parseNightlyBuildsFromHtml(htmlResult, archiveBaseUrl, appNameFilter, date)
             NetworkResult.Success(parsedApks)
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch or parse $appNameFilter builds: ${e.message}", e)
@@ -85,24 +88,28 @@ class MozillaArchiveRepositoryImpl(
         html: String,
         archiveUrl: String,
         app: String,
+        date: LocalDate?,
     ): List<ParsedNightlyApk> {
-        val htmlPattern = Regex("""<td>Dir</td>\s*<td><a href="[^"]*">([^<]+/)</a></td>""")
+        val htmlPattern = Regex("<td>Dir</td>\\s*<td><a href=\"[^\"]*\">([^<]+/)</a></td>")
         val rawBuildStrings = htmlPattern.findAll(html)
             .mapNotNull { it.groups[1]?.value }
             .filter { it != "../" }
             .toList()
 
-        val buildsByDate = rawBuildStrings.groupBy { it.substringBefore("-$app") }
-        if (buildsByDate.isEmpty()) return emptyList()
-
-        val lastBuildDateStr = buildsByDate.keys.maxByOrNull(::parseDateString) ?: return emptyList()
-
-        val lastBuildsForDate = buildsByDate[lastBuildDateStr] ?: return emptyList()
+        val buildsForDate = if (date != null) {
+            val dateString = date.toString()
+            rawBuildStrings.filter { it.startsWith(dateString) }
+        } else {
+            val buildsByDay = rawBuildStrings.groupBy { it.substring(0, 10) }
+            if (buildsByDay.isEmpty()) return emptyList()
+            val latestDay = buildsByDay.keys.maxOrNull() ?: return emptyList()
+            buildsByDay[latestDay] ?: emptyList()
+        }
 
         val apkPattern =
-            Pattern.compile("""^(\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2})-(.*?)-([^-]+)-android-(.*?)/$""")
+            Pattern.compile("^(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})-(.*?)-([^-]+)-android-(.*?)/$")
 
-        return lastBuildsForDate.mapNotNull { buildString ->
+        return buildsForDate.mapNotNull { buildString ->
             val matcher = apkPattern.matcher(buildString)
             if (matcher.matches()) {
                 val rawDate = matcher.group(1) ?: ""
@@ -125,19 +132,6 @@ class MozillaArchiveRepositoryImpl(
             } else {
                 null
             }
-        }
-    }
-
-    private fun parseDateString(dateStr: String): LocalDateTime {
-        return try {
-            val format = LocalDateTime.Format {
-                year(); char('-'); monthNumber(); char('-'); dayOfMonth()
-                char('-'); hour(); char('-'); minute(); char('-'); second()
-            }
-            LocalDateTime.parse(dateStr, format)
-        } catch (_: Exception) {
-            // Return a very old date so that it's never chosen as the max
-            LocalDateTime(1, 1, 1, 0, 0)
         }
     }
 }

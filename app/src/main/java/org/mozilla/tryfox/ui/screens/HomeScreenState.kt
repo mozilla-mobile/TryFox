@@ -1,7 +1,7 @@
 package org.mozilla.tryfox.ui.screens
 
 import org.mozilla.tryfox.model.CacheManagementState
-import org.mozilla.tryfox.ui.models.ApksState
+import org.mozilla.tryfox.ui.models.AppUiModel
 
 /**
  * Represents the various states of the Home screen.
@@ -14,18 +14,10 @@ sealed class HomeScreenState {
 
     /**
      * State when the main data for the screen has been loaded.
-     * It contains individual states for Fenix builds, Focus builds, app information,
-     * and cache status.
      */
     data class Loaded(
-        val fenixBuildsState: ApksState,
-        val focusBuildsState: ApksState,
-        val referenceBrowserBuildsState: ApksState,
+        val apps: Map<String, AppUiModel>,
         val cacheManagementState: CacheManagementState,
         val isDownloadingAnyFile: Boolean,
     ) : HomeScreenState()
-
-    // Consider if a global error state for the whole screen is needed,
-    // e.g., if initial cache access fails catastrophically.
-    // For now, errors related to fetching builds are handled within FocusApksState.
 }

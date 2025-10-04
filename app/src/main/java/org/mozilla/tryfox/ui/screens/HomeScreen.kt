@@ -9,11 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,11 +35,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.datetime.LocalDate
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.ArchiveGroupCard
 import org.mozilla.tryfox.ui.composables.BinButton
-import org.mozilla.tryfox.ui.models.ApksState
+import org.mozilla.tryfox.ui.models.ApkUiModel
+import org.mozilla.tryfox.ui.models.ApksResult
+import org.mozilla.tryfox.ui.models.AppUiModel
+import org.mozilla.tryfox.util.parseDateToMillis
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -125,22 +130,14 @@ fun HomeScreen(
                 ) {
                     Spacer(modifier = Modifier.height(16.dp))
                     LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                        item {
-                            AppNightlyComponent(
-                                state = currentScreenState.fenixBuildsState,
-                                homeViewModel = homeViewModel, // Still needed for download/install actions
-                            )
-                        }
-                        item {
-                            AppNightlyComponent(
-                                state = currentScreenState.focusBuildsState,
-                                homeViewModel = homeViewModel,
-                            )
-                        }
-                        item {
-                            AppNightlyComponent(
-                                state = currentScreenState.referenceBrowserBuildsState,
-                                homeViewModel = homeViewModel,
+                        items(currentScreenState.apps.values.toList()) { app ->
+                            AppComponent(
+                                app = app,
+                                onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
+                                onInstallClick = { homeViewModel.onInstallApk?.invoke(it) },
+                                onDateSelected = { appName, date -> homeViewModel.onDateSelected(appName, date) },
+                                dateValidator = homeViewModel.getDateValidator(app.name),
+                                onClearDate = { appName -> homeViewModel.onClearDate(appName) },
                             )
                         }
                     }
@@ -151,40 +148,40 @@ fun HomeScreen(
 }
 
 @Composable
-fun AppNightlyComponent(
-    state: ApksState,
-    homeViewModel: HomeViewModel, // Kept for actions like downloadNightlyApk
+fun AppComponent(
+    app: AppUiModel,
+    onDownloadClick: (ApkUiModel) -> Unit,
+    onInstallClick: (File) -> Unit,
+    onDateSelected: (String, LocalDate) -> Unit,
+    dateValidator: (LocalDate) -> Boolean,
+    onClearDate: (String) -> Unit,
 ) {
-    when (state) {
-        is ApksState.Loading -> {
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
-                CircularProgressIndicator()
-                Text(stringResource(id = R.string.home_fetching_nightly_builds), modifier = Modifier.padding(top = 8.dp))
-            }
-        }
-        is ApksState.Error -> {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-            ) {
-                Text(
-                    text = state.message ?: stringResource(id = R.string.common_unknown_error),
-                    modifier = Modifier.padding(16.dp),
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-        is ApksState.Success -> {
-            ArchiveGroupCard(
-                modifier = Modifier.padding(vertical = 8.dp),
-                apks = state.apks,
-                appState = state.appState,
-                homeViewModel = homeViewModel,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-        }
+    val apksResult = app.apks
+
+    val appState = if (app.installedVersion != null) {
+        AppState(
+            name = app.name,
+            packageName = app.packageName,
+            version = app.installedVersion,
+            installDateMillis = app.installedDate?.let { parseDateToMillis(it) },
+        )
+    } else {
+        null
     }
+
+    ArchiveGroupCard(
+        modifier = Modifier.padding(vertical = 8.dp),
+        apks = (apksResult as? ApksResult.Success)?.apks ?: emptyList(),
+        appState = appState,
+        onDownloadClick = onDownloadClick,
+        onInstallClick = onInstallClick,
+        onDateSelected = { date -> onDateSelected(app.name, date) },
+        userPickedDate = app.userPickedDate,
+        appName = app.name,
+        errorMessage = (apksResult as? ApksResult.Error)?.message,
+        isLoading = apksResult is ApksResult.Loading,
+        dateValidator = dateValidator,
+        onClearDate = { onClearDate(app.name) },
+    )
+    Spacer(modifier = Modifier.height(16.dp))
 }

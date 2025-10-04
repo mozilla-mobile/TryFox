@@ -17,9 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.mozilla.tryfox.model.AppState
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.concurrent.TimeUnit
+import org.mozilla.tryfox.util.parseDateToMillis
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun CurrentInstallState(
@@ -28,12 +27,7 @@ fun CurrentInstallState(
     modifier: Modifier = Modifier,
 ) {
     val apkDateMillis: Long = remember(apkDisplayDateString) {
-        try {
-            val parser = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-            parser.parse(apkDisplayDateString)?.time ?: 0L
-        } catch (_: Exception) {
-            0L // Fallback in case of parsing error
-        }
+        parseDateToMillis(apkDisplayDateString)
     }
 
     Row(
@@ -71,9 +65,9 @@ fun CurrentInstallState(
                 )
             }
             else -> {
-                val diffMillis = apkDateMillis - appState.installDateMillis
-                val daysBehind = TimeUnit.MILLISECONDS.toDays(diffMillis)
-                val hoursBehind = TimeUnit.MILLISECONDS.toHours(diffMillis)
+                val diff = (apkDateMillis - appState.installDateMillis).milliseconds
+                val daysBehind = diff.inWholeDays
+                val hoursBehind = diff.inWholeHours
 
                 val timeBehindText = when {
                     daysBehind > 31 -> "${daysBehind / 7} weeks behind"

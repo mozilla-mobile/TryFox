@@ -55,4 +55,6 @@
     <string name="app_name_fenix">Fenix</string>
     <string name="app_name_focus">Focus</string>
     <string name="app_name_reference_browser">Reference Browser</string>
+    <string name="unsupported_abi">Unsupported ABI</string>
+    <string name="clear_date_selection">Clear date selection</string>
 </resources>
