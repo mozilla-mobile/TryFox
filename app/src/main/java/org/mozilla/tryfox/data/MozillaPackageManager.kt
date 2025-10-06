@@ -1,72 +1,38 @@
 package org.mozilla.tryfox.data
 
-import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
-import android.util.Log
+import kotlinx.coroutines.flow.Flow
 import org.mozilla.tryfox.model.AppState
 
 /**
- * Manages interactions with the Android [PackageManager] to retrieve information
+ * Manages interactions with the Android PackageManager to retrieve information
  * about Mozilla applications installed on the device.
- *
- * @property packageManager The Android [PackageManager] instance used to query package information.
  */
-class MozillaPackageManager(private val packageManager: PackageManager) {
-
-    /**
-     * Retrieves [PackageInfo] for a given package name.
-     *
-     * @param packageName The name of the package to retrieve information for.
-     * @return [PackageInfo] if the package is found and no error occurs, null otherwise.
-     */
-    private fun getPackageInfo(packageName: String): PackageInfo? {
-        return try {
-            packageManager.getPackageInfo(packageName, 0)
-        } catch (_: PackageManager.NameNotFoundException) {
-            Log.d("MozillaPackageManager", "Package not found: $packageName")
-            null
-        } catch (e: Exception) {
-            Log.e("MozillaPackageManager", "Error getting package info for $packageName", e)
-            null
-        }
-    }
-
-    /**
-     * Constructs an [AppState] object for a given package name and friendly name.
-     *
-     * @param packageName The package name of the application.
-     * @param friendlyName A user-friendly name for the application.
-     * @return An [AppState] object representing the application's state.
-     */
-    private fun getAppState(packageName: String, friendlyName: String): AppState {
-        val packageInfo = getPackageInfo(packageName)
-
-        return AppState(
-            name = friendlyName,
-            packageName = packageName,
-            version = packageInfo?.versionName,
-            installDateMillis = packageInfo?.lastUpdateTime,
-        )
-    }
-
+interface MozillaPackageManager {
     /**
      * The [AppState] for Fenix (Firefox for Android).
      */
-    val fenix: AppState by lazy {
-        getAppState("org.mozilla.fenix", "Fenix")
-    }
+    val fenix: AppState
 
     /**
      * The [AppState] for Focus Nightly.
      */
-    val focus: AppState by lazy {
-        getAppState("org.mozilla.focus.nightly", "Focus Nightly")
-    }
+    val focus: AppState
 
     /**
      * The [AppState] for Reference Browser.
      */
-    val referenceBrowser: AppState by lazy {
-        getAppState("org.mozilla.reference.browser", "Reference Browser")
-    }
+    val referenceBrowser: AppState
+
+    /**
+     * A flow that emits an [AppState] whenever a monitored Mozilla application
+     * is installed or uninstalled.
+     */
+    val appStates: Flow<AppState>
+
+    /**
+     * Launches the application with the given package name.
+     *
+     * @param appName The package name of the app to launch.
+     */
+    fun launchApp(appName: String)
 }

@@ -30,7 +30,6 @@ import org.mockito.quality.Strictness
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.MozillaArchiveRepository
-import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.model.CacheManagementState
@@ -40,7 +39,6 @@ import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
-import org.mozilla.tryfox.util.FakeIntentHelper
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import java.io.File
 
@@ -56,16 +54,13 @@ class HomeViewModelTest {
 
     private lateinit var viewModel: HomeViewModel
     private lateinit var fakeCacheManager: FakeCacheManager
-    private val fakeIntentHelper = FakeIntentHelper()
+    private lateinit var fakeMozillaPackageManager: FakeMozillaPackageManager
 
     @Mock
     private lateinit var mockFenixRepository: IFenixRepository
 
     @Mock
     private lateinit var mockMozillaArchiveRepository: MozillaArchiveRepository
-
-    @Mock
-    private lateinit var mockMozillaPackageManager: MozillaPackageManager
 
     @TempDir
     lateinit var tempCacheDir: File
@@ -139,22 +134,18 @@ class HomeViewModelTest {
 
     @BeforeEach
     fun setUp() = runTest {
-        whenever(mockMozillaPackageManager.fenix).thenReturn(null)
-        whenever(mockMozillaPackageManager.focus).thenReturn(null)
-        whenever(mockMozillaPackageManager.referenceBrowser).thenReturn(null) // Added for Reference Browser
-
         whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(emptyList()))
         whenever(mockMozillaArchiveRepository.getFocusNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(emptyList()))
         whenever(mockMozillaArchiveRepository.getReferenceBrowserNightlyBuilds()).thenReturn(NetworkResult.Success(emptyList())) // Added
 
         fakeCacheManager = FakeCacheManager(tempCacheDir)
+        fakeMozillaPackageManager = FakeMozillaPackageManager()
 
         viewModel = HomeViewModel(
             mozillaArchiveRepository = mockMozillaArchiveRepository,
             fenixRepository = mockFenixRepository,
-            mozillaPackageManager = mockMozillaPackageManager,
+            mozillaPackageManager = fakeMozillaPackageManager,
             cacheManager = fakeCacheManager,
-            intentHelper = fakeIntentHelper,
             ioDispatcher = mainCoroutineRule.testDispatcher,
         )
         viewModel.deviceSupportedAbisForTesting = listOf("arm64-v8a", "x86_64", "armeabi-v7a")
