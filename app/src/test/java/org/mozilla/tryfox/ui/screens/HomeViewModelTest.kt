@@ -40,6 +40,7 @@ import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FakeIntentHelper
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import java.io.File
 
@@ -55,6 +56,7 @@ class HomeViewModelTest {
 
     private lateinit var viewModel: HomeViewModel
     private lateinit var fakeCacheManager: FakeCacheManager
+    private val fakeIntentHelper = FakeIntentHelper()
 
     @Mock
     private lateinit var mockFenixRepository: IFenixRepository
@@ -152,6 +154,7 @@ class HomeViewModelTest {
             fenixRepository = mockFenixRepository,
             mozillaPackageManager = mockMozillaPackageManager,
             cacheManager = fakeCacheManager,
+            intentHelper = fakeIntentHelper,
             ioDispatcher = mainCoroutineRule.testDispatcher,
         )
         viewModel.deviceSupportedAbisForTesting = listOf("arm64-v8a", "x86_64", "armeabi-v7a")

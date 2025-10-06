@@ -25,6 +25,8 @@ import org.mozilla.tryfox.data.managers.DefaultCacheManager
 import org.mozilla.tryfox.network.ApiService
 import org.mozilla.tryfox.ui.screens.HomeViewModel
 import org.mozilla.tryfox.ui.screens.ProfileViewModel
+import org.mozilla.tryfox.util.DefaultIntentHelper
+import org.mozilla.tryfox.util.IntentHelper
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
 
@@ -70,11 +72,12 @@ val repositoryModule = module {
     single<MozillaArchiveRepository> { MozillaArchiveRepositoryImpl(get()) }
     single { MozillaPackageManager(androidContext().packageManager) }
     single<CacheManager> { DefaultCacheManager(androidContext().cacheDir, get(named("IODispatcher"))) }
+    single<IntentHelper> { DefaultIntentHelper(androidContext()) }
 }
 
 val viewModelModule = module {
     viewModel { TryFoxViewModel(get(), get()) }
-    viewModel { HomeViewModel(get(), get(), get(), get(), get(named("IODispatcher"))) }
+    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(named("IODispatcher"))) }
     viewModel { ProfileViewModel(get(), get(), get()) }
 }
 
