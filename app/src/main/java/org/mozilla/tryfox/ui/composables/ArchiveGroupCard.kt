@@ -100,7 +100,6 @@ fun ArchiveGroupCard(
         Column(modifier = Modifier.padding(ArchiveGroupCardTokens.ColumnPadding)) {
             CurrentInstallState(
                 appState = appState,
-                apkDisplayDateString = dateFromApk,
             )
 
             ArchiveGroupHeader(
