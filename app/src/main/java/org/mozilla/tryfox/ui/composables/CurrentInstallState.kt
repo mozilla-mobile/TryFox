@@ -23,13 +23,8 @@ import kotlin.time.Duration.Companion.milliseconds
 @Composable
 fun CurrentInstallState(
     appState: AppState?,
-    apkDisplayDateString: String,
     modifier: Modifier = Modifier,
 ) {
-    val apkDateMillis: Long = remember(apkDisplayDateString) {
-        parseDateToMillis(apkDisplayDateString)
-    }
-
     Row(
         modifier = modifier.padding(bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -46,50 +41,11 @@ fun CurrentInstallState(
                     border = null,
                 )
             }
-            apkDateMillis == 0L || appState.installDateMillis == null -> {
+            else -> {
                 AssistChip(
                     onClick = { /* No action */ },
                     label = { Text("Installed") },
                     border = AssistChipDefaults.assistChipBorder(true),
-                )
-            }
-            appState.installDateMillis >= apkDateMillis -> {
-                AssistChip(
-                    onClick = { /* No action */ },
-                    label = { Text("Up to date") },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    ),
-                    border = null,
-                )
-            }
-            else -> {
-                val diff = (apkDateMillis - appState.installDateMillis).milliseconds
-                val daysBehind = diff.inWholeDays
-                val hoursBehind = diff.inWholeHours
-
-                val timeBehindText = when {
-                    daysBehind > 31 -> "${daysBehind / 7} weeks behind"
-                    daysBehind > 0 -> "$daysBehind days behind"
-                    hoursBehind > 0 -> "$hoursBehind hours behind"
-                    else -> "Less than an hour behind"
-                }
-                AssistChip(
-                    onClick = { /* No action */ },
-                    label = { Text(timeBehindText) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Filled.Warning,
-                            contentDescription = "Warning",
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer,
-                        )
-                    },
-                    colors = AssistChipDefaults.assistChipColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        labelColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    ),
-                    border = null,
                 )
             }
         }
