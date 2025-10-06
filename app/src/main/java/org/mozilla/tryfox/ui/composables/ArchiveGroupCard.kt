@@ -1,5 +1,6 @@
 package org.mozilla.tryfox.ui.composables
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,9 +24,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,7 +38,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +74,7 @@ fun ArchiveGroupCard(
     apks: List<ApkUiModel>,
     onDownloadClick: (ApkUiModel) -> Unit,
     onInstallClick: (File) -> Unit,
+    onOpenAppClick: () -> Unit,
     appState: AppState?,
     onDateSelected: (LocalDate) -> Unit,
     userPickedDate: LocalDate?,
@@ -111,6 +112,7 @@ fun ArchiveGroupCard(
                 isDatePickerEnabled = isDatePickerEnabled,
                 dateValidator = dateValidator,
                 onClearDate = onClearDate,
+                onOpenAppClick = onOpenAppClick,
             )
             Spacer(modifier = Modifier.height(ArchiveGroupCardTokens.SpacerHeight))
 
@@ -120,7 +122,7 @@ fun ArchiveGroupCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center
+                        contentAlignment = Alignment.Center,
                     ) {
                         CircularProgressIndicator()
                     }
@@ -130,7 +132,7 @@ fun ArchiveGroupCard(
                         text = errorMessage,
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = ArchiveGroupCardTokens.NoApksPaddingTop),
-                        color = MaterialTheme.colorScheme.error
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
                 apks.isNotEmpty() -> {
@@ -155,6 +157,7 @@ private fun ArchiveGroupHeader(
     version: String,
     date: String,
     onDateSelected: (LocalDate) -> Unit,
+    onOpenAppClick: () -> Unit,
     userPickedDate: LocalDate?,
     isDatePickerEnabled: Boolean,
     dateValidator: (LocalDate) -> Boolean,
@@ -164,7 +167,11 @@ private fun ArchiveGroupHeader(
     val displayDate = userPickedDate?.toString() ?: date
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        AppIcon(appName = "$appName-nightly", modifier = Modifier.size(ArchiveGroupCardTokens.AppIconSize))
+        AppIcon(
+            appName = "$appName-nightly",
+            modifier = Modifier.size(ArchiveGroupCardTokens.AppIconSize)
+                .clickable { onOpenAppClick() },
+        )
         Text(
             text = "$appName $version",
             style = MaterialTheme.typography.titleLarge,
@@ -194,7 +201,7 @@ private fun ArchiveGroupHeader(
                             )
                         }
                     }
-                }
+                },
             )
         }
     }
@@ -208,7 +215,7 @@ private fun ArchiveGroupHeader(
                     val localDate = Instant.fromEpochMilliseconds(utcTimeMillis).toLocalDateTime(TimeZone.UTC).date
                     return dateValidator(localDate)
                 }
-            }
+            },
         )
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },

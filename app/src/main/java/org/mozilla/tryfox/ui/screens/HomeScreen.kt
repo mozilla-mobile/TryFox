@@ -65,9 +65,11 @@ fun HomeScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             val loadedState = screenState as? HomeScreenState.Loaded
-            val currentCacheState = loadedState?.cacheManagementState ?: CacheManagementState.IdleEmpty
+            val currentCacheState =
+                loadedState?.cacheManagementState ?: CacheManagementState.IdleEmpty
             val isDownloading = loadedState?.isDownloadingAnyFile ?: false
-            val binButtonEnabled = !isDownloading && currentCacheState == CacheManagementState.IdleNonEmpty
+            val binButtonEnabled =
+                !isDownloading && currentCacheState == CacheManagementState.IdleNonEmpty
 
             TopAppBar(
                 title = { Text(stringResource(id = R.string.app_name)) },
@@ -111,7 +113,12 @@ fun HomeScreen(
     ) { innerPadding ->
         when (val currentScreenState = screenState) {
             is HomeScreenState.InitialLoading -> {
-                Box(modifier = Modifier.fillMaxSize().padding(innerPadding), contentAlignment = Alignment.Center) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+                    contentAlignment = Alignment.Center,
+                ) {
                     CircularProgressIndicator()
                     Text(
                         stringResource(id = R.string.home_loading_initial_data),
@@ -119,6 +126,7 @@ fun HomeScreen(
                     )
                 }
             }
+
             is HomeScreenState.Loaded -> {
                 Column(
                     modifier = Modifier
@@ -135,7 +143,13 @@ fun HomeScreen(
                                 app = app,
                                 onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
                                 onInstallClick = { homeViewModel.onInstallApk?.invoke(it) },
-                                onDateSelected = { appName, date -> homeViewModel.onDateSelected(appName, date) },
+                                onOpenAppClick = { homeViewModel.openApp(it) },
+                                onDateSelected = { appName, date ->
+                                    homeViewModel.onDateSelected(
+                                        appName,
+                                        date,
+                                    )
+                                },
                                 dateValidator = homeViewModel.getDateValidator(app.name),
                                 onClearDate = { appName -> homeViewModel.onClearDate(appName) },
                             )
@@ -152,6 +166,7 @@ fun AppComponent(
     app: AppUiModel,
     onDownloadClick: (ApkUiModel) -> Unit,
     onInstallClick: (File) -> Unit,
+    onOpenAppClick: (String) -> Unit,
     onDateSelected: (String, LocalDate) -> Unit,
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: (String) -> Unit,
@@ -175,6 +190,11 @@ fun AppComponent(
         appState = appState,
         onDownloadClick = onDownloadClick,
         onInstallClick = onInstallClick,
+        onOpenAppClick = {
+            appState?.packageName?.let {
+                onOpenAppClick(it)
+            }
+        },
         onDateSelected = { date -> onDateSelected(app.name, date) },
         userPickedDate = app.userPickedDate,
         appName = app.name,

@@ -16,7 +16,6 @@ import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.format
 import kotlinx.datetime.format.FormatStringsInDatetimeFormats
 import kotlinx.datetime.format.byUnicodePattern
 import kotlinx.datetime.todayIn
@@ -34,6 +33,7 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.IntentHelper
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import java.io.File
 
@@ -43,6 +43,7 @@ class HomeViewModel(
     private val fenixRepository: IFenixRepository,
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
+    private val intentHelper: IntentHelper,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -388,6 +389,10 @@ class HomeViewModel(
                 }
             }
         }
+    }
+
+    fun openApp(app: String) {
+        intentHelper.launchApp(app)
     }
 
     companion object {
