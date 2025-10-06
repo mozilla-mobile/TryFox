@@ -33,9 +33,9 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
-import org.mozilla.tryfox.util.IntentHelper
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import java.io.File
+import kotlin.collections.mapValues
 
 @OptIn(FormatStringsInDatetimeFormats::class)
 class HomeViewModel(
@@ -43,7 +43,6 @@ class HomeViewModel(
     private val fenixRepository: IFenixRepository,
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
-    private val intentHelper: IntentHelper,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -82,6 +81,28 @@ class HomeViewModel(
                 }
             }
             .launchIn(viewModelScope)
+
+        mozillaPackageManager.appStates
+            .onEach { appState ->
+                _homeScreenState.update { currentState ->
+                    if (currentState is HomeScreenState.Loaded) {
+                        currentState.copy(
+                            apps = currentState.apps.mapValues { (appName, app) ->
+                                if (app.packageName == appState.packageName) {
+                                    app.copy(
+                                        installedVersion = appState.version,
+                                        installedDate = appState.formattedInstallDate,
+                                    )
+                                } else {
+                                    app
+                                }
+                            },
+                        )
+                    } else {
+                        currentState
+                    }
+                }
+            }.launchIn(viewModelScope)
     }
 
     fun initialLoad() {
@@ -90,9 +111,9 @@ class HomeViewModel(
             cacheManager.checkCacheStatus() // Initial check
 
             val appInfoMap = mapOf(
-                FENIX to mozillaPackageManager.fenix,
-                FOCUS to mozillaPackageManager.focus,
-                REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
+                FENIX to mozillaPackageManager.fenix(),
+                FOCUS to mozillaPackageManager.focus(),
+                REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser(),
             )
 
             _homeScreenState.update {
@@ -100,9 +121,9 @@ class HomeViewModel(
                 val initialApps = appInfoMap.mapValues { (appName, appState) ->
                     AppUiModel(
                         name = appName,
-                        packageName = appState?.packageName ?: "",
-                        installedVersion = appState?.version,
-                        installedDate = appState?.formattedInstallDate,
+                        packageName = appState.packageName,
+                        installedVersion = appState.version,
+                        installedDate = appState.formattedInstallDate,
                         apks = ApksResult.Loading,
                     )
                 }
@@ -342,7 +363,7 @@ class HomeViewModel(
             val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
             val appToUpdate = currentState.apps[appName] ?: return@launch
 
-            val updatedApp = appToUpdate.copy(userPickedDate = null, apks = ApksResult.Loading)
+            val updatedApp = appToUpdate.copy(userPickedDate = null)
             val updatedApps = currentState.apps.toMutableMap()
             updatedApps[appName] = updatedApp
 
@@ -392,7 +413,7 @@ class HomeViewModel(
     }
 
     fun openApp(app: String) {
-        intentHelper.launchApp(app)
+        mozillaPackageManager.launchApp(app)
     }
 
     companion object {

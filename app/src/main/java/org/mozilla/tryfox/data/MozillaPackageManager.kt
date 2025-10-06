@@ -1,17 +1,29 @@
 package org.mozilla.tryfox.data
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.util.Log
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import org.mozilla.tryfox.model.AppState
+import org.mozilla.tryfox.util.FENIX_PACKAGE
+import org.mozilla.tryfox.util.FOCUS_PACKAGE
+import org.mozilla.tryfox.util.REFERENCE_BROWSER_PACKAGE
 
 /**
  * Manages interactions with the Android [PackageManager] to retrieve information
  * about Mozilla applications installed on the device.
  *
- * @property packageManager The Android [PackageManager] instance used to query package information.
+ * @property context The application context.
  */
-class MozillaPackageManager(private val packageManager: PackageManager) {
+class MozillaPackageManager(private val context: Context) {
+
+    private val packageManager: PackageManager = context.packageManager
 
     /**
      * Retrieves [PackageInfo] for a given package name.
@@ -35,38 +47,67 @@ class MozillaPackageManager(private val packageManager: PackageManager) {
      * Constructs an [AppState] object for a given package name and friendly name.
      *
      * @param packageName The package name of the application.
-     * @param friendlyName A user-friendly name for the application.
      * @return An [AppState] object representing the application's state.
      */
-    private fun getAppState(packageName: String, friendlyName: String): AppState {
+    private fun getAppState(packageName: String): AppState {
         val packageInfo = getPackageInfo(packageName)
 
         return AppState(
-            name = friendlyName,
+            name = apps[packageName] ?: "",
             packageName = packageName,
             version = packageInfo?.versionName,
             installDateMillis = packageInfo?.lastUpdateTime,
         )
     }
 
+    private val apps = mapOf(
+        FENIX_PACKAGE to "Fenix",
+        FOCUS_PACKAGE to "Focus",
+        REFERENCE_BROWSER_PACKAGE to "Reference Browser",
+    )
+
     /**
      * The [AppState] for Fenix (Firefox for Android).
      */
-    val fenix: AppState by lazy {
-        getAppState("org.mozilla.fenix", "Fenix")
-    }
+    fun fenix(): AppState = getAppState("org.mozilla.fenix")
 
     /**
      * The [AppState] for Focus Nightly.
      */
-    val focus: AppState by lazy {
-        getAppState("org.mozilla.focus.nightly", "Focus Nightly")
-    }
+    fun focus(): AppState = getAppState("org.mozilla.focus.nightly")
 
     /**
      * The [AppState] for Reference Browser.
      */
-    val referenceBrowser: AppState by lazy {
-        getAppState("org.mozilla.reference.browser", "Reference Browser")
+    fun referenceBrowser(): AppState = getAppState("org.mozilla.reference.browser")
+
+    val appStates: Flow<AppState> = callbackFlow {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == Intent.ACTION_PACKAGE_ADDED || intent.action == Intent.ACTION_PACKAGE_REMOVED) {
+                    val packageName = intent.data?.schemeSpecificPart
+                    if (packageName != null && packageName in apps.keys) {
+                        trySend(getAppState(packageName))
+                    }
+                }
+            }
+        }
+
+        val intentFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_PACKAGE_ADDED)
+            addAction(Intent.ACTION_PACKAGE_REMOVED)
+            addDataScheme("package")
+        }
+
+        context.registerReceiver(receiver, intentFilter)
+
+        awaitClose {
+            context.unregisterReceiver(receiver)
+        }
+    }
+
+    fun launchApp(appName: String) {
+        val intent = packageManager.getLaunchIntentForPackage(appName)
+        intent?.let(context::startActivity)
     }
 }
