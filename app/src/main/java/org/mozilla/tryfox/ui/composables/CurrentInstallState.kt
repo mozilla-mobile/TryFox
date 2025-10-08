@@ -48,7 +48,7 @@ fun CurrentInstallState(
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "v${appState.version ?: "N/A"} - ${appState.formattedInstallDate ?: "N/A"}",
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

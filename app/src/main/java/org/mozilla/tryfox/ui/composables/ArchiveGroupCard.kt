@@ -274,21 +274,21 @@ private fun ArchiveGroupAbiSelector(
                     selected = selectedIndex == index,
                     onClick = { selectedIndex = index },
                     shape = SegmentedButtonDefaults.itemShape(index = index, count = apks.size),
-                    icon = {
+                    colors = colors,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         if (!apk.abi.isSupported) {
                             Icon(
                                 imageVector = Icons.Default.Warning,
                                 contentDescription = stringResource(R.string.unsupported_abi),
-                                modifier = Modifier.size(ButtonDefaults.IconSize),
+                                modifier = Modifier.size(ButtonDefaults.IconSize).padding(end = 4.dp),
                             )
                         }
-                    },
-                    colors = colors,
-                ) {
-                    Text(
-                        text = apk.abi.name ?: "",
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                    )
+                        Text(
+                            text = apk.abi.name ?: "",
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
                 }
             }
         }

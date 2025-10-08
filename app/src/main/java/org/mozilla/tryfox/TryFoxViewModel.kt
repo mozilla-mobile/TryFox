@@ -31,7 +31,7 @@ class TryFoxViewModel(
     private val repository: IFenixRepository,
     private val cacheManager: CacheManager,
 ) : ViewModel() {
-    var revision by mutableStateOf("c2f3f652a3a063cb7933c2781038a25974cd09ec")
+    var revision by mutableStateOf("")
         private set
 
     var selectedProject by mutableStateOf("try")
