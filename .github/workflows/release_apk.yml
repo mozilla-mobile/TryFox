@@ -39,6 +39,9 @@ jobs:
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: ./gradlew assembleRelease
 
+    - name: Rename APK
+      run: mv app/build/outputs/apk/release/app-release.apk app/build/outputs/apk/release/tryfox.apk
+
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@6cbd405e2c4e67a21c47fa9e383d020e4e28b836
@@ -48,4 +51,4 @@ jobs:
         tag_name: ${{ github.ref }}
         draft: false
         prerelease: false
-        files: app/build/outputs/apk/release/app-release.apk
+        files: app/build/outputs/apk/release/tryfox.apk
