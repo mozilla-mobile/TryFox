@@ -50,4 +50,25 @@ class MainActivityDeeplinkTest {
             composeTestRule.onNodeWithText(revision).assertExists()
         }
     }
+
+    @Test
+    fun testDeeplink_whenAppIsAlreadyOpen_populatesRevision() {
+        // Launch the app first
+        ActivityScenario.launch(MainActivity::class.java)
+
+        val project = "autoland"
+        val revision = "abcdef123456"
+        val deeplinkUri = Uri.parse("https://treeherder.mozilla.org/#/jobs?repo=$project&revision=$revision")
+        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = deeplinkUri
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        // Now send the deeplink intent
+        ApplicationProvider.getApplicationContext<android.content.Context>().startActivity(intent)
+
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText(revision).assertExists()
+    }
 }
