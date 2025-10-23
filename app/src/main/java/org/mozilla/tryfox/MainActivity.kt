@@ -56,6 +56,15 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        Log.d("MainActivity", "onNewIntent called. Intent: $intent, Data: ${intent.data}")
+        setIntent(intent)
+        if (::navController.isInitialized) {
+            navController.handleDeepLink(intent)
+        }
+    }
+
     private fun installApk(file: File) {
         val fileUri: Uri = FileProvider.getUriForFile(
             this,
