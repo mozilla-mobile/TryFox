@@ -2,17 +2,19 @@ package org.mozilla.tryfox.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -47,7 +49,7 @@ import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.parseDateToMillis
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
@@ -56,6 +58,8 @@ fun HomeScreen(
     homeViewModel: HomeViewModel = viewModel(),
 ) {
     val screenState by homeViewModel.homeScreenState.collectAsState()
+    val isRefreshing by homeViewModel.isRefreshing.collectAsState()
+    val pullRefreshState = rememberPullRefreshState(isRefreshing, { homeViewModel.refreshData() })
 
     LaunchedEffect(Unit) {
         homeViewModel.initialLoad()
@@ -111,33 +115,36 @@ fun HomeScreen(
             )
         },
     ) { innerPadding ->
-        when (val currentScreenState = screenState) {
-            is HomeScreenState.InitialLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    CircularProgressIndicator()
-                    Text(
-                        stringResource(id = R.string.home_loading_initial_data),
-                        modifier = Modifier.padding(top = 70.dp), // Adjust as needed to place below indicator
-                    )
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .pullRefresh(pullRefreshState),
+        ) {
+            when (val currentScreenState = screenState) {
+                is HomeScreenState.InitialLoading -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                        Text(
+                            stringResource(id = R.string.home_loading_initial_data),
+                            modifier = Modifier.padding(top = 70.dp), // Adjust as needed to place below indicator
+                        )
+                    }
                 }
-            }
 
-            is HomeScreenState.Loaded -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(innerPadding)
-                        .padding(horizontal = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Top,
-                ) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                is HomeScreenState.Loaded -> {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Top,
+                    ) {
+                        item { Spacer(modifier = Modifier.height(16.dp)) }
                         items(currentScreenState.apps.values.toList()) { app ->
                             AppComponent(
                                 app = app,
@@ -157,6 +164,12 @@ fun HomeScreen(
                     }
                 }
             }
+
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
         }
     }
 }

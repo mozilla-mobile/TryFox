@@ -51,6 +51,9 @@ class HomeViewModel(
     private val _homeScreenState = MutableStateFlow<HomeScreenState>(HomeScreenState.InitialLoading)
     val homeScreenState: StateFlow<HomeScreenState> = _homeScreenState.asStateFlow()
 
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
     private val deviceSupportedAbis: List<String> by lazy {
         deviceSupportedAbisForTesting ?: Build.SUPPORTED_ABIS?.toList() ?: emptyList()
     }
@@ -108,66 +111,79 @@ class HomeViewModel(
     fun initialLoad() {
         viewModelScope.launch {
             _homeScreenState.value = HomeScreenState.InitialLoading
+            _isRefreshing.value = true
             cacheManager.checkCacheStatus() // Initial check
+            fetchData()
+            _isRefreshing.value = false
+        }
+    }
 
-            val appInfoMap = mapOf(
-                FENIX to mozillaPackageManager.fenix,
-                FOCUS to mozillaPackageManager.focus,
-                REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
-            )
+    fun refreshData() {
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            fetchData()
+            _isRefreshing.value = false
+        }
+    }
 
-            _homeScreenState.update {
-                val currentCacheState = cacheManager.cacheState.value
-                val initialApps = appInfoMap.mapValues { (appName, appState) ->
-                    AppUiModel(
-                        name = appName,
-                        packageName = appState.packageName,
-                        installedVersion = appState.version,
-                        installedDate = appState.formattedInstallDate,
-                        apks = ApksResult.Loading,
-                    )
-                }
-                HomeScreenState.Loaded(
-                    apps = initialApps,
-                    cacheManagementState = currentCacheState,
-                    isDownloadingAnyFile = false,
-                )
-            }
+    private suspend fun fetchData() {
+        val appInfoMap = mapOf(
+            FENIX to mozillaPackageManager.fenix,
+            FOCUS to mozillaPackageManager.focus,
+            REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
+        )
 
-            val results = mapOf(
-                FENIX to mozillaArchiveRepository.getFenixNightlyBuilds(),
-                FOCUS to mozillaArchiveRepository.getFocusNightlyBuilds(),
-                REFERENCE_BROWSER to mozillaArchiveRepository.getReferenceBrowserNightlyBuilds(),
-            )
-
-            val newApps = results.mapValues { (appName, result) ->
-                val appState = appInfoMap[appName]
-                val apksResult = when (result) {
-                    is NetworkResult.Success -> {
-                        val latestApks = getLatestApks(result.data)
-                        ApksResult.Success(convertParsedApksToUiModels(latestApks))
-                    }
-                    is NetworkResult.Error -> ApksResult.Error("Error fetching $appName nightly builds: ${result.message}")
-                }
+        _homeScreenState.update {
+            val currentCacheState = cacheManager.cacheState.value
+            val initialApps = appInfoMap.mapValues { (appName, appState) ->
                 AppUiModel(
                     name = appName,
-                    packageName = appState?.packageName ?: "",
-                    installedVersion = appState?.version,
-                    installedDate = appState?.formattedInstallDate,
-                    apks = apksResult,
+                    packageName = appState.packageName,
+                    installedVersion = appState.version,
+                    installedDate = appState.formattedInstallDate,
+                    apks = ApksResult.Loading,
                 )
             }
+            HomeScreenState.Loaded(
+                apps = initialApps,
+                cacheManagementState = currentCacheState,
+                isDownloadingAnyFile = false,
+            )
+        }
 
-            val isDownloading = newApps.values.any { app ->
-                (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
-            }
+        val results = mapOf(
+            FENIX to mozillaArchiveRepository.getFenixNightlyBuilds(),
+            FOCUS to mozillaArchiveRepository.getFocusNightlyBuilds(),
+            REFERENCE_BROWSER to mozillaArchiveRepository.getReferenceBrowserNightlyBuilds(),
+        )
 
-            _homeScreenState.update {
-                if (it is HomeScreenState.Loaded) {
-                    it.copy(apps = newApps, isDownloadingAnyFile = isDownloading)
-                } else {
-                    it
+        val newApps = results.mapValues { (appName, result) ->
+            val appState = appInfoMap[appName]
+            val apksResult = when (result) {
+                is NetworkResult.Success -> {
+                    val latestApks = getLatestApks(result.data)
+                    ApksResult.Success(convertParsedApksToUiModels(latestApks))
                 }
+                is NetworkResult.Error -> ApksResult.Error("Error fetching $appName nightly builds: ${result.message}")
+            }
+            AppUiModel(
+                name = appName,
+                packageName = appState?.packageName ?: "",
+                installedVersion = appState?.version,
+                installedDate = appState?.formattedInstallDate,
+                apks = apksResult,
+            )
+        }
+
+        val isDownloading = newApps.values.any { app ->
+            (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
+        }
+
+        _homeScreenState.update {
+            if (it is HomeScreenState.Loaded) {
+                it.copy(apps = newApps, isDownloadingAnyFile = isDownloading)
+            } else {
+                it
             }
         }
     }
