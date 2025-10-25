@@ -28,6 +28,7 @@ import org.mozilla.tryfox.ui.screens.ProfileViewModel
 import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 import java.io.File
+import java.net.URLDecoder
 
 sealed class NavScreen(val route: String) {
     data object Home : NavScreen("home")
@@ -36,6 +37,7 @@ sealed class NavScreen(val route: String) {
         fun createRoute(project: String, revision: String) = "treeherder_search/$project/$revision"
     }
     data object Profile : NavScreen("profile")
+    data object ProfileByEmail : NavScreen("profile_by_email?email={email}")
 }
 
 class MainActivity : ComponentActivity() {
@@ -153,6 +155,28 @@ class MainActivity : ComponentActivity() {
                 // Inject ProfileViewModel using Koin in Composable
                 val profileViewModel: ProfileViewModel = koinViewModel()
                 profileViewModel.onInstallApk = ::installApk // Assuming ProfileViewModel also needs this
+                ProfileScreen(
+                    onNavigateUp = { localNavController.popBackStack() },
+                    profileViewModel = profileViewModel,
+                )
+            }
+            composable(
+                route = NavScreen.ProfileByEmail.route,
+                arguments = listOf(navArgument("email") { type = NavType.StringType }),
+                deepLinks = listOf(navDeepLink { uriPattern = "https://treeherder.mozilla.org/jobs?repo={repo}&author={email}" }),
+            ) { backStackEntry ->
+                val profileViewModel: ProfileViewModel = koinViewModel()
+                val encodedEmail = backStackEntry.arguments?.getString("email")
+
+                LaunchedEffect(encodedEmail) {
+                    encodedEmail?.let {
+                        val email = URLDecoder.decode(it, "UTF-8")
+                        profileViewModel.updateAuthorEmail(email)
+                        profileViewModel.searchByAuthor()
+                    }
+                }
+
+                profileViewModel.onInstallApk = ::installApk
                 ProfileScreen(
                     onNavigateUp = { localNavController.popBackStack() },
                     profileViewModel = profileViewModel,

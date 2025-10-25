@@ -71,4 +71,20 @@ class MainActivityDeeplinkTest {
         composeTestRule.waitForIdle()
         composeTestRule.onNodeWithText(revision).assertExists()
     }
+
+    @Test
+    fun testDeeplink_withAuthorEmail_populatesProfileScreen() {
+        val email = "tthibaud@mozilla.com"
+        val encodedEmail = "tthibaud%40mozilla.com"
+        val deeplinkUri = Uri.parse("https://treeherder.mozilla.org/jobs?repo=try&author=$encodedEmail")
+        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+            action = Intent.ACTION_VIEW
+            data = deeplinkUri
+        }
+
+        ActivityScenario.launch<MainActivity>(intent).use {
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithText(email).assertExists()
+        }
+    }
 }

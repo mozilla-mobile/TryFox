@@ -43,6 +43,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -208,6 +209,12 @@ fun ProfileScreen(
     val isLoading by profileViewModel.isLoading.collectAsState()
     val errorMessage by profileViewModel.errorMessage.collectAsState()
     val cacheState by profileViewModel.cacheState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        if (authorEmail.isBlank()) {
+            profileViewModel.loadLastSearchedEmail()
+        }
+    }
 
     val isDownloading = remember(pushes) {
         pushes.any { push ->
