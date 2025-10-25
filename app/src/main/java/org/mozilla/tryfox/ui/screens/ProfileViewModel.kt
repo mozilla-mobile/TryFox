@@ -56,10 +56,6 @@ class ProfileViewModel(
 
     init {
         logcat(LogPriority.DEBUG, TAG) { "Initializing ProfileViewModel" }
-        viewModelScope.launch {
-            _authorEmail.value = userDataRepository.lastSearchedEmailFlow.first()
-            logcat(LogPriority.DEBUG, TAG) { "Initial author email loaded: ${_authorEmail.value}" }
-        }
         cacheManager.cacheState.onEach { state ->
             if (state is CacheManagementState.IdleEmpty) {
                 val updatedPushes = _pushes.value.map {
@@ -76,6 +72,16 @@ class ProfileViewModel(
                 _pushes.value = updatedPushes
             }
         }.launchIn(viewModelScope)
+    }
+
+    fun loadLastSearchedEmail() {
+        viewModelScope.launch {
+            val lastEmail = userDataRepository.lastSearchedEmailFlow.first()
+            if (lastEmail.isNotBlank() && _authorEmail.value.isBlank()) {
+                _authorEmail.value = lastEmail
+                logcat(LogPriority.DEBUG, TAG) { "Initial author email loaded: ${_authorEmail.value}" }
+            }
+        }
     }
 
     fun updateAuthorEmail(email: String) {

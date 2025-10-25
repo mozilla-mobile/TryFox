@@ -25,6 +25,7 @@ mockitoKotlin = "6.0.0"
 logcat = "0.4"
 espressoIntents = "3.7.0" # Added javax.inject version
 koin = "4.1.1"
+turbine = "1.1.0"
 composeMaterial = "1.6.8"
 
 [libraries]
@@ -66,6 +67,7 @@ logcat = { group = "com.squareup.logcat", name = "logcat", version.ref = "logcat
 androidx-espresso-intents = { group = "androidx.test.espresso", name = "espresso-intents", version.ref = "espressoIntents" } # Added javax.inject library
 koin-android = { group = "io.insert-koin", name = "koin-android", version.ref = "koin" }
 koin-androidx-compose = { group = "io.insert-koin", name = "koin-androidx-compose", version.ref = "koin" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
