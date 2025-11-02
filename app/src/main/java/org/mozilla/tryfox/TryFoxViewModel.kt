@@ -27,14 +27,25 @@ import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import java.io.File
 
+/**
+ * ViewModel for the TryFox feature, responsible for fetching job and artifact data from the repository,
+ * managing the download and caching of artifacts, and exposing the UI state to the composable screens.
+ *
+ * @param repository The repository for fetching data from the network.
+ * @param cacheManager The manager for handling application cache.
+ * @param revision The initial revision to search for.
+ * @param repo The initial repository to search in.
+ */
 class TryFoxViewModel(
     private val repository: IFenixRepository,
     private val cacheManager: CacheManager,
+    revision: String?,
+    repo: String?,
 ) : ViewModel() {
-    var revision by mutableStateOf("")
+    var revision by mutableStateOf(revision ?: "")
         private set
 
-    var selectedProject by mutableStateOf("try")
+    var selectedProject by mutableStateOf(repo ?: "try")
         private set
 
     var relevantPushComment by mutableStateOf<String?>(null)

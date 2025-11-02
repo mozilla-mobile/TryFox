@@ -17,8 +17,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions // Added
-import androidx.compose.foundation.text.KeyboardOptions // Added
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -43,18 +43,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi // Added
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController // Added
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction // Added
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.DownloadState
@@ -197,6 +196,13 @@ private fun ErrorState(errorMessage: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Composable function for the Profile screen, which allows users to search for pushes by author email.
+ *
+ * @param modifier The modifier to be applied to the component.
+ * @param onNavigateUp Callback to navigate back to the previous screen.
+ * @param profileViewModel The ViewModel for the Profile screen.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
@@ -209,12 +215,6 @@ fun ProfileScreen(
     val isLoading by profileViewModel.isLoading.collectAsState()
     val errorMessage by profileViewModel.errorMessage.collectAsState()
     val cacheState by profileViewModel.cacheState.collectAsState()
-
-    LaunchedEffect(Unit) {
-        if (authorEmail.isBlank()) {
-            profileViewModel.loadLastSearchedEmail()
-        }
-    }
 
     val isDownloading = remember(pushes) {
         pushes.any { push ->
@@ -302,7 +302,9 @@ fun ProfileScreen(
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = 16.dp),
                     ) {
-                        items(pushes, key = { push -> push.pushComment + push.author + (push.jobs.firstOrNull()?.taskId ?: "") }) { push ->
+                        items(pushes, key = { push ->
+                            push.pushComment + push.author + (push.jobs.firstOrNull()?.taskId ?: "")
+                        }) { push ->
                             ElevatedCard(
                                 modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -311,7 +313,11 @@ fun ProfileScreen(
                                     modifier = Modifier.padding(16.dp),
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
-                                    PushCommentCard(comment = push.pushComment, author = push.author, revision = push.revision ?: "unknown_revision")
+                                    PushCommentCard(
+                                        comment = push.pushComment,
+                                        author = push.author,
+                                        revision = push.revision ?: "unknown_revision",
+                                    )
                                     push.jobs.forEach { job ->
                                         JobCard(job = job, profileViewModel = profileViewModel)
                                     }
@@ -376,7 +382,7 @@ private fun JobCard(
                     DownloadButton(
                         downloadState = it.downloadState,
                         onDownloadClick = { profileViewModel.downloadArtifact(it) },
-                        onInstallClick = { file -> profileViewModel.onInstallApk?.invoke(file) },
+                        onInstallClick = { file -> profileViewModel.installApk(file) },
                     )
                 }
             }

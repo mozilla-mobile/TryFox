@@ -49,6 +49,14 @@ import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.parseDateToMillis
 import java.io.File
 
+/**
+ * Composable function for the Home screen, which displays a list of available apps and allows users to interact with them.
+ *
+ * @param modifier The modifier to be applied to the component.
+ * @param onNavigateToTreeherder Callback to navigate to the Treeherder search screen.
+ * @param onNavigateToProfile Callback to navigate to the Profile screen.
+ * @param homeViewModel The ViewModel for the Home screen.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 @Composable
 fun HomeScreen(
@@ -92,7 +100,9 @@ fun HomeScreen(
                     IconButton(onClick = onNavigateToTreeherder) {
                         Icon(
                             imageVector = Icons.Filled.Search,
-                            contentDescription = stringResource(id = R.string.home_search_treeherder_button_description),
+                            contentDescription = stringResource(
+                                id = R.string.home_search_treeherder_button_description,
+                            ),
                         )
                     }
                     val tooltipState = rememberTooltipState()
@@ -131,7 +141,7 @@ fun HomeScreen(
                         CircularProgressIndicator()
                         Text(
                             stringResource(id = R.string.home_loading_initial_data),
-                            modifier = Modifier.padding(top = 70.dp), // Adjust as needed to place below indicator
+                            modifier = Modifier.padding(top = 70.dp),
                         )
                     }
                 }
@@ -149,7 +159,7 @@ fun HomeScreen(
                             AppComponent(
                                 app = app,
                                 onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
-                                onInstallClick = { homeViewModel.onInstallApk?.invoke(it) },
+                                onInstallClick = { homeViewModel.installApk(it) },
                                 onOpenAppClick = { homeViewModel.openApp(it) },
                                 onDateSelected = { appName, date ->
                                     homeViewModel.onDateSelected(
@@ -174,6 +184,17 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Composable function for displaying a single app component, which includes information about the app and actions that can be performed.
+ *
+ * @param app The UI model for the app.
+ * @param onDownloadClick Callback for when the download button is clicked.
+ * @param onInstallClick Callback for when the install button is clicked.
+ * @param onOpenAppClick Callback for when the open app button is clicked.
+ * @param onDateSelected Callback for when a date is selected in the date picker.
+ * @param dateValidator A function to validate the selectable dates in the date picker.
+ * @param onClearDate Callback for when the selected date is cleared.
+ */
 @Composable
 fun AppComponent(
     app: AppUiModel,
