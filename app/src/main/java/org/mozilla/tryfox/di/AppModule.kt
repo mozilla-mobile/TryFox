@@ -23,6 +23,8 @@ import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.UserDataRepository
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.DefaultCacheManager
+import org.mozilla.tryfox.data.managers.DefaultIntentManager
+import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.network.ApiService
 import org.mozilla.tryfox.ui.screens.HomeViewModel
 import org.mozilla.tryfox.ui.screens.ProfileViewModel
@@ -71,12 +73,13 @@ val repositoryModule = module {
     single<MozillaArchiveRepository> { MozillaArchiveRepositoryImpl(get()) }
     single<MozillaPackageManager> { DefaultMozillaPackageManager(androidContext()) }
     single<CacheManager> { DefaultCacheManager(androidContext().cacheDir, get(named("IODispatcher"))) }
+    single<IntentManager> { DefaultIntentManager(androidContext()) }
 }
 
 val viewModelModule = module {
-    viewModel { TryFoxViewModel(get(), get()) }
-    viewModel { HomeViewModel(get(), get(), get(), get(), get(named("IODispatcher"))) }
-    viewModel { ProfileViewModel(get(), get(), get()) }
+    viewModel { params -> TryFoxViewModel(get(), get(), params.getOrNull(), params.getOrNull()) }
+    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(named("IODispatcher"))) }
+    viewModel { params -> ProfileViewModel(get(), get(), get(), get(), params.getOrNull()) }
 }
 
 val appModules = listOf(dispatchersModule, networkModule, repositoryModule, viewModelModule)

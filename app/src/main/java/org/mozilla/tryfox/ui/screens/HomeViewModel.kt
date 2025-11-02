@@ -4,7 +4,6 @@ import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,6 +24,7 @@ import org.mozilla.tryfox.data.MozillaArchiveRepository
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
+import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.ParsedNightlyApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
@@ -37,13 +37,24 @@ import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import java.io.File
 import kotlin.collections.mapValues
 
+/**
+ * ViewModel for the Home screen, responsible for fetching and displaying nightly builds of different Mozilla apps.
+ *
+ * @param mozillaArchiveRepository Repository for fetching data from the Mozilla Archive.
+ * @param fenixRepository Repository for fetching Fenix-related data.
+ * @param mozillaPackageManager Manager for interacting with installed Mozilla apps.
+ * @param cacheManager Manager for handling application cache.
+ * @param intentManager Manager for handling intents, such as APK installation.
+ * @param ioDispatcher The coroutine dispatcher for background operations.
+ */
 @OptIn(FormatStringsInDatetimeFormats::class)
 class HomeViewModel(
     private val mozillaArchiveRepository: MozillaArchiveRepository,
     private val fenixRepository: IFenixRepository,
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val intentManager: IntentManager,
+    private val ioDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
 
     internal var deviceSupportedAbisForTesting: List<String>? = null
@@ -58,8 +69,6 @@ class HomeViewModel(
         deviceSupportedAbisForTesting ?: Build.SUPPORTED_ABIS?.toList() ?: emptyList()
     }
 
-    var onInstallApk: ((File) -> Unit)? = null
-
     init {
         cacheManager.cacheState
             .onEach { newCacheState ->
@@ -69,7 +78,9 @@ class HomeViewModel(
                     val updatedApps = if (newCacheState is CacheManagementState.IdleEmpty) {
                         currentState.apps.mapValues { (_, app) ->
                             val apksResult = app.apks as? ApksResult.Success ?: return@mapValues app
-                            val updatedApks = apksResult.apks.map { it.copy(downloadState = DownloadState.NotDownloaded) }
+                            val updatedApks = apksResult.apks.map {
+                                it.copy(downloadState = DownloadState.NotDownloaded)
+                            }
                             app.copy(apks = ApksResult.Success(updatedApks))
                         }
                     } else {
@@ -79,7 +90,11 @@ class HomeViewModel(
                     currentState.copy(
                         apps = updatedApps,
                         cacheManagementState = newCacheState,
-                        isDownloadingAnyFile = if (newCacheState is CacheManagementState.IdleEmpty) false else currentState.isDownloadingAnyFile,
+                        isDownloadingAnyFile = if (newCacheState is CacheManagementState.IdleEmpty) {
+                            false
+                        } else {
+                            currentState.isDownloadingAnyFile
+                        },
                     )
                 }
             }
@@ -109,7 +124,7 @@ class HomeViewModel(
     }
 
     fun initialLoad() {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             _homeScreenState.value = HomeScreenState.InitialLoading
             _isRefreshing.value = true
             cacheManager.checkCacheStatus() // Initial check
@@ -119,7 +134,7 @@ class HomeViewModel(
     }
 
     fun refreshData() {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             _isRefreshing.value = true
             fetchData()
             _isRefreshing.value = false
@@ -164,7 +179,9 @@ class HomeViewModel(
                     val latestApks = getLatestApks(result.data)
                     ApksResult.Success(convertParsedApksToUiModels(latestApks))
                 }
-                is NetworkResult.Error -> ApksResult.Error("Error fetching $appName nightly builds: ${result.message}")
+                is NetworkResult.Error -> ApksResult.Error(
+                    "Error fetching $appName nightly builds: ${result.message}",
+                )
             }
             AppUiModel(
                 name = appName,
@@ -219,7 +236,11 @@ class HomeViewModel(
                 DownloadState.NotDownloaded
             }
 
-            val uniqueKeyPath = if (datePart.isNullOrBlank()) parsedApk.appName else "${parsedApk.appName}/$datePart"
+            val uniqueKeyPath = if (datePart.isNullOrBlank()) {
+                parsedApk.appName
+            } else {
+                "${parsedApk.appName}/$datePart"
+            }
             val uniqueKey = "$uniqueKeyPath/${parsedApk.fileName}"
 
             ApkUiModel(
@@ -278,7 +299,7 @@ class HomeViewModel(
             return
         }
 
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             updateApkDownloadStateInScreenState(
                 apkInfo.appName,
                 apkInfo.uniqueKey,
@@ -311,7 +332,7 @@ class HomeViewModel(
                         DownloadState.Downloaded(result.data),
                     )
                     cacheManager.checkCacheStatus() // Notify cache manager about new file
-                    onInstallApk?.invoke(result.data)
+                    installApk(result.data)
                 }
 
                 is NetworkResult.Error -> {
@@ -326,8 +347,12 @@ class HomeViewModel(
         }
     }
 
+    fun installApk(file: File) {
+        intentManager.installApk(file)
+    }
+
     fun clearAppCache() {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             cacheManager.clearCache()
         }
     }
@@ -337,7 +362,7 @@ class HomeViewModel(
             return
         }
 
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
 
             val appToUpdate = currentState.apps[appName] ?: return@launch
@@ -360,7 +385,9 @@ class HomeViewModel(
                     val latestApks = getLatestApks(result.data)
                     ApksResult.Success(convertParsedApksToUiModels(latestApks))
                 }
-                is NetworkResult.Error -> ApksResult.Error("Error fetching $appName nightly builds for $date: ${result.message}")
+                is NetworkResult.Error -> ApksResult.Error(
+                    "Error fetching $appName nightly builds for $date: ${result.message}",
+                )
             }
 
             val latestState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
@@ -375,7 +402,7 @@ class HomeViewModel(
     }
 
     fun onClearDate(appName: String) {
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
             val appToUpdate = currentState.apps[appName] ?: return@launch
 
@@ -396,7 +423,9 @@ class HomeViewModel(
                     val latestApks = getLatestApks(result.data)
                     ApksResult.Success(convertParsedApksToUiModels(latestApks))
                 }
-                is NetworkResult.Error -> ApksResult.Error("Error fetching $appName nightly builds: ${result.message}")
+                is NetworkResult.Error -> ApksResult.Error(
+                    "Error fetching $appName nightly builds: ${result.message}",
+                )
             }
 
             val latestState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch

@@ -1,23 +1,24 @@
 package org.mozilla.tryfox.ui.screens
 
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.tryfox.data.FakeCacheManager
 import org.mozilla.tryfox.data.FakeFenixRepository
+import org.mozilla.tryfox.data.FakeIntentManager
 import org.mozilla.tryfox.data.FakeUserDataRepository
 import org.mozilla.tryfox.data.UserDataRepository
 import org.mozilla.tryfox.data.managers.CacheManager
-import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class ProfileScreenTest {
@@ -28,11 +29,7 @@ class ProfileScreenTest {
     private val fenixRepository = FakeFenixRepository(downloadProgressDelayMillis = 100L)
     private val userDataRepository: UserDataRepository = FakeUserDataRepository()
     private val cacheManager: CacheManager = FakeCacheManager()
-    private val profileViewModel = ProfileViewModel(
-        fenixRepository = fenixRepository,
-        userDataRepository = userDataRepository,
-        cacheManager = cacheManager,
-    )
+    private val intentManager = FakeIntentManager()
     private val emailInputTag = "profile_email_input"
     private val emailClearButtonTag = "profile_email_clear_button"
     private val searchButtonTag = "profile_search_button"
@@ -45,11 +42,13 @@ class ProfileScreenTest {
 
     @Test
     fun searchPushesAndCheckDownloadAndInstallStates() {
-        var capturedApkFile: File? = null
-
-        profileViewModel.onInstallApk = { apkFile ->
-            capturedApkFile = apkFile
-        }
+        val profileViewModel = ProfileViewModel(
+            fenixRepository = fenixRepository,
+            userDataRepository = userDataRepository,
+            cacheManager = cacheManager,
+            intentManager = intentManager,
+            authorEmail = null,
+        )
 
         composeTestRule.setContent {
             ProfileScreen(
@@ -75,25 +74,39 @@ class ProfileScreenTest {
             .performClick()
 
         composeTestRule.waitUntil("Download button enters loading state", longTimeoutMillis) {
-            tryOrFalse {
-                composeTestRule.onNodeWithTag(downloadButtonLoadingTag, useUnmergedTree = true).assertIsDisplayed()
-            }
+            composeTestRule.onAllNodesWithTag(downloadButtonLoadingTag, useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
         }
 
         composeTestRule.waitUntil("Download button enters install state", longTimeoutMillis) {
-            tryOrFalse {
-                composeTestRule.onNodeWithTag(downloadButtonInstallTag, useUnmergedTree = true)
-                    .assertIsDisplayed()
-            }
+            composeTestRule.onAllNodesWithTag(downloadButtonInstallTag, useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
         }
 
-        assertNotNull("APK file should have been captured by onInstallApk callback", capturedApkFile)
+        assertTrue(
+            "APK file should have been captured by onInstallApk callback",
+            intentManager.wasInstallApkCalled,
+        )
     }
 
-    private fun tryOrFalse(block: () -> Unit): Boolean = try {
-            block()
-            true
-        } catch (_: AssertionError) {
-            false
+    @Test
+    fun test_profileScreen_displays_initial_authorEmail_in_searchField() {
+        val initialEmail = "initial@example.com"
+        val profileViewModelWithEmail = ProfileViewModel(
+            fenixRepository = fenixRepository,
+            userDataRepository = userDataRepository,
+            cacheManager = cacheManager,
+            intentManager = intentManager,
+            authorEmail = initialEmail,
+        )
+
+        composeTestRule.setContent {
+            ProfileScreen(
+                profileViewModel = profileViewModelWithEmail,
+                onNavigateUp = { },
+            )
+        }
+
+        composeTestRule.onNodeWithTag(emailInputTag).assert(hasText(initialEmail))
     }
 }

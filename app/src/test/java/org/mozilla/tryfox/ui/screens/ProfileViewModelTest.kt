@@ -12,8 +12,9 @@ import org.junit.jupiter.api.io.TempDir
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mozilla.tryfox.data.IFenixRepository
-import org.mozilla.tryfox.data.UserDataRepository
 import org.mozilla.tryfox.data.managers.FakeCacheManager
+import org.mozilla.tryfox.data.managers.FakeIntentManager
+import org.mozilla.tryfox.data.managers.FakeUserDataRepository
 import java.io.File
 
 @ExperimentalCoroutinesApi
@@ -26,8 +27,9 @@ class ProfileViewModelTest {
     @Mock
     private lateinit var fenixRepository: IFenixRepository
 
-    @Mock
-    private lateinit var userDataRepository: UserDataRepository
+    private val userDataRepository = FakeUserDataRepository()
+
+    private val intentManager = FakeIntentManager()
 
     @TempDir
     lateinit var tempCacheDir: File
@@ -40,6 +42,8 @@ class ProfileViewModelTest {
             fenixRepository = fenixRepository,
             userDataRepository = userDataRepository,
             cacheManager = cacheManager,
+            intentManager = intentManager,
+            authorEmail = null,
         )
     }
 
@@ -51,7 +55,7 @@ class ProfileViewModelTest {
     @Test
     fun `updateAuthorEmail should update the authorEmail state`() = runTest {
         // Given
-        val viewModel = ProfileViewModel(fenixRepository, userDataRepository, cacheManager)
+        val viewModel = ProfileViewModel(fenixRepository, userDataRepository, cacheManager, intentManager, null)
         val newEmail = "test@example.com"
 
         viewModel.authorEmail.test {
