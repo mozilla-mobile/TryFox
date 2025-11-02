@@ -20,7 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
 import org.mozilla.tryfox.model.ParsedNightlyApk
-import org.mozilla.tryfox.network.ApiService
+import org.mozilla.tryfox.network.TreeherderApiService
 import retrofit2.HttpException
 import retrofit2.Response
 
@@ -41,7 +41,7 @@ class MozillaArchiveRepositoryImplTest {
     }
 
     @Mock
-    private lateinit var mockApiService: ApiService
+    private lateinit var mockTreeherderApiService: TreeherderApiService
 
     private lateinit var repository: MozillaArchiveRepositoryImpl
 
@@ -66,7 +66,7 @@ class MozillaArchiveRepositoryImplTest {
     fun setUp() {
         val testDate = LocalDate(2023, 10, 1)
         val clock = FixedClock(testDate.atStartOfDayIn(TimeZone.UTC))
-        repository = MozillaArchiveRepositoryImpl(mockApiService, clock)
+        repository = MozillaArchiveRepositoryImpl(mockTreeherderApiService, clock)
     }
 
     private fun createMockHtmlResponse(vararg dirStrings: String): String {
@@ -79,7 +79,7 @@ class MozillaArchiveRepositoryImplTest {
     fun `getFenixNightlyBuilds success - single latest build`() = runTest {
         val mockHtml = createMockHtmlResponse(fenixDirString1)
         val expectedUrl = "https://archive.mozilla.org/pub/fenix/nightly/2023/10/"
-        whenever(mockApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
+        whenever(mockTreeherderApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
 
         val result = repository.getFenixNightlyBuilds()
 
@@ -101,7 +101,7 @@ class MozillaArchiveRepositoryImplTest {
         val olderDateDir = "2023-09-30-00-00-00-$FENIX-$fenixVersion-android-arm64-v8a/"
         val mockHtml = createMockHtmlResponse(fenixDirString1, fenixDirString2, olderDateDir)
         val expectedUrl = "https://archive.mozilla.org/pub/fenix/nightly/2023/10/"
-        whenever(mockApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
+        whenever(mockTreeherderApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
 
         val result = repository.getFenixNightlyBuilds()
 
@@ -125,7 +125,7 @@ class MozillaArchiveRepositoryImplTest {
 
         val mockHtml = createMockHtmlResponse(olderDateDir, latestDateDir, middleDateDir)
         val expectedUrl = "https://archive.mozilla.org/pub/fenix/nightly/2023/10/"
-        whenever(mockApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
+        whenever(mockTreeherderApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
 
         val result = repository.getFenixNightlyBuilds()
         assertTrue(result is NetworkResult.Success)
@@ -138,7 +138,7 @@ class MozillaArchiveRepositoryImplTest {
     fun `getFenixNightlyBuilds success - no builds found`() = runTest {
         val mockHtml = "<td>Some other HTML</td>"
         val expectedUrl = "https://archive.mozilla.org/pub/fenix/nightly/2023/10/"
-        whenever(mockApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
+        whenever(mockTreeherderApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
 
         val result = repository.getFenixNightlyBuilds()
 
@@ -150,7 +150,7 @@ class MozillaArchiveRepositoryImplTest {
     fun `getFenixNightlyBuilds network error`() = runTest {
         val errorMessage = "Network error"
         val expectedUrl = "https://archive.mozilla.org/pub/fenix/nightly/2023/10/"
-        whenever(mockApiService.getHtmlPage(eq(expectedUrl))).thenThrow(RuntimeException(errorMessage))
+        whenever(mockTreeherderApiService.getHtmlPage(eq(expectedUrl))).thenThrow(RuntimeException(errorMessage))
 
         val result = repository.getFenixNightlyBuilds()
 
@@ -163,7 +163,7 @@ class MozillaArchiveRepositoryImplTest {
         // Given
         val testDate = LocalDate(2024, 3, 15)
         val clock = FixedClock(testDate.atStartOfDayIn(TimeZone.UTC))
-        val repository = MozillaArchiveRepositoryImpl(mockApiService, clock)
+        val repository = MozillaArchiveRepositoryImpl(mockTreeherderApiService, clock)
 
         val currentMonthUrl = MozillaArchiveRepositoryImpl.archiveUrlForDate(FENIX, testDate)
 
@@ -174,10 +174,10 @@ class MozillaArchiveRepositoryImplTest {
         val previousMonthDirString = "$previousMonthDateString-$FENIX-$fenixVersion-android-arm64-v8a/"
         val previousMonthMockHtml = createMockHtmlResponse(previousMonthDirString)
 
-        whenever(mockApiService.getHtmlPage(currentMonthUrl)).thenThrow(
+        whenever(mockTreeherderApiService.getHtmlPage(currentMonthUrl)).thenThrow(
             HttpException(Response.error<Any>(404, "".toResponseBody(null))),
         )
-        whenever(mockApiService.getHtmlPage(previousMonthUrl)).thenReturn(previousMonthMockHtml)
+        whenever(mockTreeherderApiService.getHtmlPage(previousMonthUrl)).thenReturn(previousMonthMockHtml)
 
         // When
         val result = repository.getFenixNightlyBuilds()
@@ -193,7 +193,7 @@ class MozillaArchiveRepositoryImplTest {
     fun `getFocusNightlyBuilds success - single latest build`() = runTest {
         val mockHtml = createMockHtmlResponse(focusDirString)
         val expectedUrl = "https://archive.mozilla.org/pub/focus/nightly/2023/10/"
-        whenever(mockApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
+        whenever(mockTreeherderApiService.getHtmlPage(eq(expectedUrl))).thenReturn(mockHtml)
 
         val result = repository.getFocusNightlyBuilds()
 
@@ -214,7 +214,7 @@ class MozillaArchiveRepositoryImplTest {
     fun `getFocusNightlyBuilds network error`() = runTest {
         val errorMessage = "Network error for Focus"
         val expectedUrl = "https://archive.mozilla.org/pub/focus/nightly/2023/10/"
-        whenever(mockApiService.getHtmlPage(eq(expectedUrl))).thenThrow(RuntimeException(errorMessage))
+        whenever(mockTreeherderApiService.getHtmlPage(eq(expectedUrl))).thenThrow(RuntimeException(errorMessage))
 
         val result = repository.getFocusNightlyBuilds()
 

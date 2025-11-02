@@ -14,6 +14,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TREEHERDER
+import org.mozilla.tryfox.util.TRYFOX
 import java.io.File
 
 class DefaultCacheManager(
@@ -43,7 +44,7 @@ class DefaultCacheManager(
     }
 
     private fun determineCacheState(): CacheManagementState {
-        val cacheIsNotEmpty = listOf(FENIX, FOCUS, REFERENCE_BROWSER, TREEHERDER).any { isAppCachePopulated(it) }
+        val cacheIsNotEmpty = listOf(FENIX, FOCUS, REFERENCE_BROWSER, TREEHERDER, TRYFOX).any { isAppCachePopulated(it) }
         return if (cacheIsNotEmpty) CacheManagementState.IdleNonEmpty else CacheManagementState.IdleEmpty
     }
 

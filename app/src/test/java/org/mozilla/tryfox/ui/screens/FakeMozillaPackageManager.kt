@@ -18,6 +18,10 @@ class FakeMozillaPackageManager(
     override val referenceBrowser: AppState
         get() = apps["org.mozilla.reference.browser"] ?: AppState("Reference Browser", "org.mozilla.reference.browser", null, null)
 
+    override val tryfox: AppState
+        get() = apps["org.mozilla.tryfox"] ?: AppState("TryFox", "org.mozilla.tryfox", null, null)
+
+
     override val appStates: Flow<AppState> = emptyFlow()
 
     override fun launchApp(appName: String) {

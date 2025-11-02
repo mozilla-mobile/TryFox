@@ -28,6 +28,7 @@ import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
 import org.mockito.quality.Strictness
 import org.mozilla.tryfox.data.DownloadState
+import org.mozilla.tryfox.data.GithubRepository
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.MozillaArchiveRepository
 import org.mozilla.tryfox.data.NetworkResult
@@ -41,6 +42,7 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
+import org.mozilla.tryfox.util.TRYFOX
 import java.io.File
 
 @ExperimentalCoroutinesApi
@@ -63,6 +65,9 @@ class HomeViewModelTest {
     @Mock
     private lateinit var mockMozillaArchiveRepository: MozillaArchiveRepository
 
+    @Mock
+    private lateinit var mockGithubRepository: GithubRepository
+
     private val intentManager = FakeIntentManager()
 
     @TempDir
@@ -71,6 +76,7 @@ class HomeViewModelTest {
     private val testFenixAppName = FENIX
     private val testFocusAppName = FOCUS
     private val testReferenceBrowserAppName = REFERENCE_BROWSER
+    private val testTryFoxAppName = TRYFOX
     private val testVersion = "125.0a1"
     private val testDateRaw = "2023-11-01-01-01-01"
     private val testAbi = "arm64-v8a"
@@ -148,12 +154,14 @@ class HomeViewModelTest {
         whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(emptyList()))
         whenever(mockMozillaArchiveRepository.getFocusNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(emptyList()))
         whenever(mockMozillaArchiveRepository.getReferenceBrowserNightlyBuilds()).thenReturn(NetworkResult.Success(emptyList()))
+        whenever(mockGithubRepository.getTryFoxReleases()).thenReturn(NetworkResult.Success(emptyList()))
 
         fakeCacheManager = FakeCacheManager(tempCacheDir)
         fakeMozillaPackageManager = FakeMozillaPackageManager()
 
         viewModel = HomeViewModel(
             mozillaArchiveRepository = mockMozillaArchiveRepository,
+            githubRepository = mockGithubRepository,
             fenixRepository = mockFenixRepository,
             mozillaPackageManager = fakeMozillaPackageManager,
             cacheManager = fakeCacheManager,
@@ -191,9 +199,13 @@ class HomeViewModelTest {
         val fenixParsed = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
         val focusParsed = createTestParsedNightlyApk(testFocusAppName, testDateRaw, "126.0a1", "x86_64")
         val rbParsed = createTestParsedNightlyApk(testReferenceBrowserAppName, testDateRaw, "latest", "armeabi-v7a")
+        val tryFoxParsed = createTestParsedNightlyApk(testTryFoxAppName, null, "1.0.0", "armeabi-v7a")
+
         whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(listOf(fenixParsed)))
         whenever(mockMozillaArchiveRepository.getFocusNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(listOf(focusParsed)))
         whenever(mockMozillaArchiveRepository.getReferenceBrowserNightlyBuilds()).thenReturn(NetworkResult.Success(listOf(rbParsed)))
+        whenever(mockGithubRepository.getTryFoxReleases()).thenReturn(NetworkResult.Success(listOf(tryFoxParsed)))
+
         fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
 
         viewModel.initialLoad()
@@ -217,6 +229,9 @@ class HomeViewModelTest {
         assertNotNull(rbApp)
         assertTrue(rbApp!!.apks is ApksResult.Success, "Reference Browser builds should be Success")
         assertEquals(1, (rbApp.apks as ApksResult.Success).apks.size)
+
+        val tryFoxApp = loadedState.apps[TRYFOX]
+        assertNull(tryFoxApp, "TryFox app should be null when loading")
 
         assertEquals(CacheManagementState.IdleEmpty, loadedState.cacheManagementState)
         assertTrue(fakeCacheManager.checkCacheStatusCalled)
@@ -442,7 +457,7 @@ class HomeViewModelTest {
             failedApkInfo!!.downloadState is DownloadState.DownloadFailed,
             "DownloadState should be DownloadFailed",
         )
-        assertEquals(downloadErrorMessage, (failedApkInfo.downloadState as DownloadState.DownloadFailed).errorMessage)
+        assertEquals(downloadErrorMessage, (failedApkInfo.downloadState as DownloadState.DownloadFailed).message)
         assertTrue(fakeCacheManager.checkCacheStatusCalled)
         assertFalse(loadedState.isDownloadingAnyFile, "isDownloadingAnyFile should be false after failure")
     }

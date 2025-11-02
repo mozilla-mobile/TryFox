@@ -11,7 +11,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import org.mozilla.tryfox.R
 import org.mozilla.tryfox.model.AppState
 
 @Composable
@@ -27,7 +29,7 @@ fun CurrentInstallState(
             appState == null || !appState.isInstalled -> {
                 AssistChip(
                     onClick = { /* No action */ },
-                    label = { Text("Not installed") },
+                    label = { Text(stringResource(id = R.string.not_installed_chip_label)) },
                     colors = AssistChipDefaults.assistChipColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         labelColor = MaterialTheme.colorScheme.onErrorContainer,
@@ -38,7 +40,7 @@ fun CurrentInstallState(
             else -> {
                 AssistChip(
                     onClick = { /* No action */ },
-                    label = { Text("Installed") },
+                    label = { Text(stringResource(id = R.string.installed_chip_label)) },
                     border = AssistChipDefaults.assistChipBorder(true),
                 )
             }

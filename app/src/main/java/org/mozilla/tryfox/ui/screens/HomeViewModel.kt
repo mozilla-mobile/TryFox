@@ -19,6 +19,7 @@ import kotlinx.datetime.format.FormatStringsInDatetimeFormats
 import kotlinx.datetime.format.byUnicodePattern
 import kotlinx.datetime.todayIn
 import org.mozilla.tryfox.data.DownloadState
+import org.mozilla.tryfox.data.GithubRepository
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.MozillaArchiveRepository
 import org.mozilla.tryfox.data.MozillaPackageManager
@@ -31,16 +32,18 @@ import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
+import org.mozilla.tryfox.ui.models.newVersionAvailable
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
+import org.mozilla.tryfox.util.TRYFOX
 import java.io.File
-import kotlin.collections.mapValues
 
 /**
  * ViewModel for the Home screen, responsible for fetching and displaying nightly builds of different Mozilla apps.
  *
  * @param mozillaArchiveRepository Repository for fetching data from the Mozilla Archive.
+ * @param githubRepository Repository for fetching release data from GitHub.
  * @param fenixRepository Repository for fetching Fenix-related data.
  * @param mozillaPackageManager Manager for interacting with installed Mozilla apps.
  * @param cacheManager Manager for handling application cache.
@@ -50,6 +53,7 @@ import kotlin.collections.mapValues
 @OptIn(FormatStringsInDatetimeFormats::class)
 class HomeViewModel(
     private val mozillaArchiveRepository: MozillaArchiveRepository,
+    private val githubRepository: GithubRepository,
     private val fenixRepository: IFenixRepository,
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
@@ -87,8 +91,21 @@ class HomeViewModel(
                         currentState.apps
                     }
 
+                    val updatedTryFoxApp = if (newCacheState is CacheManagementState.IdleEmpty) {
+                        currentState.tryfoxApp?.let { app ->
+                            val apksResult = app.apks as? ApksResult.Success ?: return@let app
+                            val updatedApks = apksResult.apks.map {
+                                it.copy(downloadState = DownloadState.NotDownloaded)
+                            }
+                            app.copy(apks = ApksResult.Success(updatedApks))
+                        }
+                    } else {
+                        currentState.tryfoxApp
+                    }
+
                     currentState.copy(
                         apps = updatedApps,
+                        tryfoxApp = updatedTryFoxApp,
                         cacheManagementState = newCacheState,
                         isDownloadingAnyFile = if (newCacheState is CacheManagementState.IdleEmpty) {
                             false
@@ -146,6 +163,7 @@ class HomeViewModel(
             FENIX to mozillaPackageManager.fenix,
             FOCUS to mozillaPackageManager.focus,
             REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
+            TRYFOX to mozillaPackageManager.tryfox,
         )
 
         _homeScreenState.update {
@@ -160,7 +178,8 @@ class HomeViewModel(
                 )
             }
             HomeScreenState.Loaded(
-                apps = initialApps,
+                apps = initialApps.filterNot { (key, _) -> key == TRYFOX },
+                tryfoxApp = initialApps[TRYFOX],
                 cacheManagementState = currentCacheState,
                 isDownloadingAnyFile = false,
             )
@@ -170,6 +189,7 @@ class HomeViewModel(
             FENIX to mozillaArchiveRepository.getFenixNightlyBuilds(),
             FOCUS to mozillaArchiveRepository.getFocusNightlyBuilds(),
             REFERENCE_BROWSER to mozillaArchiveRepository.getReferenceBrowserNightlyBuilds(),
+            TRYFOX to githubRepository.getTryFoxReleases(),
         )
 
         val newApps = results.mapValues { (appName, result) ->
@@ -196,9 +216,14 @@ class HomeViewModel(
             (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
         }
 
+        val tryFoxApp = newApps[TRYFOX]?.takeIf { it.newVersionAvailable }
+
         _homeScreenState.update {
             if (it is HomeScreenState.Loaded) {
-                it.copy(apps = newApps, isDownloadingAnyFile = isDownloading)
+                it.copy(
+                    apps = newApps.filterNot { (key, _) -> key == TRYFOX },
+                    tryfoxApp = tryFoxApp,
+                    isDownloadingAnyFile = isDownloading)
             } else {
                 it
             }
@@ -277,20 +302,31 @@ class HomeViewModel(
             if (currentState !is HomeScreenState.Loaded) return@update currentState
 
             val updatedApps = currentState.apps.toMutableMap()
-            val appToUpdate = updatedApps[appName] ?: return@update currentState
-            val apksResult = appToUpdate.apks as? ApksResult.Success ?: return@update currentState
+            var updatedTryFoxApp = currentState.tryfoxApp
 
-            val updatedApks = apksResult.apks.map {
-                if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
+            if (appName == TRYFOX) {
+                updatedTryFoxApp = updatedTryFoxApp?.let { appToUpdate ->
+                    val apksResult = appToUpdate.apks as? ApksResult.Success ?: return@let appToUpdate
+                    val updatedApks = apksResult.apks.map {
+                        if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
+                    }
+                    appToUpdate.copy(apks = ApksResult.Success(updatedApks))
+                }
+            } else {
+                val appToUpdate = updatedApps[appName] ?: return@update currentState
+                val apksResult = appToUpdate.apks as? ApksResult.Success ?: return@update currentState
+
+                val updatedApks = apksResult.apks.map {
+                    if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
+                }
+                updatedApps[appName] = appToUpdate.copy(apks = ApksResult.Success(updatedApks))
             }
-
-            updatedApps[appName] = appToUpdate.copy(apks = ApksResult.Success(updatedApks))
 
             val isDownloading = updatedApps.values.any { app ->
                 (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
-            }
+            } || (updatedTryFoxApp?.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
 
-            currentState.copy(apps = updatedApps, isDownloadingAnyFile = isDownloading)
+            currentState.copy(apps = updatedApps, tryfoxApp = updatedTryFoxApp, isDownloadingAnyFile = isDownloading)
         }
     }
 
@@ -303,7 +339,7 @@ class HomeViewModel(
             updateApkDownloadStateInScreenState(
                 apkInfo.appName,
                 apkInfo.uniqueKey,
-                DownloadState.InProgress(0f),
+                DownloadState.InProgress(0f, isIndeterminate = true),
             )
 
             val outputDir = apkInfo.apkDir
@@ -314,12 +350,13 @@ class HomeViewModel(
                 downloadUrl = apkInfo.url,
                 outputFile = outputFile,
                 onProgress = { bytesDownloaded, totalBytes ->
+                    val isIndeterminate = totalBytes <= 0
                     val progress =
-                        if (totalBytes > 0) bytesDownloaded.toFloat() / totalBytes.toFloat() else 0f
+                        if (isIndeterminate) 0f else bytesDownloaded.toFloat() / totalBytes.toFloat()
                     updateApkDownloadStateInScreenState(
                         apkInfo.appName,
                         apkInfo.uniqueKey,
-                        DownloadState.InProgress(progress),
+                        DownloadState.InProgress(progress, isIndeterminate),
                     )
                 },
             )
@@ -351,6 +388,10 @@ class HomeViewModel(
         intentManager.installApk(file)
     }
 
+    fun uninstallApp(packageName: String) {
+        intentManager.uninstallApk(packageName)
+    }
+
     fun clearAppCache() {
         viewModelScope.launch(ioDispatcher) {
             cacheManager.clearCache()
@@ -358,7 +399,7 @@ class HomeViewModel(
     }
 
     fun onDateSelected(appName: String, date: LocalDate) {
-        if (appName == REFERENCE_BROWSER) {
+        if (appName == REFERENCE_BROWSER || appName == TRYFOX) {
             return
         }
 
@@ -459,6 +500,13 @@ class HomeViewModel(
 
     fun openApp(app: String) {
         mozillaPackageManager.launchApp(app)
+    }
+
+    fun dismissTryFoxCard() {
+        _homeScreenState.update { currentState ->
+            if (currentState !is HomeScreenState.Loaded) return@update currentState
+            currentState.copy(tryfoxApp = null)
+        }
     }
 
     companion object {

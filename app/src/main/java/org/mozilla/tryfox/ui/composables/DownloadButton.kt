@@ -32,23 +32,23 @@ fun DownloadButton(
         }
         is DownloadState.InProgress -> {
             Button(
-                onClick = {}, // Corrected: was missing comma
+                onClick = {},
                 enabled = false,
                 modifier = Modifier.testTag("action_button_downloading"), // Tag for Downloading state
             ) {
-                if (downloadState.progress > 0f) {
+                if (downloadState.isIndeterminate) {
+                    CircularProgressIndicator(
+                        modifier = Modifier
+                            .size(ButtonDefaults.IconSize)
+                            .testTag("progress_indicator_indeterminate"), // Tag for indeterminate progress
+                        strokeWidth = 2.dp,
+                    )
+                } else {
                     CircularProgressIndicator(
                         progress = { downloadState.progress },
                         modifier = Modifier
                             .size(ButtonDefaults.IconSize)
                             .testTag("progress_indicator_determinate"), // Tag for determinate progress
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .size(ButtonDefaults.IconSize)
-                            .testTag("progress_indicator_indeterminate"), // Tag for indeterminate progress
                         strokeWidth = 2.dp,
                     )
                 }

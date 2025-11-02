@@ -57,4 +57,8 @@
     <string name="app_name_reference_browser">Reference Browser</string>
     <string name="unsupported_abi">Unsupported ABI</string>
     <string name="clear_date_selection">Clear date selection</string>
+    <string name="uninstall_button_label">Uninstall</string>
+    <string name="installed_chip_label">Installed</string>
+    <string name="not_installed_chip_label">Not installed</string>
+    <string name="tryfox_card_title">TryFox %1$s is available</string>
 </resources>

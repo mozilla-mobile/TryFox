@@ -7,14 +7,14 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.todayIn
 import org.mozilla.tryfox.model.ParsedNightlyApk
-import org.mozilla.tryfox.network.ApiService
+import org.mozilla.tryfox.network.TreeherderApiService
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
 import retrofit2.HttpException
 import java.util.regex.Pattern
 
 class MozillaArchiveRepositoryImpl(
-    private val archiveApiService: ApiService,
+    private val treeherderApiService: TreeherderApiService,
     private val clock: Clock = Clock.System,
 ) : MozillaArchiveRepository {
 
@@ -76,7 +76,7 @@ class MozillaArchiveRepositoryImpl(
 
     private suspend fun fetchAndParseNightlyBuilds(archiveBaseUrl: String, appNameFilter: String, date: LocalDate?): NetworkResult<List<ParsedNightlyApk>> {
         return try {
-            val htmlResult = archiveApiService.getHtmlPage(archiveBaseUrl)
+            val htmlResult = treeherderApiService.getHtmlPage(archiveBaseUrl)
             val parsedApks = parseNightlyBuildsFromHtml(htmlResult, archiveBaseUrl, appNameFilter, date)
             NetworkResult.Success(parsedApks)
         } catch (e: Exception) {

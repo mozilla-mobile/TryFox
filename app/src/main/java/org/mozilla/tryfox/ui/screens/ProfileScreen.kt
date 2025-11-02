@@ -25,7 +25,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -61,6 +60,7 @@ import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.AppIcon
 import org.mozilla.tryfox.ui.composables.BinButton
 import org.mozilla.tryfox.ui.composables.DownloadButton
+import org.mozilla.tryfox.ui.composables.ErrorState
 import org.mozilla.tryfox.ui.composables.PushCommentCard
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import org.mozilla.tryfox.util.FENIX
@@ -120,7 +120,7 @@ private fun UserSearchCard(
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    Card(
+    androidx.compose.material3.Card(
         modifier = modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
@@ -178,21 +178,6 @@ private fun UserSearchCard(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun ErrorState(errorMessage: String, modifier: Modifier = Modifier) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Text(
-            text = errorMessage,
-            modifier = Modifier.padding(16.dp),
-            color = MaterialTheme.colorScheme.onErrorContainer,
-            style = MaterialTheme.typography.bodyMedium,
-        )
     }
 }
 
@@ -355,7 +340,7 @@ private fun JobCard(
         job.artifacts.firstOrNull { it.abi.isSupported }
     }
 
-    Card(
+    androidx.compose.material3.Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),

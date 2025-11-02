@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.ui.composables
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -74,6 +76,7 @@ fun ArchiveGroupCard(
     onDownloadClick: (ApkUiModel) -> Unit,
     onInstallClick: (File) -> Unit,
     onOpenAppClick: () -> Unit,
+    onUninstallClick: () -> Unit,
     appState: AppState?,
     onDateSelected: (LocalDate) -> Unit,
     userPickedDate: LocalDate?,
@@ -134,7 +137,7 @@ fun ArchiveGroupCard(
                     )
                 }
                 apks.isNotEmpty() -> {
-                    ArchiveGroupAbiSelector(apks, onDownloadClick, onInstallClick)
+                    ArchiveGroupAbiSelector(apks, onDownloadClick, onInstallClick, onUninstallClick, appState)
                 }
                 else -> {
                     Text(
@@ -248,6 +251,8 @@ private fun ArchiveGroupAbiSelector(
     apks: List<ApkUiModel>,
     onDownloadClick: (ApkUiModel) -> Unit,
     onInstallClick: (File) -> Unit,
+    onUninstallClick: () -> Unit,
+    appState: AppState?,
 ) {
     val firstSupportedIndex = apks.indexOfFirst { it.abi.isSupported }.takeIf { it != -1 } ?: 0
     var selectedIndex by remember { mutableStateOf(firstSupportedIndex) }
@@ -294,12 +299,26 @@ private fun ArchiveGroupAbiSelector(
 
         Spacer(Modifier.height(ArchiveGroupCardTokens.SpacerHeight))
 
-        val selectedApk = apks[selectedIndex]
-        DownloadButton(
-            downloadState = selectedApk.downloadState,
-            onDownloadClick = { onDownloadClick(selectedApk) },
-            onInstallClick = { file -> onInstallClick(file) },
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (appState?.isInstalled == true) {
+                Button(
+                    onClick = onUninstallClick,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                ) {
+                    Text(text = stringResource(id = R.string.uninstall_button_label))
+                }
+            }
+
+            val selectedApk = apks[selectedIndex]
+            DownloadButton(
+                downloadState = selectedApk.downloadState,
+                onDownloadClick = { onDownloadClick(selectedApk) },
+                onInstallClick = { file -> onInstallClick(file) },
+            )
+        }
     }
 }
 

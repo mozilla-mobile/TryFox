@@ -8,6 +8,9 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
@@ -32,6 +35,25 @@ private val LightColorScheme = lightColorScheme(
      */
 )
 
+@Immutable
+data class CustomColors(
+    val tryFoxCardBackground: Color,
+)
+
+val LocalCustomColors = staticCompositionLocalOf {
+    CustomColors(
+        tryFoxCardBackground = Color.Unspecified,
+    )
+}
+
+private val DarkCustomColors = CustomColors(
+    tryFoxCardBackground = Color(0xFFA89300),
+)
+
+private val LightCustomColors = CustomColors(
+    tryFoxCardBackground = Color(0xFFFFEB3B),
+)
+
 @Composable
 fun TryFoxTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -49,9 +71,19 @@ fun TryFoxTheme(
         else -> LightColorScheme
     }
 
+    val customColors = if (darkTheme) DarkCustomColors else LightCustomColors
+
     MaterialTheme(
         colorScheme = colorScheme,
         typography = Typography,
-        content = content,
-    )
+    ) {
+        androidx.compose.runtime.CompositionLocalProvider(
+            LocalCustomColors provides customColors,
+            content = content,
+        )
+    }
 }
+
+val MaterialTheme.customColors: CustomColors
+    @Composable
+    get() = LocalCustomColors.current
