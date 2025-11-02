@@ -24,6 +24,11 @@ interface MozillaPackageManager {
     val referenceBrowser: AppState
 
     /**
+     * The [AppState] for TryFox.
+     */
+    val tryfox: AppState
+
+    /**
      * A flow that emits an [AppState] whenever a monitored Mozilla application
      * is installed or uninstalled.
      */

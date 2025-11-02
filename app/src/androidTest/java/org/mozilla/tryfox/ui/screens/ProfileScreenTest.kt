@@ -75,6 +75,7 @@ class ProfileScreenTest {
 
         composeTestRule.waitUntil("Download button enters loading state", longTimeoutMillis) {
             composeTestRule.onAllNodesWithTag(downloadButtonLoadingTag, useUnmergedTree = true)
+
                 .fetchSemanticsNodes().isNotEmpty()
         }
 

@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.ui.models
 
 import kotlinx.datetime.LocalDate
+import org.mozilla.tryfox.util.Version
 
 sealed class ApksResult {
     data object Loading : ApksResult()
@@ -16,3 +17,14 @@ data class AppUiModel(
     val apks: ApksResult,
     val userPickedDate: LocalDate? = null,
 )
+
+val AppUiModel.newVersionAvailable: Boolean
+    get() {
+        val latestApkVersionString = (apks as? ApksResult.Success)?.apks?.firstOrNull()?.version ?: return false
+        val installedVersionString = installedVersion ?: return true
+
+        val latestVersion = Version.from(latestApkVersionString) ?: return false
+        val installedVersion = Version.from(installedVersionString) ?: return false
+
+        return latestVersion > installedVersion
+    }

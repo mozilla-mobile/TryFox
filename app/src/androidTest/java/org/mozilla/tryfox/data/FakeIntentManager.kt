@@ -9,6 +9,8 @@ import java.io.File
  */
 class FakeIntentManager() : IntentManager {
 
+    var wasUninstallApkCalled: Boolean = false
+        private set
     /**
      * A boolean flag to indicate whether the `installApk` method was called.
      */
@@ -28,5 +30,9 @@ class FakeIntentManager() : IntentManager {
      */
     override fun installApk(file: File) {
         installedFile = file
+    }
+
+    override fun uninstallApk(packageName: String) {
+        wasUninstallApkCalled = true
     }
 }

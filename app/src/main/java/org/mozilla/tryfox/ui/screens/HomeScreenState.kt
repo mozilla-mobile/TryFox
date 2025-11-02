@@ -2,6 +2,7 @@ package org.mozilla.tryfox.ui.screens
 
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AppUiModel
+import org.mozilla.tryfox.util.TRYFOX
 
 /**
  * Represents the various states of the Home screen.
@@ -17,6 +18,7 @@ sealed class HomeScreenState {
      */
     data class Loaded(
         val apps: Map<String, AppUiModel>,
+        val tryfoxApp: AppUiModel?,
         val cacheManagementState: CacheManagementState,
         val isDownloadingAnyFile: Boolean,
     ) : HomeScreenState()

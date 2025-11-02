@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import org.mozilla.tryfox.BuildConfig
 import java.io.File
+import androidx.core.net.toUri
 
 /**
  * Interface for managing intents related to APK installation.
@@ -20,6 +21,7 @@ interface IntentManager {
      * @param file The APK file to install.
      */
     fun installApk(file: File)
+    fun uninstallApk(packageName: String)
 }
 
 /**
@@ -50,6 +52,19 @@ class DefaultIntentManager(private val context: Context) : IntentManager {
         } catch (e: ActivityNotFoundException) {
             Toast.makeText(context, "No application found to install APK", Toast.LENGTH_LONG).show()
             Log.e("IntentManager", "Error installing APK", e)
+        }
+    }
+
+    override fun uninstallApk(packageName: String) {
+        val intent = Intent(Intent.ACTION_DELETE).apply {
+            data = "package:$packageName".toUri()
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        try {
+            context.startActivity(intent)
+        } catch (e: ActivityNotFoundException) {
+            Toast.makeText(context, "No application found to uninstall app", Toast.LENGTH_LONG).show()
+            Log.e("MainActivity", "Error uninstalling app", e)
         }
     }
 }

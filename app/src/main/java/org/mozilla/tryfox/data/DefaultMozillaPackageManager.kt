@@ -15,6 +15,7 @@ import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.util.FENIX_PACKAGE
 import org.mozilla.tryfox.util.FOCUS_PACKAGE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER_PACKAGE
+import org.mozilla.tryfox.util.TRYFOX_PACKAGE
 
 class DefaultMozillaPackageManager(private val context: Context) : MozillaPackageManager {
 
@@ -47,16 +48,20 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
         FENIX_PACKAGE to "Fenix",
         FOCUS_PACKAGE to "Focus",
         REFERENCE_BROWSER_PACKAGE to "Reference Browser",
+        TRYFOX_PACKAGE to "TryFox",
     )
 
     override val fenix: AppState
-        get() = getAppState("org.mozilla.fenix")
+        get() = getAppState(FENIX_PACKAGE)
 
     override val focus: AppState
-        get() = getAppState("org.mozilla.focus.nightly")
+        get() = getAppState(FOCUS_PACKAGE)
 
     override val referenceBrowser: AppState
-        get() = getAppState("org.mozilla.reference.browser")
+        get() = getAppState(REFERENCE_BROWSER_PACKAGE)
+
+    override val tryfox: AppState
+        get() = getAppState(TRYFOX_PACKAGE)
 
     override val appStates: Flow<AppState> = callbackFlow {
         val receiver = object : BroadcastReceiver() {

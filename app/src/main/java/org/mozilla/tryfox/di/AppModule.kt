@@ -16,6 +16,8 @@ import org.mozilla.tryfox.TryFoxViewModel
 import org.mozilla.tryfox.data.DefaultMozillaPackageManager
 import org.mozilla.tryfox.data.DefaultUserDataRepository
 import org.mozilla.tryfox.data.FenixRepository
+import org.mozilla.tryfox.data.GithubRepository
+import org.mozilla.tryfox.data.GithubRepositoryImpl
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.MozillaArchiveRepository
 import org.mozilla.tryfox.data.MozillaArchiveRepositoryImpl
@@ -25,14 +27,15 @@ import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.DefaultCacheManager
 import org.mozilla.tryfox.data.managers.DefaultIntentManager
 import org.mozilla.tryfox.data.managers.IntentManager
-import org.mozilla.tryfox.network.ApiService
+import org.mozilla.tryfox.network.GithubApiService
+import org.mozilla.tryfox.network.TreeherderApiService
 import org.mozilla.tryfox.ui.screens.HomeViewModel
 import org.mozilla.tryfox.ui.screens.ProfileViewModel
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
 
 const val TREEHERDER_BASE_URL = "https://treeherder.mozilla.org/api/"
-const val ARCHIVE_MOZILLA_BASE_URL = "https://archive.mozilla.org/"
+const val GITHUB_BASE_URL = "https://api.github.com/"
 
 val dispatchersModule = module {
     single<CoroutineDispatcher>(named("IODispatcher")) { Dispatchers.IO }
@@ -51,7 +54,7 @@ val networkModule = module {
         }.build()
     }
 
-    single {
+    single(named("treeherderRetrofit")) {
         val json = Json {
             ignoreUnknownKeys = true
             coerceInputValues = true
@@ -64,13 +67,33 @@ val networkModule = module {
             .build()
     }
 
-    single { get<Retrofit>().create(ApiService::class.java) }
+    single(named("githubRetrofit")) {
+        val json = Json {
+            ignoreUnknownKeys = true
+        }
+        Retrofit.Builder()
+            .baseUrl(GITHUB_BASE_URL)
+            .client(get<OkHttpClient>())
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+    }
+
+    single<TreeherderApiService> {
+        val treeherderRetrofit: Retrofit = get(named("treeherderRetrofit"))
+        treeherderRetrofit.create(TreeherderApiService::class.java)
+    }
+
+    single<GithubApiService> {
+        val githubRetrofit: Retrofit = get(named("githubRetrofit"))
+        githubRetrofit.create(GithubApiService::class.java)
+    }
 }
 
 val repositoryModule = module {
     single<IFenixRepository> { FenixRepository(get()) }
     single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
     single<MozillaArchiveRepository> { MozillaArchiveRepositoryImpl(get()) }
+    single<GithubRepository> { GithubRepositoryImpl(get()) }
     single<MozillaPackageManager> { DefaultMozillaPackageManager(androidContext()) }
     single<CacheManager> { DefaultCacheManager(androidContext().cacheDir, get(named("IODispatcher"))) }
     single<IntentManager> { DefaultIntentManager(androidContext()) }
@@ -78,8 +101,8 @@ val repositoryModule = module {
 
 val viewModelModule = module {
     viewModel { params -> TryFoxViewModel(get(), get(), params.getOrNull(), params.getOrNull()) }
-    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(named("IODispatcher"))) }
-    viewModel { params -> ProfileViewModel(get(), get(), get(), get(), params.getOrNull()) }
+    viewModel { HomeViewModel(get(), get(), get(), get(), get(), get(), get(named("IODispatcher"))) }
+    viewModel { params -> ProfileViewModel(get(), get(), get(), get(),params.getOrNull()) }
 }
 
 val appModules = listOf(dispatchersModule, networkModule, repositoryModule, viewModelModule)

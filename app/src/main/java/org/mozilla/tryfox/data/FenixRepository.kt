@@ -1,18 +1,18 @@
 package org.mozilla.tryfox.data
 
-import android.util.Log // Added import
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import logcat.LogPriority
 import logcat.logcat
-import org.mozilla.tryfox.network.ApiService
+import org.mozilla.tryfox.network.TreeherderApiService
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 
 class FenixRepository(
-    private val treeherderApiService: ApiService,
+    private val treeherderApiService: TreeherderApiService,
 ) : IFenixRepository {
 
     companion object {

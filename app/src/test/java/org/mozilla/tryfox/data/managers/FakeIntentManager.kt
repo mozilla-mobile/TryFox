@@ -14,6 +14,9 @@ class FakeIntentManager() : IntentManager {
     var wasInstallApkCalled: Boolean = false
         private set
 
+    var wasUninstallApkCalled: Boolean = false
+        private set
+
     /**
      * Overrides the `installApk` method to set the `wasInstallApkCalled` flag to true.
      *
@@ -21,5 +24,9 @@ class FakeIntentManager() : IntentManager {
      */
     override fun installApk(file: File) {
         wasInstallApkCalled = true
+    }
+
+    override fun uninstallApk(packageName: String) {
+        wasUninstallApkCalled = true
     }
 }

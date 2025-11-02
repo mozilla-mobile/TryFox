@@ -164,9 +164,8 @@ class ProfileViewModel(
                                             }
                                         }
                                         if (determinedPushComment == null) {
-                                            determinedPushComment =
-                                                pushResult.revisions.firstOrNull()?.comments
-                                                    ?: "No comment"
+                                            determinedPushComment = pushResult.revisions.firstOrNull()?.comments
+                                                ?: "No comment"
                                         }
                                         PushUiModel(
                                             pushComment = determinedPushComment,
@@ -189,7 +188,7 @@ class ProfileViewModel(
                             } else {
                                 logcat(LogPriority.WARN, TAG) {
                                     "getJobsForPush failed for push ID: ${pushResult.id}: " +
-                                        (jobsResult as NetworkResult.Error).message
+                                    (jobsResult as NetworkResult.Error).message
                                 }
                                 null
                             }
@@ -284,7 +283,7 @@ class ProfileViewModel(
         val taskId = artifactUiModel.taskId
         logcat(TAG) {
             "downloadArtifact called for: ${artifactUiModel.name}, taskId: $taskId, " +
-                "uniqueKey: ${artifactUiModel.uniqueKey}"
+            "uniqueKey: ${artifactUiModel.uniqueKey}"
         }
 
         if (artifactUiModel.downloadState is DownloadState.InProgress ||
@@ -353,9 +352,9 @@ class ProfileViewModel(
                     }
 
                     if (shouldLog) {
-                        logcat(LogPriority.VERBOSE, TAG) {
+                         logcat(LogPriority.VERBOSE, TAG) {
                             "Download progress for ${artifactUiModel.name}: $bytesDownloaded / $totalBytes " +
-                                "($currentProgressFloat)"
+                            "($currentProgressFloat)"
                         }
                     }
                     updateArtifactDownloadState(

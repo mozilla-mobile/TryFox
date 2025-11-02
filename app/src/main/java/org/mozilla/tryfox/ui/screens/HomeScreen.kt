@@ -1,5 +1,6 @@
 package org.mozilla.tryfox.ui.screens
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -32,6 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -131,6 +135,8 @@ fun HomeScreen(
                 .padding(innerPadding)
                 .pullRefresh(pullRefreshState),
         ) {
+            var tryFoxCardHeight by remember { mutableStateOf(0.dp) }
+
             when (val currentScreenState = screenState) {
                 is HomeScreenState.InitialLoading -> {
                     Box(
@@ -147,6 +153,12 @@ fun HomeScreen(
                 }
 
                 is HomeScreenState.Loaded -> {
+                    val tryFoxApp = currentScreenState.tryfoxApp
+                    val otherApps = currentScreenState.apps.values.toList()
+
+                    val targetSpacerHeight = if (tryFoxApp != null) tryFoxCardHeight + 4.dp else 0.dp
+                    val animatedSpacerHeight by animateDpAsState(targetValue = targetSpacerHeight, label = "tryFoxSpacerHeight")
+
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
@@ -154,13 +166,17 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Top,
                     ) {
-                        item { Spacer(modifier = Modifier.height(16.dp)) }
-                        items(currentScreenState.apps.values.toList()) { app ->
+                        item {
+                            Spacer(modifier = Modifier.height(animatedSpacerHeight))
+                        }
+
+                        items(otherApps) { app ->
                             AppComponent(
                                 app = app,
                                 onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
                                 onInstallClick = { homeViewModel.installApk(it) },
                                 onOpenAppClick = { homeViewModel.openApp(it) },
+                                onUninstallClick = { homeViewModel.uninstallApp(it) },
                                 onDateSelected = { appName, date ->
                                     homeViewModel.onDateSelected(
                                         appName,
@@ -171,6 +187,17 @@ fun HomeScreen(
                                 onClearDate = { appName -> homeViewModel.onClearDate(appName) },
                             )
                         }
+                    }
+
+                    if (tryFoxApp != null) {
+                        TryFoxCardComponent(
+                            modifier = Modifier.align(Alignment.TopCenter),
+                            tryFoxApp = tryFoxApp,
+                            onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
+                            onInstallClick = { homeViewModel.installApk(it) },
+                            onDismiss = { homeViewModel.dismissTryFoxCard() },
+                            onTryFoxCardHeightChange = { tryFoxCardHeight = it },
+                        )
                     }
                 }
             }
@@ -201,6 +228,7 @@ fun AppComponent(
     onDownloadClick: (ApkUiModel) -> Unit,
     onInstallClick: (File) -> Unit,
     onOpenAppClick: (String) -> Unit,
+    onUninstallClick: (String) -> Unit,
     onDateSelected: (String, LocalDate) -> Unit,
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: (String) -> Unit,
@@ -227,6 +255,11 @@ fun AppComponent(
         onOpenAppClick = {
             appState?.packageName?.let {
                 onOpenAppClick(it)
+            }
+        },
+        onUninstallClick = {
+            appState?.packageName?.let {
+                onUninstallClick(it)
             }
         },
         onDateSelected = { date -> onDateSelected(app.name, date) },

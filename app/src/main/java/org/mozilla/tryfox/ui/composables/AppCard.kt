@@ -36,7 +36,6 @@ import org.mozilla.tryfox.TryFoxViewModel
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
-import org.mozilla.tryfox.ui.screens.ErrorState
 
 @Composable
 fun AppCard(
@@ -164,8 +163,9 @@ private fun DisplayArtifactCard(
     viewModel: TryFoxViewModel,
 ) {
     if (artifact.downloadState is DownloadState.DownloadFailed) {
-        val errorMessage = (artifact.downloadState as DownloadState.DownloadFailed).errorMessage
-        ErrorState(errorMessage = stringResource(id = R.string.app_card_download_failed_message, errorMessage ?: stringResource(id = R.string.common_unknown_error)))
+        val rawErrorMessage = (artifact.downloadState as DownloadState.DownloadFailed).message
+        val displayErrorMessage = rawErrorMessage ?: stringResource(id = R.string.common_unknown_error)
+        ErrorState(errorMessage = stringResource(R.string.app_card_download_failed_message, displayErrorMessage))
         Spacer(modifier = Modifier.padding(top = 4.dp))
     }
 
