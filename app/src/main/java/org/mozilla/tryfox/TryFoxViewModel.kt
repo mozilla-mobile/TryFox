@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import org.mozilla.tryfox.data.DownloadFileRepository
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.NetworkResult
@@ -31,13 +32,14 @@ import java.io.File
  * ViewModel for the TryFox feature, responsible for fetching job and artifact data from the repository,
  * managing the download and caching of artifacts, and exposing the UI state to the composable screens.
  *
- * @param repository The repository for fetching data from the network.
+ * @param fenixRepository The repository for fetching data from the network.
  * @param cacheManager The manager for handling application cache.
  * @param revision The initial revision to search for.
  * @param repo The initial repository to search in.
  */
 class TryFoxViewModel(
-    private val repository: IFenixRepository,
+    private val fenixRepository: IFenixRepository,
+    private val downloadFileRepository: DownloadFileRepository,
     private val cacheManager: CacheManager,
     revision: String?,
     repo: String?,
@@ -157,7 +159,7 @@ class TryFoxViewModel(
             cacheManager.checkCacheStatus() // Use CacheManager
             checkAndUpdateDownloadingStatus() // Initial check before fetching
 
-            when (val revisionResult = repository.getPushByRevision(selectedProject, revision)) {
+            when (val revisionResult = fenixRepository.getPushByRevision(selectedProject, revision)) {
                 is NetworkResult.Success -> {
                     val pushData = revisionResult.data
                     var foundComment: String? = null
@@ -195,7 +197,7 @@ class TryFoxViewModel(
 
     private suspend fun fetchJobs(pushId: Int) {
         Log.d("FenixInstallerViewModel", "Fetching jobs for push ID: $pushId")
-        when (val jobsResult = repository.getJobsForPush(pushId)) {
+        when (val jobsResult = fenixRepository.getJobsForPush(pushId)) {
             is NetworkResult.Success -> {
                 val networkJobDetailsList = jobsResult.data.results
                     .filter { it.isSignedBuild && !it.isTest }
@@ -245,7 +247,7 @@ class TryFoxViewModel(
 
     private suspend fun fetchArtifacts(taskId: String): List<ArtifactUiModel> {
         Log.d("FenixInstallerViewModel", "Fetching artifacts for task ID: $taskId")
-        return when (val artifactsResult = repository.getArtifactsForTask(taskId)) {
+        return when (val artifactsResult = fenixRepository.getArtifactsForTask(taskId)) {
             is NetworkResult.Success -> {
                 val filteredApks = artifactsResult.data.artifacts.filter {
                     it.name.endsWith(".apk", ignoreCase = true)
@@ -318,7 +320,7 @@ class TryFoxViewModel(
             }
             val outputFile = File(outputDir, artifactFileName)
 
-            val result = repository.downloadArtifact(
+            val result = downloadFileRepository.downloadFile(
                 downloadUrl = downloadUrl,
                 outputFile = outputFile,
                 onProgress = { bytesDownloaded, totalBytes ->

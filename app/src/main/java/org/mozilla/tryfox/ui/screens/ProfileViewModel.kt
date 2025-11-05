@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import logcat.logcat
+import org.mozilla.tryfox.data.DownloadFileRepository
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.NetworkResult
@@ -38,6 +39,7 @@ import java.io.File
  */
 class ProfileViewModel(
     private val fenixRepository: IFenixRepository,
+    private val downloadFileRepository: DownloadFileRepository,
     private val userDataRepository: UserDataRepository,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
@@ -329,7 +331,7 @@ class ProfileViewModel(
             var lastLoggedNumericProgress = 0f
 
             logcat(TAG) { "Calling fenixRepository.downloadArtifact for ${artifactUiModel.name}" }
-            val result = fenixRepository.downloadArtifact(
+            val result = downloadFileRepository.downloadFile(
                 downloadUrl = downloadUrl,
                 outputFile = outputFile,
                 onProgress = { bytesDownloaded, totalBytes ->

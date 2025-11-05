@@ -46,7 +46,7 @@ data class Version(
                 thisPart is Int && otherPart is Int -> thisPart.compareTo(otherPart)
                 thisPart is String && otherPart is String -> thisPart.compareTo(otherPart)
                 thisPart is Int && otherPart is String -> -1 // Numeric has lower precedence than non-numeric
-                thisPart is String && otherPart is Int -> 1  // Non-numeric has higher precedence than numeric
+                thisPart is String && otherPart is Int -> 1 // Non-numeric has higher precedence than numeric
                 else -> 0 // Should not happen with current parsing
             }
             if (comparison != 0) return comparison

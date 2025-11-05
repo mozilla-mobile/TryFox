@@ -5,12 +5,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,8 +31,7 @@ fun TryFoxCard(
     onDownloadClick: (ApkUiModel) -> Unit,
     onInstallClick: (File) -> Unit,
 ) {
-    if (app.apks !is ApksResult.Success) return
-    val apksResult = app.apks
+    val latestApk = (app.apks as? ApksResult.Success)?.apks?.firstOrNull() ?: return
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -49,35 +46,21 @@ fun TryFoxCard(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            when (apksResult) {
-                is ApksResult.Loading -> {
-                    CircularProgressIndicator()
-                }
-
-                is ApksResult.Error -> {
-                    Text(text = apksResult.message)
-                }
-
-                is ApksResult.Success -> {
-                    val latestApk = apksResult.apks.firstOrNull() ?: return@Row
-
-                    Column {
-                        Text(
-                            text = stringResource(id = R.string.tryfox_card_title, latestApk.version),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(4.dp))
-                    DownloadButton(
-                        downloadState = latestApk.downloadState,
-                        onDownloadClick = { onDownloadClick(latestApk) },
-                        onInstallClick = {
-                            val downloadedFile = (latestApk.downloadState as? DownloadState.Downloaded)?.file
-                            downloadedFile?.let { onInstallClick(it) }
-                        },
-                    )
-                }
+            Column {
+                Text(
+                    text = stringResource(id = R.string.tryfox_card_title, latestApk.version),
+                    style = MaterialTheme.typography.titleMedium,
+                )
             }
+            Spacer(modifier = Modifier.width(4.dp))
+            DownloadButton(
+                downloadState = latestApk.downloadState,
+                onDownloadClick = { onDownloadClick(latestApk) },
+                onInstallClick = {
+                    val downloadedFile = (latestApk.downloadState as? DownloadState.Downloaded)?.file
+                    downloadedFile?.let { onInstallClick(it) }
+                },
+            )
         }
     }
 }

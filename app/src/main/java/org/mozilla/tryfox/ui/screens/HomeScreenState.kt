@@ -2,7 +2,6 @@ package org.mozilla.tryfox.ui.screens
 
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AppUiModel
-import org.mozilla.tryfox.util.TRYFOX
 
 /**
  * Represents the various states of the Home screen.

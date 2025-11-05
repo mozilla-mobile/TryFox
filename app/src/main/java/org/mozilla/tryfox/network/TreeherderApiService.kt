@@ -1,13 +1,11 @@
 package org.mozilla.tryfox.network
 
-import okhttp3.ResponseBody
 import org.mozilla.tryfox.data.ArtifactsResponse
 import org.mozilla.tryfox.data.TreeherderJobsResponse
 import org.mozilla.tryfox.data.TreeherderRevisionResponse
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.Query
-import retrofit2.http.Streaming
 import retrofit2.http.Url
 
 interface TreeherderApiService {
@@ -30,12 +28,4 @@ interface TreeherderApiService {
 
     @GET
     suspend fun getArtifactsForTask(@Url url: String): ArtifactsResponse
-
-    @DisableLogs
-    @Streaming
-    @GET
-    suspend fun downloadFile(@Url downloadUrl: String): ResponseBody
-
-    @GET
-    suspend fun getHtmlPage(@Url url: String): String
 }

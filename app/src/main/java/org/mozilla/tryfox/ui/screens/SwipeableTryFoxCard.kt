@@ -58,7 +58,7 @@ fun SwipeableTryFoxCard(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .background(Color.Transparent)
+                        .background(Color.Transparent),
                 ) {}
             },
             content = {

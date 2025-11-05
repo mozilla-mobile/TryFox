@@ -147,7 +147,7 @@ class MainActivity : ComponentActivity() {
             composable(NavScreen.Profile.route) {
                 ProfileScreen(
                     onNavigateUp = { localNavController.popBackStack() },
-                    profileViewModel =  koinViewModel(),
+                    profileViewModel = koinViewModel(),
                 )
             }
             composable(

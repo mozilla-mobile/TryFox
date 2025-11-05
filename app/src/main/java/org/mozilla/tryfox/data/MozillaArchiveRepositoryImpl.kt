@@ -7,21 +7,19 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.todayIn
 import org.mozilla.tryfox.model.ParsedNightlyApk
-import org.mozilla.tryfox.network.TreeherderApiService
+import org.mozilla.tryfox.network.MozillaArchivesApiService
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FOCUS
 import retrofit2.HttpException
 import java.util.regex.Pattern
 
 class MozillaArchiveRepositoryImpl(
-    private val treeherderApiService: TreeherderApiService,
+    private val mozillaArchivesApiService: MozillaArchivesApiService,
     private val clock: Clock = Clock.System,
 ) : MozillaArchiveRepository {
 
     companion object {
         const val ARCHIVE_MOZILLA_BASE_URL = "https://archive.mozilla.org/"
-        private const val REFERENCE_BROWSER_TASK_BASE_URL = "https://firefox-ci-tc.services.mozilla.com/api/index/v1/task/mobile.v2.reference-browser.nightly.latest."
-        private val REFERENCE_BROWSER_ABIS = listOf("arm64-v8a", "armeabi-v7a", "x86_64")
 
         internal fun archiveUrlForDate(appName: String, date: LocalDate): String {
             val year = date.year.toString()
@@ -53,30 +51,9 @@ class MozillaArchiveRepositoryImpl(
 
     override suspend fun getFocusNightlyBuilds(date: LocalDate?): NetworkResult<List<ParsedNightlyApk>> = getNightlyBuilds(FOCUS, date)
 
-    override suspend fun getReferenceBrowserNightlyBuilds(): NetworkResult<List<ParsedNightlyApk>> {
-        return try {
-            val parsedApks = REFERENCE_BROWSER_ABIS.map { abi ->
-                val fullUrl = "${REFERENCE_BROWSER_TASK_BASE_URL}$abi/artifacts/public/target.$abi.apk"
-                val fileName = "target.$abi.apk"
-                ParsedNightlyApk(
-                    originalString = "reference-browser-latest-android-$abi/",
-                    rawDateString = null,
-                    appName = "reference-browser",
-                    version = "",
-                    abiName = abi,
-                    fullUrl = fullUrl,
-                    fileName = fileName,
-                )
-            }
-            NetworkResult.Success(parsedApks)
-        } catch (e: Exception) {
-            NetworkResult.Error("Failed to construct Reference Browser builds: ${e.message}", e)
-        }
-    }
-
     private suspend fun fetchAndParseNightlyBuilds(archiveBaseUrl: String, appNameFilter: String, date: LocalDate?): NetworkResult<List<ParsedNightlyApk>> {
         return try {
-            val htmlResult = treeherderApiService.getHtmlPage(archiveBaseUrl)
+            val htmlResult = mozillaArchivesApiService.getHtmlPage(archiveBaseUrl)
             val parsedApks = parseNightlyBuildsFromHtml(htmlResult, archiveBaseUrl, appNameFilter, date)
             NetworkResult.Success(parsedApks)
         } catch (e: Exception) {
