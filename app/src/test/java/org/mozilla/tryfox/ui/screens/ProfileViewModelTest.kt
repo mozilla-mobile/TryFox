@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.io.TempDir
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
+import org.mozilla.tryfox.data.FakeDownloadFileRepository
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
@@ -29,6 +30,8 @@ class ProfileViewModelTest {
 
     private val userDataRepository = FakeUserDataRepository()
 
+    private val downloadFileRepository = FakeDownloadFileRepository()
+
     private val intentManager = FakeIntentManager()
 
     @TempDir
@@ -40,6 +43,7 @@ class ProfileViewModelTest {
 
         viewModel = ProfileViewModel(
             fenixRepository = fenixRepository,
+            downloadFileRepository = downloadFileRepository,
             userDataRepository = userDataRepository,
             cacheManager = cacheManager,
             intentManager = intentManager,
@@ -55,7 +59,7 @@ class ProfileViewModelTest {
     @Test
     fun `updateAuthorEmail should update the authorEmail state`() = runTest {
         // Given
-        val viewModel = ProfileViewModel(fenixRepository, userDataRepository, cacheManager, intentManager, null)
+        val viewModel = ProfileViewModel(fenixRepository, downloadFileRepository, userDataRepository, cacheManager, intentManager, null)
         val newEmail = "test@example.com"
 
         viewModel.authorEmail.test {

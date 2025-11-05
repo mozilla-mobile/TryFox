@@ -306,7 +306,7 @@ private fun ArchiveGroupAbiSelector(
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.errorContainer,
                         contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    )
+                    ),
                 ) {
                     Text(text = stringResource(id = R.string.uninstall_button_label))
                 }

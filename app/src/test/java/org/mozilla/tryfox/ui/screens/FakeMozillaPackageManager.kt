@@ -6,7 +6,7 @@ import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.model.AppState
 
 class FakeMozillaPackageManager(
-    private val apps: Map<String, AppState> = mapOf(),
+    private val apps: Map<String, AppState> = emptyMap(),
 ) : MozillaPackageManager {
 
     override val fenix: AppState
@@ -20,7 +20,6 @@ class FakeMozillaPackageManager(
 
     override val tryfox: AppState
         get() = apps["org.mozilla.tryfox"] ?: AppState("TryFox", "org.mozilla.tryfox", null, null)
-
 
     override val appStates: Flow<AppState> = emptyFlow()
 

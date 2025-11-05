@@ -8,6 +8,6 @@ interface GithubApiService {
     @GET("repos/{owner}/{repo}/releases/latest")
     suspend fun getLatestGitHubRelease(
         @Path("owner") owner: String,
-        @Path("repo") repo: String
+        @Path("repo") repo: String,
     ): GitHubRelease
 }

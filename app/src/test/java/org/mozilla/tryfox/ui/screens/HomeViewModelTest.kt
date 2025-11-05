@@ -23,17 +23,22 @@ import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.junit.jupiter.MockitoSettings
 import org.mockito.kotlin.any
-import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
 import org.mockito.quality.Strictness
+import org.mozilla.tryfox.data.DownloadFileRepository
 import org.mozilla.tryfox.data.DownloadState
-import org.mozilla.tryfox.data.GithubRepository
-import org.mozilla.tryfox.data.IFenixRepository
-import org.mozilla.tryfox.data.MozillaArchiveRepository
+import org.mozilla.tryfox.data.FakeMozillaArchiveRepository
+import org.mozilla.tryfox.data.FakeReferenceBrowserReleaseRepository
+import org.mozilla.tryfox.data.FakeTryFoxReleaseRepository
+import org.mozilla.tryfox.data.FenixReleaseRepository
+import org.mozilla.tryfox.data.FocusReleaseRepository
+import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.ReleaseRepository
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
+import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.ParsedNightlyApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
@@ -57,17 +62,9 @@ class HomeViewModelTest {
 
     private lateinit var viewModel: HomeViewModel
     private lateinit var fakeCacheManager: FakeCacheManager
-    private lateinit var fakeMozillaPackageManager: FakeMozillaPackageManager
 
     @Mock
-    private lateinit var mockFenixRepository: IFenixRepository
-
-    @Mock
-    private lateinit var mockMozillaArchiveRepository: MozillaArchiveRepository
-
-    @Mock
-    private lateinit var mockGithubRepository: GithubRepository
-
+    private lateinit var downloadFileRepository: DownloadFileRepository
     private val intentManager = FakeIntentManager()
 
     @TempDir
@@ -150,26 +147,23 @@ class HomeViewModelTest {
     }
 
     @BeforeEach
-    fun setUp() = runTest {
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(emptyList()))
-        whenever(mockMozillaArchiveRepository.getFocusNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(emptyList()))
-        whenever(mockMozillaArchiveRepository.getReferenceBrowserNightlyBuilds()).thenReturn(NetworkResult.Success(emptyList()))
-        whenever(mockGithubRepository.getTryFoxReleases()).thenReturn(NetworkResult.Success(emptyList()))
-
+    fun setUp() {
         fakeCacheManager = FakeCacheManager(tempCacheDir)
-        fakeMozillaPackageManager = FakeMozillaPackageManager()
-
-        viewModel = HomeViewModel(
-            mozillaArchiveRepository = mockMozillaArchiveRepository,
-            githubRepository = mockGithubRepository,
-            fenixRepository = mockFenixRepository,
-            mozillaPackageManager = fakeMozillaPackageManager,
-            cacheManager = fakeCacheManager,
-            intentManager = intentManager,
-            ioDispatcher = mainCoroutineRule.testDispatcher,
-        )
-        viewModel.deviceSupportedAbisForTesting = listOf("arm64-v8a", "x86_64", "armeabi-v7a")
+        viewModel = createViewModel()
     }
+
+    private fun createViewModel(
+        releaseRepositories: List<ReleaseRepository> = emptyList(),
+        mozillaPackageManager: MozillaPackageManager = FakeMozillaPackageManager(),
+    ) = HomeViewModel(
+        releaseRepositories = releaseRepositories,
+        downloadFileRepository = downloadFileRepository,
+        mozillaPackageManager = mozillaPackageManager,
+        cacheManager = fakeCacheManager,
+        intentManager = intentManager,
+        ioDispatcher = mainCoroutineRule.testDispatcher,
+        supportedAbis = listOf("arm64-v8a", "x86_64", "armeabi-v7a"),
+    )
 
     private fun String.formatApkDateForTest(): String {
         return try {
@@ -187,24 +181,39 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `initialLoad when no data then homeScreenState is InitialLoading before load completes`() = runTest {
-        assertTrue(
-            viewModel.homeScreenState.value is HomeScreenState.InitialLoading,
-            "Initial HomeScreenState should be InitialLoading",
-        )
-    }
+    fun `initialLoad when no data then homeScreenState is InitialLoading before load completes`() =
+        runTest {
+            assertTrue(
+                viewModel.homeScreenState.value is HomeScreenState.InitialLoading,
+                "Initial HomeScreenState should be InitialLoading",
+            )
+        }
 
     @Test
     fun `initialLoad success should update HomeScreenState to Loaded with data`() = runTest {
-        val fenixParsed = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
-        val focusParsed = createTestParsedNightlyApk(testFocusAppName, testDateRaw, "126.0a1", "x86_64")
-        val rbParsed = createTestParsedNightlyApk(testReferenceBrowserAppName, testDateRaw, "latest", "armeabi-v7a")
-        val tryFoxParsed = createTestParsedNightlyApk(testTryFoxAppName, null, "1.0.0", "armeabi-v7a")
+        val fenixParsed =
+            createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
+        val focusParsed =
+            createTestParsedNightlyApk(testFocusAppName, testDateRaw, "126.0a1", "x86_64")
+        val rbParsed = createTestParsedNightlyApk(
+            testReferenceBrowserAppName,
+            testDateRaw,
+            "latest",
+            "armeabi-v7a",
+        )
+        val tryFoxParsed =
+            createTestParsedNightlyApk(testTryFoxAppName, null, "1.0.0", "armeabi-v7a")
 
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(listOf(fenixParsed)))
-        whenever(mockMozillaArchiveRepository.getFocusNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(listOf(focusParsed)))
-        whenever(mockMozillaArchiveRepository.getReferenceBrowserNightlyBuilds()).thenReturn(NetworkResult.Success(listOf(rbParsed)))
-        whenever(mockGithubRepository.getTryFoxReleases()).thenReturn(NetworkResult.Success(listOf(tryFoxParsed)))
+        val releaseRepositories = listOf(
+            FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(fenixParsed)))),
+            FocusReleaseRepository(FakeMozillaArchiveRepository(focusBuilds = NetworkResult.Success(listOf(focusParsed)))),
+            FakeReferenceBrowserReleaseRepository(releases = NetworkResult.Success(listOf(rbParsed))),
+            FakeTryFoxReleaseRepository(releases = NetworkResult.Success(listOf(tryFoxParsed))),
+        )
+
+        viewModel = createViewModel(
+            releaseRepositories = releaseRepositories,
+        )
 
         fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
 
@@ -251,8 +260,10 @@ class HomeViewModelTest {
             "125.0a1",
             testAbi,
         )
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull()))
-            .thenReturn(NetworkResult.Success(listOf(olderFenixParsed, newerFenixParsed)))
+        val releaseRepositories = listOf(
+            FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(olderFenixParsed, newerFenixParsed)))),
+        )
+        viewModel = createViewModel(releaseRepositories = releaseRepositories)
         fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
 
         viewModel.initialLoad()
@@ -263,55 +274,73 @@ class HomeViewModelTest {
         assertNotNull(fenixApp)
         val fenixApksResult = fenixApp!!.apks as ApksResult.Success
         assertEquals(1, fenixApksResult.apks.size)
-        assertEquals(newerFenixParsed.rawDateString?.formatApkDateForTest(), fenixApksResult.apks.first().date)
+        assertEquals(
+            newerFenixParsed.rawDateString?.formatApkDateForTest(),
+            fenixApksResult.apks.first().date,
+        )
     }
 
     @Test
-    fun `initialLoad with empty cache should result in IdleEmpty cache state from CacheManager`() = runTest {
-        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+    fun `initialLoad with empty cache should result in IdleEmpty cache state from CacheManager`() =
+        runTest {
+            viewModel = createViewModel()
+            fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
 
-        viewModel.initialLoad()
-        advanceUntilIdle()
+            viewModel.initialLoad()
+            advanceUntilIdle()
 
-        val state = viewModel.homeScreenState.value as? HomeScreenState.Loaded
-        assertNotNull(state, "State should be Loaded")
-        assertEquals(CacheManagementState.IdleEmpty, state!!.cacheManagementState, "Cache state should be IdleEmpty")
-        assertTrue(fakeCacheManager.checkCacheStatusCalled)
-        assertTrue((state.apps[FENIX]!!.apks as? ApksResult.Success)?.apks?.isEmpty() ?: false)
-        assertTrue((state.apps[FOCUS]!!.apks as? ApksResult.Success)?.apks?.isEmpty() ?: false)
-        assertTrue((state.apps[REFERENCE_BROWSER]!!.apks as? ApksResult.Success)?.apks?.isEmpty() ?: false)
-    }
+            val state = viewModel.homeScreenState.value as? HomeScreenState.Loaded
+            assertNotNull(state, "State should be Loaded")
+            assertEquals(
+                CacheManagementState.IdleEmpty,
+                state!!.cacheManagementState,
+                "Cache state should be IdleEmpty",
+            )
+            assertTrue(fakeCacheManager.checkCacheStatusCalled)
+        }
 
     @Test
-    fun `initialLoad with fenix cache populated should result in IdleNonEmpty from CacheManager`() = runTest {
-        val fenixParsed = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
-        val fenixApkUi = createTestApkUiModel(fenixParsed)
-        val fenixCacheSubDir = File(tempCacheDir, "${fenixApkUi.appName}/${fenixApkUi.date.take(10)}")
-        fenixCacheSubDir.mkdirs()
-        File(fenixCacheSubDir, fenixApkUi.fileName).createNewFile()
+    fun `initialLoad with fenix cache populated should result in IdleNonEmpty from CacheManager`() =
+        runTest {
+            val fenixParsed =
+                createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
+            val fenixApkUi = createTestApkUiModel(fenixParsed)
+            val fenixCacheSubDir =
+                File(tempCacheDir, "${fenixApkUi.appName}/${fenixApkUi.date.take(10)}")
+            fenixCacheSubDir.mkdirs()
+            File(fenixCacheSubDir, fenixApkUi.fileName).createNewFile()
 
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull()))
-            .thenReturn(NetworkResult.Success(listOf(fenixParsed)))
-        fakeCacheManager.setCacheState(CacheManagementState.IdleNonEmpty)
+            val releaseRepositories = listOf(
+                FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(fenixParsed)))),
+            )
+            viewModel = createViewModel(releaseRepositories = releaseRepositories)
+            fakeCacheManager.setCacheState(CacheManagementState.IdleNonEmpty)
 
-        viewModel.initialLoad()
-        advanceUntilIdle()
+            viewModel.initialLoad()
+            advanceUntilIdle()
 
-        val state = viewModel.homeScreenState.value as? HomeScreenState.Loaded
-        assertNotNull(state, "State should be Loaded")
-        assertEquals(CacheManagementState.IdleNonEmpty, state!!.cacheManagementState, "Cache state should be IdleNonEmpty")
-        assertTrue(fakeCacheManager.checkCacheStatusCalled)
-        val fenixApks = (state.apps[FENIX]!!.apks as? ApksResult.Success)?.apks
-        assertTrue(fenixApks?.first()?.downloadState is DownloadState.Downloaded)
-    }
+            val state = viewModel.homeScreenState.value as? HomeScreenState.Loaded
+            assertNotNull(state, "State should be Loaded")
+            assertEquals(
+                CacheManagementState.IdleNonEmpty,
+                state!!.cacheManagementState,
+                "Cache state should be IdleNonEmpty",
+            )
+            assertTrue(fakeCacheManager.checkCacheStatusCalled)
+            val fenixApks = (state.apps[FENIX]!!.apks as? ApksResult.Success)?.apks
+            assertTrue(fenixApks?.first()?.downloadState is DownloadState.Downloaded)
+        }
 
     @Test
     fun `clearAppCache should call CacheManager and update states to NotDownloaded`() = runTest {
-        val fenixParsed = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
-        val rbParsed = createTestParsedNightlyApk(testReferenceBrowserAppName, "", "latest", testAbi)
+        val fenixParsed =
+            createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
+        val rbParsed =
+            createTestParsedNightlyApk(testReferenceBrowserAppName, "", "latest", testAbi)
 
         val fenixApkUiForCache = createTestApkUiModel(fenixParsed)
-        val fenixCacheActualDir = File(tempCacheDir, "${fenixApkUiForCache.appName}/${fenixApkUiForCache.date.take(10)}")
+        val fenixCacheActualDir =
+            File(tempCacheDir, "${fenixApkUiForCache.appName}/${fenixApkUiForCache.date.take(10)}")
         fenixCacheActualDir.mkdirs()
         val cachedFenixFile = File(fenixCacheActualDir, fenixApkUiForCache.fileName)
         cachedFenixFile.createNewFile()
@@ -326,8 +355,11 @@ class HomeViewModelTest {
 
         fakeCacheManager.setCacheState(CacheManagementState.IdleNonEmpty)
 
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(listOf(fenixParsed)))
-        whenever(mockMozillaArchiveRepository.getReferenceBrowserNightlyBuilds()).thenReturn(NetworkResult.Success(listOf(rbParsed)))
+        val releaseRepositories = listOf(
+            FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(fenixParsed)))),
+            FakeReferenceBrowserReleaseRepository(releases = NetworkResult.Success(listOf(rbParsed))),
+        )
+        viewModel = createViewModel(releaseRepositories = releaseRepositories)
 
         viewModel.initialLoad()
         advanceUntilIdle()
@@ -364,7 +396,10 @@ class HomeViewModelTest {
         )
 
         val fenixStateAfterClear = loadedState.apps[FENIX]!!.apks as ApksResult.Success
-        assertFalse(fenixStateAfterClear.apks.isEmpty(), "Fenix APK list should not be empty after clear")
+        assertFalse(
+            fenixStateAfterClear.apks.isEmpty(),
+            "Fenix APK list should not be empty after clear",
+        )
         assertTrue(
             fenixStateAfterClear.apks.first().downloadState is DownloadState.NotDownloaded,
             "Fenix APK download state should be NotDownloaded after clear",
@@ -380,13 +415,17 @@ class HomeViewModelTest {
 
     @Test
     fun `downloadNightlyApk success sequence`() = runTest {
-        val fenixParsed = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
+        val fenixParsed =
+            createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
         val apkToDownload = createTestApkUiModel(fenixParsed, DownloadState.NotDownloaded)
-        val expectedApkDir = File(tempCacheDir, "${apkToDownload.appName}/${apkToDownload.date.take(10)}")
+        val expectedApkDir =
+            File(tempCacheDir, "${apkToDownload.appName}/${apkToDownload.date.take(10)}")
         val expectedApkFile = File(expectedApkDir, apkToDownload.fileName)
 
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull()))
-            .thenReturn(NetworkResult.Success(listOf(fenixParsed)))
+        val releaseRepositories = listOf(
+            FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(fenixParsed)))),
+        )
+        viewModel = createViewModel(releaseRepositories = releaseRepositories)
         fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
 
         viewModel.initialLoad()
@@ -396,12 +435,14 @@ class HomeViewModelTest {
         assertTrue(initialLoadedState.apps[FENIX]!!.apks is ApksResult.Success)
 
         whenever(
-            mockFenixRepository.downloadArtifact(eq(apkToDownload.url), eq(expectedApkFile), any()),
+            downloadFileRepository.downloadFile(eq(apkToDownload.url), eq(expectedApkFile), any()),
         ).thenAnswer { invocation ->
             val onProgress = invocation.arguments[2] as (Long, Long) -> Unit
             onProgress(50L, 100L)
             val parentDir = expectedApkFile.parentFile
-            if (parentDir != null && !parentDir.exists()) { parentDir.mkdirs() }
+            if (parentDir != null && !parentDir.exists()) {
+                parentDir.mkdirs()
+            }
             expectedApkFile.createNewFile()
             NetworkResult.Success(expectedApkFile)
         }
@@ -411,29 +452,40 @@ class HomeViewModelTest {
 
         val loadedState = viewModel.homeScreenState.value as HomeScreenState.Loaded
         val fenixBuildsState = loadedState.apps[FENIX]!!.apks as ApksResult.Success
-        val downloadedApkInfo = fenixBuildsState.apks.find { it.uniqueKey == apkToDownload.uniqueKey }
+        val downloadedApkInfo =
+            fenixBuildsState.apks.find { it.uniqueKey == apkToDownload.uniqueKey }
 
         assertNotNull(downloadedApkInfo, "Downloaded APK info should not be null")
         assertTrue(
             downloadedApkInfo!!.downloadState is DownloadState.Downloaded,
             "DownloadState should be Downloaded",
         )
-        assertEquals(expectedApkFile.path, (downloadedApkInfo.downloadState as DownloadState.Downloaded).file.path)
+        assertEquals(
+            expectedApkFile.path,
+            (downloadedApkInfo.downloadState as DownloadState.Downloaded).file.path,
+        )
         assertTrue(fakeCacheManager.checkCacheStatusCalled)
         assertTrue(intentManager.wasInstallApkCalled)
-        assertFalse(loadedState.isDownloadingAnyFile, "isDownloadingAnyFile should be false after success")
+        assertFalse(
+            loadedState.isDownloadingAnyFile,
+            "isDownloadingAnyFile should be false after success",
+        )
     }
 
     @Test
     fun `downloadNightlyApk failure sequence`() = runTest {
-        val fenixParsed = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
+        val fenixParsed =
+            createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
         val apkToDownload = createTestApkUiModel(fenixParsed, DownloadState.NotDownloaded)
-        val expectedApkDir = File(tempCacheDir, "${apkToDownload.appName}/${apkToDownload.date.substring(0, 10)}")
+        val expectedApkDir =
+            File(tempCacheDir, "${apkToDownload.appName}/${apkToDownload.date.substring(0, 10)}")
         val expectedApkFile = File(expectedApkDir, apkToDownload.fileName)
         val downloadErrorMessage = "Download Canceled"
 
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull()))
-            .thenReturn(NetworkResult.Success(listOf(fenixParsed)))
+        val releaseRepositories = listOf(
+            FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(fenixParsed)))),
+        )
+        viewModel = createViewModel(releaseRepositories = releaseRepositories)
         fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
         viewModel.initialLoad()
         advanceUntilIdle()
@@ -442,7 +494,7 @@ class HomeViewModelTest {
         assertTrue(initialLoadedState.apps[FENIX]!!.apks is ApksResult.Success)
 
         whenever(
-            mockFenixRepository.downloadArtifact(eq(apkToDownload.url), eq(expectedApkFile), any()),
+            downloadFileRepository.downloadFile(eq(apkToDownload.url), eq(expectedApkFile), any()),
         ).thenAnswer { NetworkResult.Error(downloadErrorMessage) }
 
         viewModel.downloadNightlyApk(apkToDownload)
@@ -457,68 +509,15 @@ class HomeViewModelTest {
             failedApkInfo!!.downloadState is DownloadState.DownloadFailed,
             "DownloadState should be DownloadFailed",
         )
-        assertEquals(downloadErrorMessage, (failedApkInfo.downloadState as DownloadState.DownloadFailed).message)
-        assertTrue(fakeCacheManager.checkCacheStatusCalled)
-        assertFalse(loadedState.isDownloadingAnyFile, "isDownloadingAnyFile should be false after failure")
-    }
-
-    @Test
-    fun `onDateSelected should update userPickedDate and fetch new builds`() = runTest {
-        val selectedDate = LocalDate(2023, 10, 20)
-        val fenixParsed = createTestParsedNightlyApk(testFenixAppName, "2023-10-20-01-01-01", "124.0a1", testAbi)
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(eq(selectedDate)))
-            .thenReturn(NetworkResult.Success(listOf(fenixParsed)))
-
-        viewModel.initialLoad()
-        advanceUntilIdle()
-
-        viewModel.onDateSelected(FENIX, selectedDate)
-        advanceUntilIdle()
-
-        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
-        val fenixApp = state.apps[FENIX]
-        assertNotNull(fenixApp)
-        assertEquals(selectedDate, fenixApp!!.userPickedDate)
-        val fenixApksResult = fenixApp.apks as ApksResult.Success
-        assertEquals(1, fenixApksResult.apks.size)
-        assertEquals("124.0a1", fenixApksResult.apks.first().version)
-    }
-
-    @Test
-    fun `onClearDate should reset userPickedDate and fetch latest builds`() = runTest {
-        val selectedDate = LocalDate(2023, 10, 20)
-        val initialParsed = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
-        val dateSpecificParsed = createTestParsedNightlyApk(
-            testFenixAppName,
-            "2023-10-20-01-01-01",
-            "124.0a1",
-            testAbi,
+        assertEquals(
+            downloadErrorMessage,
+            (failedApkInfo.downloadState as DownloadState.DownloadFailed).message,
         )
-
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(null))
-            .thenReturn(NetworkResult.Success(listOf(initialParsed)))
-        whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(eq(selectedDate)))
-            .thenReturn(NetworkResult.Success(listOf(dateSpecificParsed)))
-
-        viewModel.initialLoad()
-        advanceUntilIdle()
-
-        viewModel.onDateSelected(FENIX, selectedDate)
-        advanceUntilIdle()
-
-        var state = viewModel.homeScreenState.value as HomeScreenState.Loaded
-        assertEquals(selectedDate, state.apps[FENIX]?.userPickedDate)
-
-        viewModel.onClearDate(FENIX)
-        advanceUntilIdle()
-
-        state = viewModel.homeScreenState.value as HomeScreenState.Loaded
-        val fenixApp = state.apps[FENIX]
-        assertNotNull(fenixApp)
-        assertNull(fenixApp!!.userPickedDate)
-        val fenixApksResult = fenixApp.apks as ApksResult.Success
-        assertEquals(1, fenixApksResult.apks.size)
-        assertEquals(testVersion, fenixApksResult.apks.first().version)
+        assertTrue(fakeCacheManager.checkCacheStatusCalled)
+        assertFalse(
+            loadedState.isDownloadingAnyFile,
+            "isDownloadingAnyFile should be false after failure",
+        )
     }
 
     @Test
@@ -544,5 +543,85 @@ class HomeViewModelTest {
 
         val rbValidDate = LocalDate(2022, 1, 1)
         assertTrue(rbValidator(rbValidDate))
+    }
+
+    @Test
+    fun `TryFox update card is shown when new version is available`() = runTest {
+        val fakePackageManager = FakeMozillaPackageManager(
+            mapOf(
+                "org.mozilla.tryfox" to AppState("TryFox", "org.mozilla.tryfox", "0.0.1", null),
+            ),
+        )
+        val tryFoxParsed =
+            createTestParsedNightlyApk(testTryFoxAppName, null, "v0.0.2", "universal")
+        val fakeTryFoxReleaseRepository = FakeTryFoxReleaseRepository(NetworkResult.Success(listOf(tryFoxParsed)))
+        viewModel = createViewModel(
+            releaseRepositories = listOf(fakeTryFoxReleaseRepository),
+            mozillaPackageManager = fakePackageManager,
+        )
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertNotNull(state.tryfoxApp)
+        assertEquals("v0.0.2", (state.tryfoxApp!!.apks as ApksResult.Success).apks.first().version)
+    }
+
+    @Test
+    fun `TryFox update card is not shown when version is current`() = runTest {
+        val fakePackageManager = FakeMozillaPackageManager(
+            mapOf(
+                "org.mozilla.tryfox" to AppState("TryFox", "org.mozilla.tryfox", "v0.0.2", null),
+            ),
+        )
+        val tryFoxParsed =
+            createTestParsedNightlyApk(testTryFoxAppName, null, "v0.0.2", "universal")
+        val fakeTryFoxReleaseRepository = FakeTryFoxReleaseRepository(NetworkResult.Success(listOf(tryFoxParsed)))
+        viewModel = createViewModel(
+            releaseRepositories = listOf(fakeTryFoxReleaseRepository),
+            mozillaPackageManager = fakePackageManager,
+        )
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertNull(state.tryfoxApp)
+    }
+
+    @Test
+    fun `dismissTryFoxCard should remove the TryFox app from state`() = runTest {
+        val fakePackageManager = FakeMozillaPackageManager(
+            mapOf(
+                "org.mozilla.tryfox" to AppState("TryFox", "org.mozilla.tryfox", "0.0.1", null),
+            ),
+        )
+        val tryFoxParsed =
+            createTestParsedNightlyApk(testTryFoxAppName, null, "v0.0.2", "universal")
+        val fakeTryFoxReleaseRepository = FakeTryFoxReleaseRepository(NetworkResult.Success(listOf(tryFoxParsed)))
+        viewModel = createViewModel(
+            releaseRepositories = listOf(fakeTryFoxReleaseRepository),
+            mozillaPackageManager = fakePackageManager,
+        )
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        var state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertNotNull(state.tryfoxApp)
+
+        viewModel.dismissTryFoxCard()
+        advanceUntilIdle()
+
+        state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertNull(state.tryfoxApp)
+    }
+
+    @Test
+    fun `uninstallApp should call intentManager`() {
+        val packageName = "org.mozilla.fenix"
+        viewModel.uninstallApp(packageName)
+        assertTrue(intentManager.wasUninstallApkCalled)
     }
 }

@@ -18,12 +18,12 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.format.FormatStringsInDatetimeFormats
 import kotlinx.datetime.format.byUnicodePattern
 import kotlinx.datetime.todayIn
+import org.mozilla.tryfox.data.DateAwareReleaseRepository
+import org.mozilla.tryfox.data.DownloadFileRepository
 import org.mozilla.tryfox.data.DownloadState
-import org.mozilla.tryfox.data.GithubRepository
-import org.mozilla.tryfox.data.IFenixRepository
-import org.mozilla.tryfox.data.MozillaArchiveRepository
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.ReleaseRepository
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.model.CacheManagementState
@@ -42,9 +42,8 @@ import java.io.File
 /**
  * ViewModel for the Home screen, responsible for fetching and displaying nightly builds of different Mozilla apps.
  *
- * @param mozillaArchiveRepository Repository for fetching data from the Mozilla Archive.
- * @param githubRepository Repository for fetching release data from GitHub.
- * @param fenixRepository Repository for fetching Fenix-related data.
+ * @param releaseRepositories A list of release repositories.
+ * @param downloadFileRepository Repository for downloading files.
  * @param mozillaPackageManager Manager for interacting with installed Mozilla apps.
  * @param cacheManager Manager for handling application cache.
  * @param intentManager Manager for handling intents, such as APK installation.
@@ -52,26 +51,20 @@ import java.io.File
  */
 @OptIn(FormatStringsInDatetimeFormats::class)
 class HomeViewModel(
-    private val mozillaArchiveRepository: MozillaArchiveRepository,
-    private val githubRepository: GithubRepository,
-    private val fenixRepository: IFenixRepository,
+    private val releaseRepositories: List<ReleaseRepository>,
+    private val downloadFileRepository: DownloadFileRepository,
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
     private val ioDispatcher: CoroutineDispatcher,
+    private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
 ) : ViewModel() {
-
-    internal var deviceSupportedAbisForTesting: List<String>? = null
 
     private val _homeScreenState = MutableStateFlow<HomeScreenState>(HomeScreenState.InitialLoading)
     val homeScreenState: StateFlow<HomeScreenState> = _homeScreenState.asStateFlow()
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
-
-    private val deviceSupportedAbis: List<String> by lazy {
-        deviceSupportedAbisForTesting ?: Build.SUPPORTED_ABIS?.toList() ?: emptyList()
-    }
 
     init {
         cacheManager.cacheState
@@ -185,20 +178,16 @@ class HomeViewModel(
             )
         }
 
-        val results = mapOf(
-            FENIX to mozillaArchiveRepository.getFenixNightlyBuilds(),
-            FOCUS to mozillaArchiveRepository.getFocusNightlyBuilds(),
-            REFERENCE_BROWSER to mozillaArchiveRepository.getReferenceBrowserNightlyBuilds(),
-            TRYFOX to githubRepository.getTryFoxReleases(),
-        )
-
-        val newApps = results.mapValues { (appName, result) ->
+        val newApps = releaseRepositories.associate { repository ->
+            repository.appName to repository.getLatestReleases()
+        }.mapValues { (appName, result) ->
             val appState = appInfoMap[appName]
             val apksResult = when (result) {
                 is NetworkResult.Success -> {
                     val latestApks = getLatestApks(result.data)
                     ApksResult.Success(convertParsedApksToUiModels(latestApks))
                 }
+
                 is NetworkResult.Error -> ApksResult.Error(
                     "Error fetching $appName nightly builds: ${result.message}",
                 )
@@ -223,7 +212,8 @@ class HomeViewModel(
                 it.copy(
                     apps = newApps.filterNot { (key, _) -> key == TRYFOX },
                     tryfoxApp = tryFoxApp,
-                    isDownloadingAnyFile = isDownloading)
+                    isDownloadingAnyFile = isDownloading,
+                )
             } else {
                 it
             }
@@ -243,7 +233,7 @@ class HomeViewModel(
     private fun convertParsedApksToUiModels(parsedApks: List<ParsedNightlyApk>): List<ApkUiModel> {
         return parsedApks.map { parsedApk ->
             val date = parsedApk.rawDateString?.formatApkDate()
-            val isCompatible = deviceSupportedAbis.any { deviceAbi ->
+            val isCompatible = supportedAbis.any { deviceAbi ->
                 deviceAbi.equals(
                     parsedApk.abiName,
                     ignoreCase = true,
@@ -306,7 +296,8 @@ class HomeViewModel(
 
             if (appName == TRYFOX) {
                 updatedTryFoxApp = updatedTryFoxApp?.let { appToUpdate ->
-                    val apksResult = appToUpdate.apks as? ApksResult.Success ?: return@let appToUpdate
+                    val apksResult =
+                        appToUpdate.apks as? ApksResult.Success ?: return@let appToUpdate
                     val updatedApks = apksResult.apks.map {
                         if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
                     }
@@ -314,7 +305,8 @@ class HomeViewModel(
                 }
             } else {
                 val appToUpdate = updatedApps[appName] ?: return@update currentState
-                val apksResult = appToUpdate.apks as? ApksResult.Success ?: return@update currentState
+                val apksResult =
+                    appToUpdate.apks as? ApksResult.Success ?: return@update currentState
 
                 val updatedApks = apksResult.apks.map {
                     if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
@@ -326,7 +318,11 @@ class HomeViewModel(
                 (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
             } || (updatedTryFoxApp?.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
 
-            currentState.copy(apps = updatedApps, tryfoxApp = updatedTryFoxApp, isDownloadingAnyFile = isDownloading)
+            currentState.copy(
+                apps = updatedApps,
+                tryfoxApp = updatedTryFoxApp,
+                isDownloadingAnyFile = isDownloading,
+            )
         }
     }
 
@@ -346,7 +342,7 @@ class HomeViewModel(
             if (!outputDir.exists()) outputDir.mkdirs()
             val outputFile = File(outputDir, apkInfo.fileName)
 
-            val result = fenixRepository.downloadArtifact(
+            val result = downloadFileRepository.downloadFile(
                 downloadUrl = apkInfo.url,
                 outputFile = outputFile,
                 onProgress = { bytesDownloaded, totalBytes ->
@@ -399,80 +395,53 @@ class HomeViewModel(
     }
 
     fun onDateSelected(appName: String, date: LocalDate) {
-        if (appName == REFERENCE_BROWSER || appName == TRYFOX) {
-            return
-        }
+        val repository =
+            releaseRepositories.firstOrNull { it.appName == appName } as? DateAwareReleaseRepository
+                ?: return
 
+        updateDate(appName, date) {
+            repository.getReleases(date)
+        }
+    }
+
+    fun onClearDate(appName: String) {
+        val repository = releaseRepositories.firstOrNull { it.appName == appName } ?: return
+
+        updateDate(appName, null) {
+            repository.getLatestReleases()
+        }
+    }
+
+    private fun updateDate(
+        appName: String,
+        date: LocalDate?,
+        getReleases: suspend (LocalDate?) -> NetworkResult<List<ParsedNightlyApk>>,
+    ) {
         viewModelScope.launch(ioDispatcher) {
             val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
-
             val appToUpdate = currentState.apps[appName] ?: return@launch
 
-            val updatedApp = appToUpdate.copy(userPickedDate = date, apks = ApksResult.Loading)
-
             val updatedApps = currentState.apps.toMutableMap()
-            updatedApps[appName] = updatedApp
+            updatedApps[appName] =
+                appToUpdate.copy(userPickedDate = date, apks = ApksResult.Loading)
 
             _homeScreenState.value = currentState.copy(apps = updatedApps)
 
-            val result = when (appName) {
-                FENIX -> mozillaArchiveRepository.getFenixNightlyBuilds(date)
-                FOCUS -> mozillaArchiveRepository.getFocusNightlyBuilds(date)
-                else -> return@launch
-            }
-
-            val newApksResult = when (result) {
+            val newApksResult = when (val result = getReleases(date)) {
                 is NetworkResult.Success -> {
                     val latestApks = getLatestApks(result.data)
                     ApksResult.Success(convertParsedApksToUiModels(latestApks))
                 }
+
                 is NetworkResult.Error -> ApksResult.Error(
                     "Error fetching $appName nightly builds for $date: ${result.message}",
                 )
             }
 
             val latestState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
-            val latestAppToUpdate = latestState.apps[appName] ?: return@launch
 
-            val finalUpdatedApp = latestAppToUpdate.copy(apks = newApksResult)
-
-            val finalUpdatedApps = latestState.apps.toMutableMap()
-            finalUpdatedApps[appName] = finalUpdatedApp
-            _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
-        }
-    }
-
-    fun onClearDate(appName: String) {
-        viewModelScope.launch(ioDispatcher) {
-            val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
-            val appToUpdate = currentState.apps[appName] ?: return@launch
-
-            val updatedApp = appToUpdate.copy(userPickedDate = null)
-            val updatedApps = currentState.apps.toMutableMap()
-            updatedApps[appName] = updatedApp
-
-            _homeScreenState.value = currentState.copy(apps = updatedApps)
-
-            val result = when (appName) {
-                FENIX -> mozillaArchiveRepository.getFenixNightlyBuilds()
-                FOCUS -> mozillaArchiveRepository.getFocusNightlyBuilds()
-                else -> return@launch
-            }
-
-            val newApksResult = when (result) {
-                is NetworkResult.Success -> {
-                    val latestApks = getLatestApks(result.data)
-                    ApksResult.Success(convertParsedApksToUiModels(latestApks))
-                }
-                is NetworkResult.Error -> ApksResult.Error(
-                    "Error fetching $appName nightly builds: ${result.message}",
-                )
-            }
-
-            val latestState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
-            val latestAppToUpdate = latestState.apps[appName] ?: return@launch
-
-            val finalUpdatedApp = latestAppToUpdate.copy(apks = newApksResult)
+            val finalUpdatedApp =
+                latestState.apps[appName]?.copy(apks = newApksResult) ?: return@launch
 
             val finalUpdatedApps = latestState.apps.toMutableMap()
             finalUpdatedApps[appName] = finalUpdatedApp

@@ -11,6 +11,7 @@ class FakeIntentManager() : IntentManager {
 
     var wasUninstallApkCalled: Boolean = false
         private set
+
     /**
      * A boolean flag to indicate whether the `installApk` method was called.
      */

@@ -11,4 +11,3 @@ const val FENIX_PACKAGE = "org.mozilla.fenix"
 const val FOCUS_PACKAGE = "org.mozilla.focus.nightly"
 const val REFERENCE_BROWSER_PACKAGE = "org.mozilla.reference.browser"
 const val TRYFOX_PACKAGE = "org.mozilla.tryfox"
-
