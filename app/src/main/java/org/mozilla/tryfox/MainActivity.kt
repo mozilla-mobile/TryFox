@@ -133,8 +133,8 @@ class MainActivity : ComponentActivity() {
                     },
                 ),
             ) { backStackEntry ->
-                val project = backStackEntry.arguments?.getString("project") ?: "try"
-                val revision = backStackEntry.arguments?.getString("revision") ?: ""
+                val project = backStackEntry.arguments?.getString("project")
+                val revision = backStackEntry.arguments?.getString("revision")
                 Log.d(
                     "MainActivity",
                     "TreeherderSearchWithArgs composable: project='$project', revision='$revision' from NavBackStackEntry. ID: ${backStackEntry.id}",

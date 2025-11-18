@@ -2,6 +2,8 @@ package org.mozilla.tryfox
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.test.core.app.ActivityScenario
@@ -23,15 +25,18 @@ class MainActivityDeeplinkTest {
     fun testDeeplink_withHash_populatesRevision() {
         val project = "try"
         val revision = "abcdef123456"
-        val deeplinkUri = Uri.parse("https://treeherder.mozilla.org/#/jobs?repo=$project&revision=$revision")
-        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = deeplinkUri
-        }
+        val deeplinkUri =
+            Uri.parse("https://treeherder.mozilla.org/#/jobs?repo=$project&revision=$revision")
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = deeplinkUri
+            }
 
         ActivityScenario.launch<MainActivity>(intent).use {
             composeTestRule.waitForIdle()
-            composeTestRule.onNodeWithText(revision).assertExists()
+            composeTestRule.onNodeWithText("Revision").assert(hasText(revision))
+            composeTestRule.onNodeWithText("Project").assert(hasText(project))
         }
     }
 
@@ -39,11 +44,13 @@ class MainActivityDeeplinkTest {
     fun testDeeplink_withoutHash_populatesRevision() {
         val project = "mozilla-central"
         val revision = "fedcba654321"
-        val deeplinkUri = Uri.parse("https://treeherder.mozilla.org/jobs?repo=$project&revision=$revision")
-        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = deeplinkUri
-        }
+        val deeplinkUri =
+            Uri.parse("https://treeherder.mozilla.org/jobs?repo=$project&revision=$revision")
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = deeplinkUri
+            }
 
         ActivityScenario.launch<MainActivity>(intent).use {
             composeTestRule.waitForIdle()
@@ -58,12 +65,14 @@ class MainActivityDeeplinkTest {
 
         val project = "autoland"
         val revision = "abcdef123456"
-        val deeplinkUri = Uri.parse("https://treeherder.mozilla.org/#/jobs?repo=$project&revision=$revision")
-        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = deeplinkUri
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        val deeplinkUri =
+            Uri.parse("https://treeherder.mozilla.org/#/jobs?repo=$project&revision=$revision")
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = deeplinkUri
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
 
         // Now send the deeplink intent
         ApplicationProvider.getApplicationContext<android.content.Context>().startActivity(intent)
@@ -76,11 +85,13 @@ class MainActivityDeeplinkTest {
     fun testDeeplink_withAuthorEmail_populatesProfileScreen() {
         val email = "tthibaud@mozilla.com"
         val encodedEmail = "tthibaud%40mozilla.com"
-        val deeplinkUri = Uri.parse("https://treeherder.mozilla.org/jobs?repo=try&author=$encodedEmail")
-        val intent = Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
-            action = Intent.ACTION_VIEW
-            data = deeplinkUri
-        }
+        val deeplinkUri =
+            Uri.parse("https://treeherder.mozilla.org/jobs?repo=try&author=$encodedEmail")
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = deeplinkUri
+            }
 
         ActivityScenario.launch<MainActivity>(intent).use {
             composeTestRule.waitForIdle()

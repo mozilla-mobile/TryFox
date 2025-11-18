@@ -175,6 +175,6 @@ private fun DisplayArtifactCard(
         onDownloadClick = {
             viewModel.downloadArtifact(artifact)
         },
-        onInstallClick = { viewModel.onInstallApk?.invoke(it) },
+        onInstallClick = { viewModel.installApk(it) },
     )
 }
