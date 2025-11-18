@@ -22,6 +22,7 @@ import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.IFenixRepository
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
+import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
@@ -35,19 +36,20 @@ import java.io.File
  * @param fenixRepository The repository for fetching data from the network.
  * @param cacheManager The manager for handling application cache.
  * @param revision The initial revision to search for.
- * @param repo The initial repository to search in.
+ * @param project The initial repository to search in.
  */
 class TryFoxViewModel(
     private val fenixRepository: IFenixRepository,
     private val downloadFileRepository: DownloadFileRepository,
     private val cacheManager: CacheManager,
+    private val intentManager: IntentManager,
+    project: String?,
     revision: String?,
-    repo: String?,
 ) : ViewModel() {
     var revision by mutableStateOf(revision ?: "")
         private set
 
-    var selectedProject by mutableStateOf(repo ?: "try")
+    var selectedProject by mutableStateOf(project ?: "try")
         private set
 
     var relevantPushComment by mutableStateOf<String?>(null)
@@ -78,6 +80,10 @@ class TryFoxViewModel(
     private val deviceSupportedAbis: List<String> by lazy { Build.SUPPORTED_ABIS.toList() }
 
     init {
+        Log.d("TryFoxViewModel", "TryFoxViewModel created with revision: $revision, repo: $project")
+        if (revision != null) {
+            searchJobsAndArtifacts()
+        }
         cacheManager.cacheState.onEach { state ->
             if (state is CacheManagementState.IdleEmpty) {
                 // Reset download states for artifacts in this ViewModel
@@ -368,5 +374,9 @@ class TryFoxViewModel(
             }
         }
         checkAndUpdateDownloadingStatus()
+    }
+
+    fun installApk(file: File) {
+        intentManager.installApk(file)
     }
 }
