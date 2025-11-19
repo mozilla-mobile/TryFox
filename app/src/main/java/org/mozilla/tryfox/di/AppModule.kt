@@ -17,6 +17,8 @@ import org.mozilla.tryfox.data.DefaultDownloadFileRepository
 import org.mozilla.tryfox.data.DefaultMozillaPackageManager
 import org.mozilla.tryfox.data.DefaultUserDataRepository
 import org.mozilla.tryfox.data.DownloadFileRepository
+import org.mozilla.tryfox.data.FenixBetaReleaseRepository
+import org.mozilla.tryfox.data.FenixReleaseReleaseRepository
 import org.mozilla.tryfox.data.FenixReleaseRepository
 import org.mozilla.tryfox.data.FenixRepository
 import org.mozilla.tryfox.data.FocusReleaseRepository
@@ -39,6 +41,8 @@ import org.mozilla.tryfox.network.TreeherderApiService
 import org.mozilla.tryfox.ui.screens.HomeViewModel
 import org.mozilla.tryfox.ui.screens.ProfileViewModel
 import org.mozilla.tryfox.util.FENIX
+import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
@@ -140,6 +144,8 @@ val repositoryModule = module {
     single<IntentManager> { DefaultIntentManager(androidContext()) }
 
     single<ReleaseRepository>(named(FENIX)) { FenixReleaseRepository(get()) }
+    single<ReleaseRepository>(named(FENIX_RELEASE)) { FenixReleaseReleaseRepository(get()) }
+    single<ReleaseRepository>(named(FENIX_BETA)) { FenixBetaReleaseRepository(get()) }
     single<ReleaseRepository>(named(FOCUS)) { FocusReleaseRepository(get()) }
     single<ReleaseRepository>(named(REFERENCE_BROWSER)) { ReferenceBrowserReleaseRepository() }
     single<ReleaseRepository>(named(TRYFOX)) { TryFoxReleaseRepository(get()) }
@@ -159,6 +165,8 @@ val viewModelModule = module {
     viewModel {
         val releaseRepositories = listOf(
             get<ReleaseRepository>(named(FENIX)),
+            get<ReleaseRepository>(named(FENIX_RELEASE)),
+            get<ReleaseRepository>(named(FENIX_BETA)),
             get<ReleaseRepository>(named(FOCUS)),
             get<ReleaseRepository>(named(REFERENCE_BROWSER)),
             get<ReleaseRepository>(named(TRYFOX)),

@@ -9,9 +9,19 @@ import org.mozilla.tryfox.model.AppState
  */
 interface MozillaPackageManager {
     /**
-     * The [AppState] for Fenix (Firefox for Android).
+     * The [AppState] for Fenix (Firefox for Android Nightly).
      */
     val fenix: AppState
+
+    /**
+     * The [AppState] for Firefox Release.
+     */
+    val fenixRelease: AppState
+
+    /**
+     * The [AppState] for Firefox Beta.
+     */
+    val fenixBeta: AppState
 
     /**
      * The [AppState] for Focus Nightly.

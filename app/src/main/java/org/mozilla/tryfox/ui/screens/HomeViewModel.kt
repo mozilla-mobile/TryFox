@@ -34,6 +34,8 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.models.newVersionAvailable
 import org.mozilla.tryfox.util.FENIX
+import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
@@ -154,6 +156,8 @@ class HomeViewModel(
     private suspend fun fetchData() {
         val appInfoMap = mapOf(
             FENIX to mozillaPackageManager.fenix,
+            FENIX_RELEASE to mozillaPackageManager.fenixRelease,
+            FENIX_BETA to mozillaPackageManager.fenixBeta,
             FOCUS to mozillaPackageManager.focus,
             REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
             TRYFOX to mozillaPackageManager.tryfox,

@@ -9,6 +9,7 @@ import org.mozilla.tryfox.model.MozillaArchiveApk
 class FakeMozillaArchiveRepository(
     private val fenixBuilds: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
     private val focusBuilds: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
+    private val fenixReleases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
 ) : MozillaArchiveRepository {
 
     override suspend fun getFenixNightlyBuilds(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> {
@@ -17,5 +18,9 @@ class FakeMozillaArchiveRepository(
 
     override suspend fun getFocusNightlyBuilds(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> {
         return focusBuilds
+    }
+
+    override suspend fun getFenixReleaseBuilds(releaseType: ReleaseType): NetworkResult<List<MozillaArchiveApk>> {
+        return fenixReleases
     }
 }

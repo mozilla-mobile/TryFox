@@ -9,6 +9,8 @@
     <queries>
         <package android:name="org.mozilla.fenix" />
         <package android:name="org.mozilla.focus.nightly" />
+        <package android:name="org.mozilla.firefox" />
+        <package android:name="org.mozilla.firefox_beta" />
         <package android:name="org.mozilla.reference.browser" />
     </queries>
 

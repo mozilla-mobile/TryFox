@@ -54,6 +54,8 @@ import org.mozilla.tryfox.R
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.util.FENIX
+import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.parseDateToLocalDate
@@ -94,7 +96,6 @@ fun ArchiveGroupCard(
         elevation = CardDefaults.cardElevation(defaultElevation = ArchiveGroupCardTokens.CardElevation),
     ) {
         val firstApk = apks.firstOrNull()
-        val friendlyAppName = getFriendlyAppName(appName)
         val version = firstApk?.version ?: ""
         val dateFromApk = firstApk?.date ?: ""
         val isDatePickerEnabled = appName != REFERENCE_BROWSER
@@ -105,7 +106,7 @@ fun ArchiveGroupCard(
             )
 
             ArchiveGroupHeader(
-                appName = friendlyAppName,
+                appName = appName,
                 version = version,
                 date = dateFromApk,
                 onDateSelected = onDateSelected,
@@ -166,15 +167,16 @@ private fun ArchiveGroupHeader(
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     val displayDate = userPickedDate?.toString() ?: date
+    val friendlyAppName = getFriendlyAppName(appName)
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         AppIcon(
-            appName = "$appName-nightly",
+            appName = appName,
             modifier = Modifier.size(ArchiveGroupCardTokens.AppIconSize)
                 .clickable { onOpenAppClick() },
         )
         Text(
-            text = "$appName $version",
+            text = "$friendlyAppName $version",
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
@@ -326,6 +328,8 @@ private fun ArchiveGroupAbiSelector(
 private fun getFriendlyAppName(appName: String): String =
     when (appName) {
         FENIX -> stringResource(id = R.string.app_name_fenix)
+        FENIX_RELEASE -> stringResource(R.string.app_name_fenix_release)
+        FENIX_BETA -> stringResource(R.string.app_name_fenix_beta)
         FOCUS -> stringResource(id = R.string.app_name_focus)
         REFERENCE_BROWSER -> stringResource(R.string.app_name_reference_browser)
         else -> appName
