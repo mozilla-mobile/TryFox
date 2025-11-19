@@ -26,6 +26,7 @@
     <string name="app_card_download_failed_message">Download failed: %1$s</string>
     <string name="app_icon_firefox_nightly_description">Firefox Nightly Icon</string>
     <string name="app_icon_firefox_description">Firefox Icon</string>
+    <string name="app_icon_firefox_beta_description">Firefox Beta Icon</string>
     <string name="app_icon_focus_description">Focus Icon</string>
     <string name="app_icon_reference_browser_description">Reference Browser Icon</string>
     <string name="app_icon_generic_description">App Icon</string>
@@ -53,6 +54,8 @@
     <string name="profile_screen_clear_email_description">Clear email field</string>
 
     <string name="app_name_fenix">Fenix</string>
+    <string name="app_name_fenix_release">Fenix Release</string>
+    <string name="app_name_fenix_beta">Fenix Beta</string>
     <string name="app_name_focus">Focus</string>
     <string name="app_name_reference_browser">Reference Browser</string>
     <string name="unsupported_abi">Unsupported ABI</string>
