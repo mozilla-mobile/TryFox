@@ -1,6 +1,6 @@
 package org.mozilla.tryfox.data
 
-import org.mozilla.tryfox.model.ParsedNightlyApk
+import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.network.GithubApiService
 import org.mozilla.tryfox.util.TRYFOX
 
@@ -12,11 +12,11 @@ class TryFoxReleaseRepository(
 ) : ReleaseRepository {
     override val appName: String = TRYFOX
 
-    override suspend fun getLatestReleases(): NetworkResult<List<ParsedNightlyApk>> {
+    override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
         return try {
             val release = githubApiService.getLatestGitHubRelease("mozilla-mobile", "TryFox")
             val parsedApks = release.assets.map { asset ->
-                ParsedNightlyApk(
+                MozillaArchiveApk(
                     originalString = asset.name,
                     rawDateString = release.updatedAt,
                     appName = TRYFOX,

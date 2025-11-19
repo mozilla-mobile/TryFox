@@ -27,7 +27,7 @@ import org.mozilla.tryfox.data.ReleaseRepository
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.model.CacheManagementState
-import org.mozilla.tryfox.model.ParsedNightlyApk
+import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
@@ -220,7 +220,7 @@ class HomeViewModel(
         }
     }
 
-    private fun getLatestApks(apks: List<ParsedNightlyApk>): List<ParsedNightlyApk> {
+    private fun getLatestApks(apks: List<MozillaArchiveApk>): List<MozillaArchiveApk> {
         if (apks.isEmpty()) {
             return emptyList()
         } else if (apks.none { it.rawDateString != null }) {
@@ -230,7 +230,7 @@ class HomeViewModel(
         return apks.filter { it.rawDateString == latestDateString }
     }
 
-    private fun convertParsedApksToUiModels(parsedApks: List<ParsedNightlyApk>): List<ApkUiModel> {
+    private fun convertParsedApksToUiModels(parsedApks: List<MozillaArchiveApk>): List<ApkUiModel> {
         return parsedApks.map { parsedApk ->
             val date = parsedApk.rawDateString?.formatApkDate()
             val isCompatible = supportedAbis.any { deviceAbi ->
@@ -415,7 +415,7 @@ class HomeViewModel(
     private fun updateDate(
         appName: String,
         date: LocalDate?,
-        getReleases: suspend (LocalDate?) -> NetworkResult<List<ParsedNightlyApk>>,
+        getReleases: suspend (LocalDate?) -> NetworkResult<List<MozillaArchiveApk>>,
     ) {
         viewModelScope.launch(ioDispatcher) {
             val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch

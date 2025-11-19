@@ -1,6 +1,6 @@
 package org.mozilla.tryfox.data
 
-import org.mozilla.tryfox.model.ParsedNightlyApk
+import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 
 /**
@@ -15,12 +15,12 @@ class ReferenceBrowserReleaseRepository : ReleaseRepository {
 
     override val appName: String = REFERENCE_BROWSER
 
-    override suspend fun getLatestReleases(): NetworkResult<List<ParsedNightlyApk>> {
+    override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
         return try {
             val parsedApks = REFERENCE_BROWSER_ABIS.map { abi ->
                 val fullUrl = "${REFERENCE_BROWSER_TASK_BASE_URL}$abi/artifacts/public/target.$abi.apk"
                 val fileName = "target.$abi.apk"
-                ParsedNightlyApk(
+                MozillaArchiveApk(
                     originalString = "reference-browser-latest-android-$abi/",
                     rawDateString = null,
                     appName = "reference-browser",
