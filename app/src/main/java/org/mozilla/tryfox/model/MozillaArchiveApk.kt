@@ -1,6 +1,6 @@
 package org.mozilla.tryfox.model
 
-data class ParsedNightlyApk(
+data class MozillaArchiveApk(
     val originalString: String,
     val rawDateString: String?, // Format: "yyyy-MM-dd-HH-mm-ss"
     val appName: String,

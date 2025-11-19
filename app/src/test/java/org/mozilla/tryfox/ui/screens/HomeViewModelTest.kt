@@ -40,7 +40,7 @@ import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
-import org.mozilla.tryfox.model.ParsedNightlyApk
+import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
@@ -83,7 +83,7 @@ class HomeViewModelTest {
         dateRaw: String?,
         version: String,
         abi: String,
-    ): ParsedNightlyApk {
+    ): MozillaArchiveApk {
         val fileName = if (appName == testReferenceBrowserAppName) {
             "target.$abi.apk"
         } else {
@@ -100,7 +100,7 @@ class HomeViewModelTest {
             "http://fake.url/$dateRaw-$appName-$version-android-$abi/$fileName"
         }
 
-        return ParsedNightlyApk(
+        return MozillaArchiveApk(
             originalString = originalString,
             rawDateString = if (appName == testReferenceBrowserAppName) null else dateRaw,
             appName = appName,
@@ -112,7 +112,7 @@ class HomeViewModelTest {
     }
 
     private fun createTestApkUiModel(
-        parsed: ParsedNightlyApk,
+        parsed: MozillaArchiveApk,
         downloadState: DownloadState = DownloadState.NotDownloaded,
     ): ApkUiModel {
         val dateFormatted = parsed.rawDateString?.formatApkDateForTest() ?: ""

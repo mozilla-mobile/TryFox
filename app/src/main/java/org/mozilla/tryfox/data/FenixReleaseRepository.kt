@@ -1,7 +1,7 @@
 package org.mozilla.tryfox.data
 
 import kotlinx.datetime.LocalDate
-import org.mozilla.tryfox.model.ParsedNightlyApk
+import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.util.FENIX
 
 /**
@@ -12,11 +12,11 @@ class FenixReleaseRepository(
 ) : DateAwareReleaseRepository {
     override val appName: String = FENIX
 
-    override suspend fun getLatestReleases(): NetworkResult<List<ParsedNightlyApk>> {
+    override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
         return mozillaArchiveRepository.getFenixNightlyBuilds()
     }
 
-    override suspend fun getReleases(date: LocalDate?): NetworkResult<List<ParsedNightlyApk>> {
+    override suspend fun getReleases(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> {
         return mozillaArchiveRepository.getFenixNightlyBuilds(date)
     }
 }

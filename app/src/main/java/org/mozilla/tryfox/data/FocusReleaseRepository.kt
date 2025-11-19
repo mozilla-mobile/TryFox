@@ -1,7 +1,7 @@
 package org.mozilla.tryfox.data
 
 import kotlinx.datetime.LocalDate
-import org.mozilla.tryfox.model.ParsedNightlyApk
+import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.util.FOCUS
 
 /**
@@ -12,11 +12,11 @@ class FocusReleaseRepository(
 ) : DateAwareReleaseRepository {
     override val appName: String = FOCUS
 
-    override suspend fun getLatestReleases(): NetworkResult<List<ParsedNightlyApk>> {
+    override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
         return mozillaArchiveRepository.getFocusNightlyBuilds()
     }
 
-    override suspend fun getReleases(date: LocalDate?): NetworkResult<List<ParsedNightlyApk>> {
+    override suspend fun getReleases(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> {
         return mozillaArchiveRepository.getFocusNightlyBuilds(date)
     }
 }
