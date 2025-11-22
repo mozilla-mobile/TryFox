@@ -1,9 +1,11 @@
 package org.mozilla.tryfox.data
 
-class FakeFenixRepository(
+import org.mozilla.tryfox.data.repositories.TreeherderRepository
+
+class FakeTreeherderRepository(
     private val simulateNetworkError: Boolean = false,
     private val networkErrorMessage: String = "Fake network error",
-) : IFenixRepository {
+) : TreeherderRepository {
 
     override suspend fun getPushByRevision(
         project: String,

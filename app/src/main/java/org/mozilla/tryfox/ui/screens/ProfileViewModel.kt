@@ -14,11 +14,11 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import logcat.logcat
-import org.mozilla.tryfox.data.DownloadFileRepository
+import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.DownloadState
-import org.mozilla.tryfox.data.IFenixRepository
+import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.NetworkResult
-import org.mozilla.tryfox.data.UserDataRepository
+import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.model.CacheManagementState
@@ -38,7 +38,7 @@ import java.io.File
  * @param authorEmail The initial author email to search for, can be null.
  */
 class ProfileViewModel(
-    private val fenixRepository: IFenixRepository,
+    private val fenixRepository: TreeherderRepository,
     private val downloadFileRepository: DownloadFileRepository,
     private val userDataRepository: UserDataRepository,
     private val cacheManager: CacheManager,

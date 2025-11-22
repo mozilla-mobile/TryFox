@@ -19,6 +19,7 @@ import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.whenever
+import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.network.MozillaArchivesApiService
 import retrofit2.HttpException
@@ -43,7 +44,7 @@ class MozillaArchiveRepositoryImplTest {
     @Mock
     private lateinit var mockMozillaArchivesApiService: MozillaArchivesApiService
 
-    private lateinit var repository: MozillaArchiveRepositoryImpl
+    private lateinit var repository: DefaultMozillaArchiveRepository
 
     // Test constants for Fenix
     private val fenixVersion = "125.0a1"
@@ -66,7 +67,7 @@ class MozillaArchiveRepositoryImplTest {
     fun setUp() {
         val testDate = LocalDate(2023, 10, 1)
         val clock = FixedClock(testDate.atStartOfDayIn(TimeZone.UTC))
-        repository = MozillaArchiveRepositoryImpl(mockMozillaArchivesApiService, clock)
+        repository = DefaultMozillaArchiveRepository(mockMozillaArchivesApiService, clock)
     }
 
     private fun createMockHtmlResponse(vararg dirStrings: String): String {
@@ -163,12 +164,12 @@ class MozillaArchiveRepositoryImplTest {
         // Given
         val testDate = LocalDate(2024, 3, 15)
         val clock = FixedClock(testDate.atStartOfDayIn(TimeZone.UTC))
-        val repository = MozillaArchiveRepositoryImpl(mockMozillaArchivesApiService, clock)
+        val repository = DefaultMozillaArchiveRepository(mockMozillaArchivesApiService, clock)
 
-        val currentMonthUrl = MozillaArchiveRepositoryImpl.archiveUrlForDate(FENIX, testDate)
+        val currentMonthUrl = DefaultMozillaArchiveRepository.archiveUrlForDate(FENIX, testDate)
 
         val previousMonthDate = testDate.minus(1, DateTimeUnit.MONTH)
-        val previousMonthUrl = MozillaArchiveRepositoryImpl.archiveUrlForDate(FENIX, previousMonthDate)
+        val previousMonthUrl = DefaultMozillaArchiveRepository.archiveUrlForDate(FENIX, previousMonthDate)
 
         val previousMonthDateString = "2024-02-28-10-00-00"
         val previousMonthDirString = "$previousMonthDateString-$FENIX-$fenixVersion-android-arm64-v8a/"

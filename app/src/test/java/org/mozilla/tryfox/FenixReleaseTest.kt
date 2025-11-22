@@ -6,11 +6,10 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
-import org.mozilla.tryfox.data.MozillaArchiveRepositoryImpl
+import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.data.MozillaArchiveHtmlParser
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.ReleaseType
-import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.network.MozillaArchivesApiService
 
 class FenixReleaseTest {
@@ -25,12 +24,12 @@ class FenixReleaseTest {
         val releasesListHtml = loadHtmlResource("fenix-releases-page.html")
         val releaseDetailsHtml = loadHtmlResource("fenix-releases-145.html")
 
-        whenever(mockApiService.getHtmlPage(MozillaArchiveRepositoryImpl.RELEASES_FENIX_BASE_URL))
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL))
             .thenReturn(releasesListHtml)
-        whenever(mockApiService.getHtmlPage(MozillaArchiveRepositoryImpl.archiveUrlForRelease("146.0b5")))
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForRelease("146.0b5")))
             .thenReturn(releaseDetailsHtml)
 
-        val repository = MozillaArchiveRepositoryImpl(mockApiService)
+        val repository = DefaultMozillaArchiveRepository(mockApiService)
         val result = repository.getFenixReleaseBuilds(ReleaseType.Beta)
 
         assertTrue(result is NetworkResult.Success)
@@ -48,12 +47,12 @@ class FenixReleaseTest {
         val releasesListHtml = loadHtmlResource("fenix-releases-page.html")
         val releaseDetailsHtml = loadHtmlResource("fenix-releases-145.html")
 
-        whenever(mockApiService.getHtmlPage(MozillaArchiveRepositoryImpl.RELEASES_FENIX_BASE_URL))
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL))
             .thenReturn(releasesListHtml)
-        whenever(mockApiService.getHtmlPage(MozillaArchiveRepositoryImpl.archiveUrlForRelease("145.0.1")))
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForRelease("145.0.1")))
             .thenReturn(releaseDetailsHtml)
 
-        val repository = MozillaArchiveRepositoryImpl(mockApiService)
+        val repository = DefaultMozillaArchiveRepository(mockApiService)
         val result = repository.getFenixReleaseBuilds(ReleaseType.Release)
 
         assertTrue(result is NetworkResult.Success)
@@ -70,12 +69,12 @@ class FenixReleaseTest {
         val releasesListHtml = loadHtmlResource("fenix-releases-page.html")
         val releaseDetailsHtml = loadHtmlResource("fenix-releases-145.html")
 
-        whenever(mockApiService.getHtmlPage(MozillaArchiveRepositoryImpl.RELEASES_FENIX_BASE_URL))
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL))
             .thenReturn(releasesListHtml)
-        whenever(mockApiService.getHtmlPage(MozillaArchiveRepositoryImpl.archiveUrlForRelease("146.0b5")))
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForRelease("146.0b5")))
             .thenReturn(releaseDetailsHtml)
 
-        val repository = MozillaArchiveRepositoryImpl(mockApiService)
+        val repository = DefaultMozillaArchiveRepository(mockApiService)
         val result = repository.getFenixReleaseBuilds(ReleaseType.Beta)
 
         assertTrue(result is NetworkResult.Success)

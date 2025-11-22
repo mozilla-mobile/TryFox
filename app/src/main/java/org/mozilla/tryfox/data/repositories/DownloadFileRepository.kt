@@ -1,5 +1,6 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
+import org.mozilla.tryfox.data.NetworkResult
 import java.io.File
 
 /**
@@ -12,7 +13,7 @@ interface DownloadFileRepository {
      * @param downloadUrl The URL of the file to download.
      * @param outputFile The file where the downloaded content will be saved.
      * @param onProgress A callback function to report download progress (bytesDownloaded, totalBytes).
-     * @return A [NetworkResult] indicating success with the downloaded [File] or an [NetworkResult.Error] on failure.
+     * @return A [org.mozilla.tryfox.data.NetworkResult] indicating success with the downloaded [File] or an [org.mozilla.tryfox.data.NetworkResult.Error] on failure.
      */
     suspend fun downloadFile(downloadUrl: String, outputFile: File, onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit): NetworkResult<File>
 }

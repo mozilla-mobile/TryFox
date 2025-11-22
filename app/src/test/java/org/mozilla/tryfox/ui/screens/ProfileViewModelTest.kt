@@ -12,7 +12,7 @@ import org.junit.jupiter.api.io.TempDir
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mozilla.tryfox.data.FakeDownloadFileRepository
-import org.mozilla.tryfox.data.IFenixRepository
+import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
 import org.mozilla.tryfox.data.managers.FakeUserDataRepository
@@ -26,7 +26,7 @@ class ProfileViewModelTest {
     private lateinit var cacheManager: FakeCacheManager
 
     @Mock
-    private lateinit var fenixRepository: IFenixRepository
+    private lateinit var fenixRepository: TreeherderRepository
 
     private val userDataRepository = FakeUserDataRepository()
 

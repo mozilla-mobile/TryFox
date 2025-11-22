@@ -1,10 +1,14 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
+import org.mozilla.tryfox.data.ArtifactsResponse
+import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.TreeherderJobsResponse
+import org.mozilla.tryfox.data.TreeherderRevisionResponse
 import org.mozilla.tryfox.network.TreeherderApiService
 
-class FenixRepository(
+class DefaultTreeherderRepository(
     private val treeherderApiService: TreeherderApiService,
-) : IFenixRepository {
+) : TreeherderRepository {
 
     companion object {
         const val TASKCLUSTER_BASE_URL = "https://firefox-ci-tc.services.mozilla.com/api/queue/v1/"

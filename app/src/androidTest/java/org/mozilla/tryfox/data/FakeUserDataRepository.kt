@@ -2,9 +2,10 @@ package org.mozilla.tryfox.data
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import org.mozilla.tryfox.data.repositories.UserDataRepository
 
 /**
- * A fake implementation of [UserDataRepository] for testing purposes.
+ * A fake implementation of [org.mozilla.tryfox.data.repositories.UserDataRepository] for testing purposes.
  */
 class FakeUserDataRepository : UserDataRepository {
 

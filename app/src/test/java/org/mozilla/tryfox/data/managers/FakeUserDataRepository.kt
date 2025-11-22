@@ -2,7 +2,7 @@ package org.mozilla.tryfox.data.managers
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.mozilla.tryfox.data.UserDataRepository
+import org.mozilla.tryfox.data.repositories.UserDataRepository
 
 /**
  * A fake implementation of [UserDataRepository] for testing purposes.

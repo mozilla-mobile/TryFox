@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.data
 
 import kotlinx.coroutines.delay
+import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import java.io.File
 
 class FakeDownloadFileRepository(

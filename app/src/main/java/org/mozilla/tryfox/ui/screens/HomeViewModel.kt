@@ -18,12 +18,12 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.format.FormatStringsInDatetimeFormats
 import kotlinx.datetime.format.byUnicodePattern
 import kotlinx.datetime.todayIn
-import org.mozilla.tryfox.data.DateAwareReleaseRepository
-import org.mozilla.tryfox.data.DownloadFileRepository
+import org.mozilla.tryfox.data.repositories.DateAwareReleaseRepository
+import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
-import org.mozilla.tryfox.data.ReleaseRepository
+import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.model.CacheManagementState
