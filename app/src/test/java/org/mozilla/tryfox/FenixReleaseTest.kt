@@ -6,10 +6,10 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
-import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.data.MozillaArchiveHtmlParser
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.ReleaseType
+import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.network.MozillaArchivesApiService
 
 class FenixReleaseTest {
@@ -108,9 +108,9 @@ class FenixReleaseTest {
     @Test
     fun `test parseFenixReleaseAbisFromHtml extracts all ABIs from release HTML`() {
         val htmlContent = loadHtmlResource("fenix-releases-145.html")
-        
+
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
-        
+
         println("Extracted ABIs: $result")
         assertEquals(4, result.size, "Should extract 4 ABIs")
         assertTrue(result.contains("arm64-v8a"), "Should contain arm64-v8a")
@@ -122,9 +122,9 @@ class FenixReleaseTest {
     @Test
     fun `test parseFenixReleaseAbisFromHtml extracts in correct order`() {
         val htmlContent = loadHtmlResource("fenix-releases-145.html")
-        
+
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
-        
+
         // The order should match the order in the HTML
         val expected = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "universal")
         assertEquals(expected, result, "ABIs should be in the order they appear in HTML")
@@ -134,11 +134,11 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml with different app name`() {
         // This test demonstrates the function works with different app names
         val htmlContent = loadHtmlResource("fenix-releases-145.html")
-        
+
         // Using "fenix" app name (correct one)
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
         assertEquals(4, result.size, "Should extract 4 ABIs with correct app name")
-        
+
         // Using "focus" app name (shouldn't match fenix entries)
         val resultFocus = parser.parseFenixReleaseAbisFromHtml(htmlContent, "focus")
         assertEquals(0, resultFocus.size, "Should extract 0 ABIs with wrong app name")
@@ -147,18 +147,18 @@ class FenixReleaseTest {
     @Test
     fun `test parseFenixReleaseAbisFromHtml empty HTML returns empty list`() {
         val htmlContent = "<html><body></body></html>"
-        
+
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
-        
+
         assertEquals(0, result.size, "Should return empty list for HTML with no matching entries")
     }
 
     @Test
     fun `test parseFenixReleaseAbisFromHtml identifies universal ABI correctly`() {
         val htmlContent = loadHtmlResource("fenix-releases-145.html")
-        
+
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
-        
+
         // The last entry should be "universal" (fenix-145.0-android/)
         assertTrue(result.last() == "universal", "Last ABI should be universal")
     }
@@ -166,9 +166,9 @@ class FenixReleaseTest {
     @Test
     fun `test parseFenixReleaseAbisFromHtml extracts all ABIs from beta release HTML`() {
         val htmlContent = loadHtmlResource("fenix-releases-146b5.html")
-        
+
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
-        
+
         println("Extracted ABIs from beta release: $result")
         assertEquals(4, result.size, "Should extract 4 ABIs from beta release")
         assertTrue(result.contains("arm64-v8a"), "Should contain arm64-v8a")
@@ -180,9 +180,9 @@ class FenixReleaseTest {
     @Test
     fun `test parseFenixReleaseAbisFromHtml handles beta markers correctly`() {
         val htmlContent = loadHtmlResource("fenix-releases-146b5.html")
-        
+
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
-        
+
         // Verify the order matches the HTML
         val expected = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "universal")
         assertEquals(expected, result, "ABIs should be extracted correctly from beta release with version markers like 146.0b5")
@@ -191,9 +191,9 @@ class FenixReleaseTest {
     @Test
     fun `test parseFenixReleaseAbisFromHtml identifies universal ABI in beta release`() {
         val htmlContent = loadHtmlResource("fenix-releases-146b5.html")
-        
+
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
-        
+
         // The last entry should be "universal" (fenix-146.0b5-android/)
         assertTrue(result.last() == "universal", "Last ABI in beta release should be universal")
     }
@@ -201,9 +201,9 @@ class FenixReleaseTest {
     @Test
     fun `test parseFenixReleaseAbisFromHtml extracts specific ABI from beta pattern`() {
         val htmlContent = loadHtmlResource("fenix-releases-146b5.html")
-        
+
         val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
-        
+
         // Verify specific ABIs are correctly extracted from beta version format
         assertTrue(result.contains("arm64-v8a"), "fenix-146.0b5-android-arm64-v8a/ should extract arm64-v8a")
         assertTrue(result.contains("armeabi-v7a"), "fenix-146.0b5-android-armeabi-v7a/ should extract armeabi-v7a")
@@ -344,7 +344,7 @@ class FenixReleaseTest {
         val v1 = parser.compareReleaseVersions("146.0", "145.1")
         val v2 = parser.compareReleaseVersions("145.1", "145.0")
         val v3 = parser.compareReleaseVersions("146.0", "145.0")
-        
+
         assertTrue(v1 > 0, "146.0 > 145.1")
         assertTrue(v2 > 0, "145.1 > 145.0")
         assertTrue(v3 > 0, "146.0 > 145.0")

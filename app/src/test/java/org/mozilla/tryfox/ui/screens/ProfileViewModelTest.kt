@@ -12,10 +12,10 @@ import org.junit.jupiter.api.io.TempDir
 import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mozilla.tryfox.data.FakeDownloadFileRepository
-import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
 import org.mozilla.tryfox.data.managers.FakeUserDataRepository
+import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import java.io.File
 
 @ExperimentalCoroutinesApi

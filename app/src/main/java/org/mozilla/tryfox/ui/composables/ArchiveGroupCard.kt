@@ -282,8 +282,7 @@ private fun ArchiveGroupAbiSelector(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth(),
     ) {
-
-        if (FeatureFlags.showAbiSelector) {
+        if (FeatureFlags.SHOW_ABI_SELECTOR) {
             SingleChoiceSegmentedButtonRow {
                 apks.forEachIndexed { index, apk ->
                     val colors =

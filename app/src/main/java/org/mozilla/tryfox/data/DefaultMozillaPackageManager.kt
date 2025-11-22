@@ -13,11 +13,11 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.util.FENIX_BETA
-import org.mozilla.tryfox.util.FENIX_NIGHTLY_PACKAGE
-import org.mozilla.tryfox.util.FENIX_RELEASE_PACKAGE
 import org.mozilla.tryfox.util.FENIX_BETA_PACKAGE
 import org.mozilla.tryfox.util.FENIX_NIGHTLY
+import org.mozilla.tryfox.util.FENIX_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE
+import org.mozilla.tryfox.util.FENIX_RELEASE_PACKAGE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
@@ -28,7 +28,6 @@ import org.mozilla.tryfox.util.TRYFOX_PACKAGE
 class DefaultMozillaPackageManager(private val context: Context) : MozillaPackageManager {
 
     private val packageManager: PackageManager = context.packageManager
-    private val TAG = "MozillaPackageManager"
 
     private fun getPackageInfo(packageName: String): PackageInfo? {
         return try {
@@ -113,5 +112,9 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
     override fun launchApp(appName: String) {
         val intent = packageManager.getLaunchIntentForPackage(appName)
         intent?.let(context::startActivity)
+    }
+
+    companion object {
+        private const val TAG = "MozillaPackageManager"
     }
 }
