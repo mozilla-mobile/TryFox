@@ -1,6 +1,7 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
 import kotlinx.datetime.LocalDate
+import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.util.FOCUS
 

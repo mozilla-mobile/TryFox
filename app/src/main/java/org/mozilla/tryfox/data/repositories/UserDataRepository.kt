@@ -1,4 +1,4 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
 import kotlinx.coroutines.flow.Flow
 

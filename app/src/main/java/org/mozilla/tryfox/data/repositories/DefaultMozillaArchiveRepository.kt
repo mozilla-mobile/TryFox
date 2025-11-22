@@ -1,4 +1,4 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
@@ -6,6 +6,9 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.todayIn
+import org.mozilla.tryfox.data.MozillaArchiveHtmlParser
+import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.ReleaseType
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.network.MozillaArchivesApiService
 import org.mozilla.tryfox.util.FENIX
@@ -14,7 +17,7 @@ import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FOCUS
 import retrofit2.HttpException
 
-class MozillaArchiveRepositoryImpl(
+class DefaultMozillaArchiveRepository(
     private val mozillaArchivesApiService: MozillaArchivesApiService,
     private val clock: Clock = Clock.System,
     private val mozillaArchiveHtmlParser: MozillaArchiveHtmlParser = MozillaArchiveHtmlParser(),

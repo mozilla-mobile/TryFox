@@ -1,5 +1,6 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
+import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 

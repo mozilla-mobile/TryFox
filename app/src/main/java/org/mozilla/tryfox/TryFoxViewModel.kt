@@ -17,9 +17,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import org.mozilla.tryfox.data.DownloadFileRepository
+import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.DownloadState
-import org.mozilla.tryfox.data.IFenixRepository
+import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
@@ -39,7 +39,7 @@ import java.io.File
  * @param project The initial repository to search in.
  */
 class TryFoxViewModel(
-    private val fenixRepository: IFenixRepository,
+    private val fenixRepository: TreeherderRepository,
     private val downloadFileRepository: DownloadFileRepository,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,

@@ -1,10 +1,11 @@
 package org.mozilla.tryfox.data
 
+import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 
 /**
- * A fake implementation of [ReferenceBrowserReleaseRepository] for use in unit tests.
+ * A fake implementation of [org.mozilla.tryfox.data.repositories.ReferenceBrowserReleaseRepository] for use in unit tests.
  */
 class FakeReferenceBrowserReleaseRepository(
     private val releases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),

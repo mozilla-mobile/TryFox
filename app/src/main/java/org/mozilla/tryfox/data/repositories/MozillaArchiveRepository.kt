@@ -1,6 +1,8 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
 import kotlinx.datetime.LocalDate
+import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.ReleaseType
 import org.mozilla.tryfox.model.MozillaArchiveApk
 
 interface MozillaArchiveRepository {

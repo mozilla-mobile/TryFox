@@ -1,8 +1,9 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.network.DownloadApiService
 import java.io.File
 import java.io.FileOutputStream

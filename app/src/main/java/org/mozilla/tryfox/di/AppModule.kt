@@ -13,23 +13,23 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.mozilla.tryfox.BuildConfig
 import org.mozilla.tryfox.TryFoxViewModel
-import org.mozilla.tryfox.data.DefaultDownloadFileRepository
+import org.mozilla.tryfox.data.repositories.DefaultDownloadFileRepository
 import org.mozilla.tryfox.data.DefaultMozillaPackageManager
-import org.mozilla.tryfox.data.DefaultUserDataRepository
-import org.mozilla.tryfox.data.DownloadFileRepository
-import org.mozilla.tryfox.data.FenixBetaReleaseRepository
-import org.mozilla.tryfox.data.FenixReleaseReleaseRepository
-import org.mozilla.tryfox.data.FenixReleaseRepository
-import org.mozilla.tryfox.data.FenixRepository
-import org.mozilla.tryfox.data.FocusReleaseRepository
-import org.mozilla.tryfox.data.IFenixRepository
-import org.mozilla.tryfox.data.MozillaArchiveRepository
-import org.mozilla.tryfox.data.MozillaArchiveRepositoryImpl
+import org.mozilla.tryfox.data.repositories.DefaultUserDataRepository
+import org.mozilla.tryfox.data.repositories.DownloadFileRepository
+import org.mozilla.tryfox.data.repositories.FenixBetaReleaseRepository
+import org.mozilla.tryfox.data.repositories.FenixReleaseReleaseRepository
+import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
+import org.mozilla.tryfox.data.repositories.DefaultTreeherderRepository
+import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
+import org.mozilla.tryfox.data.repositories.TreeherderRepository
+import org.mozilla.tryfox.data.repositories.MozillaArchiveRepository
+import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.data.MozillaPackageManager
-import org.mozilla.tryfox.data.ReferenceBrowserReleaseRepository
-import org.mozilla.tryfox.data.ReleaseRepository
-import org.mozilla.tryfox.data.TryFoxReleaseRepository
-import org.mozilla.tryfox.data.UserDataRepository
+import org.mozilla.tryfox.data.repositories.ReferenceBrowserReleaseRepository
+import org.mozilla.tryfox.data.repositories.ReleaseRepository
+import org.mozilla.tryfox.data.repositories.TryFoxReleaseRepository
+import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.DefaultCacheManager
 import org.mozilla.tryfox.data.managers.DefaultIntentManager
@@ -131,8 +131,8 @@ val repositoryModule = module {
             get(named("IODispatcher")),
         )
     }
-    single<IFenixRepository> { FenixRepository(get()) }
-    single<MozillaArchiveRepository> { MozillaArchiveRepositoryImpl(get()) }
+    single<TreeherderRepository> { DefaultTreeherderRepository(get()) }
+    single<MozillaArchiveRepository> { DefaultMozillaArchiveRepository(get()) }
     single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
     single<MozillaPackageManager> { DefaultMozillaPackageManager(androidContext()) }
     single<CacheManager> {

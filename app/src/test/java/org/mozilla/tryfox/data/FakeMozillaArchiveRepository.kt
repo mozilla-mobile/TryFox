@@ -1,10 +1,11 @@
 package org.mozilla.tryfox.data
 
 import kotlinx.datetime.LocalDate
+import org.mozilla.tryfox.data.repositories.MozillaArchiveRepository
 import org.mozilla.tryfox.model.MozillaArchiveApk
 
 /**
- * A fake implementation of [MozillaArchiveRepository] for use in unit tests.
+ * A fake implementation of [org.mozilla.tryfox.data.repositories.MozillaArchiveRepository] for use in unit tests.
  */
 class FakeMozillaArchiveRepository(
     private val fenixBuilds: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),

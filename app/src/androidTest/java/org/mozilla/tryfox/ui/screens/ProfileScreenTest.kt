@@ -15,10 +15,10 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.tryfox.data.FakeCacheManager
 import org.mozilla.tryfox.data.FakeDownloadFileRepository
-import org.mozilla.tryfox.data.FakeFenixRepository
+import org.mozilla.tryfox.data.FakeTreeherderRepository
 import org.mozilla.tryfox.data.FakeIntentManager
 import org.mozilla.tryfox.data.FakeUserDataRepository
-import org.mozilla.tryfox.data.UserDataRepository
+import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.data.managers.CacheManager
 
 @RunWith(AndroidJUnit4::class)
@@ -27,7 +27,7 @@ class ProfileScreenTest {
     @get:Rule
     val composeTestRule = createComposeRule()
 
-    private val fenixRepository = FakeFenixRepository()
+    private val fenixRepository = FakeTreeherderRepository()
     private val downloadFileRepository = FakeDownloadFileRepository()
     private val userDataRepository: UserDataRepository = FakeUserDataRepository()
     private val cacheManager: CacheManager = FakeCacheManager()

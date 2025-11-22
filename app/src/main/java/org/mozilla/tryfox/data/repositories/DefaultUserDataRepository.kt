@@ -1,4 +1,4 @@
-package org.mozilla.tryfox.data
+package org.mozilla.tryfox.data.repositories
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.mozilla.tryfox.data.repositories.UserDataRepository
 
 /**
  * A repository that stores the last searched email in a DataStore.
