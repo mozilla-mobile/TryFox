@@ -57,6 +57,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FeatureFlags
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.parseDateToLocalDate
 import java.io.File
@@ -90,9 +91,9 @@ fun ArchiveGroupCard(
 ) {
     ElevatedCard(
         modifier =
-        modifier
-            .fillMaxWidth()
-            .padding(top = ArchiveGroupCardTokens.CardPaddingTop),
+            modifier
+                .fillMaxWidth()
+                .padding(top = ArchiveGroupCardTokens.CardPaddingTop),
         elevation = CardDefaults.cardElevation(defaultElevation = ArchiveGroupCardTokens.CardElevation),
     ) {
         val firstApk = apks.firstOrNull()
@@ -129,6 +130,7 @@ fun ArchiveGroupCard(
                         CircularProgressIndicator()
                     }
                 }
+
                 errorMessage != null -> {
                     Text(
                         text = errorMessage,
@@ -137,9 +139,17 @@ fun ArchiveGroupCard(
                         color = MaterialTheme.colorScheme.error,
                     )
                 }
+
                 apks.isNotEmpty() -> {
-                    ArchiveGroupAbiSelector(apks, onDownloadClick, onInstallClick, onUninstallClick, appState)
+                    ArchiveGroupAbiSelector(
+                        apks,
+                        onDownloadClick,
+                        onInstallClick,
+                        onUninstallClick,
+                        appState,
+                    )
                 }
+
                 else -> {
                     Text(
                         stringResource(id = R.string.archive_group_card_no_apks_for_date),
@@ -172,7 +182,8 @@ private fun ArchiveGroupHeader(
     Row(verticalAlignment = Alignment.CenterVertically) {
         AppIcon(
             appName = appName,
-            modifier = Modifier.size(ArchiveGroupCardTokens.AppIconSize)
+            modifier = Modifier
+                .size(ArchiveGroupCardTokens.AppIconSize)
                 .clickable { onOpenAppClick() },
         )
         Text(
@@ -197,7 +208,10 @@ private fun ArchiveGroupHeader(
                 colors = chipColors,
                 trailingIcon = {
                     if (userPickedDate != null) {
-                        IconButton(onClick = onClearDate, modifier = Modifier.size(AssistChipDefaults.IconSize)) {
+                        IconButton(
+                            onClick = onClearDate,
+                            modifier = Modifier.size(AssistChipDefaults.IconSize),
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
                                 contentDescription = stringResource(R.string.clear_date_selection),
@@ -210,12 +224,15 @@ private fun ArchiveGroupHeader(
     }
 
     if (showDatePicker) {
-        val initialDate = userPickedDate ?: parseDateToLocalDate(date) ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val initialDate = userPickedDate ?: parseDateToLocalDate(date) ?: Clock.System.now()
+            .toLocalDateTime(TimeZone.currentSystemDefault()).date
         val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = initialDate.atStartOfDayIn(TimeZone.currentSystemDefault()).toEpochMilliseconds(),
+            initialSelectedDateMillis = initialDate.atStartOfDayIn(TimeZone.currentSystemDefault())
+                .toEpochMilliseconds(),
             selectableDates = object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean {
-                    val localDate = Instant.fromEpochMilliseconds(utcTimeMillis).toLocalDateTime(TimeZone.UTC).date
+                    val localDate = Instant.fromEpochMilliseconds(utcTimeMillis)
+                        .toLocalDateTime(TimeZone.UTC).date
                     return dateValidator(localDate)
                 }
             },
@@ -228,7 +245,8 @@ private fun ArchiveGroupHeader(
                         showDatePicker = false
                         datePickerState.selectedDateMillis?.let {
                             onDateSelected(
-                                Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.currentSystemDefault()).date,
+                                Instant.fromEpochMilliseconds(it)
+                                    .toLocalDateTime(TimeZone.currentSystemDefault()).date,
                             )
                         }
                     },
@@ -247,6 +265,7 @@ private fun ArchiveGroupHeader(
     }
 }
 
+@Suppress("KotlinConstantConditions")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ArchiveGroupAbiSelector(
@@ -263,43 +282,48 @@ private fun ArchiveGroupAbiSelector(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        SingleChoiceSegmentedButtonRow {
-            apks.forEachIndexed { index, apk ->
-                val colors =
-                    if (!apk.abi.isSupported) {
-                        SegmentedButtonDefaults.colors(
-                            inactiveContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
-                            activeContainerColor = MaterialTheme.colorScheme.error,
-                            inactiveContentColor = MaterialTheme.colorScheme.onSurface,
-                            activeContentColor = MaterialTheme.colorScheme.onError,
-                        )
-                    } else {
-                        SegmentedButtonDefaults.colors()
-                    }
-                SegmentedButton(
-                    selected = selectedIndex == index,
-                    onClick = { selectedIndex = index },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = apks.size),
-                    colors = colors,
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+
+        if (FeatureFlags.showAbiSelector) {
+            SingleChoiceSegmentedButtonRow {
+                apks.forEachIndexed { index, apk ->
+                    val colors =
                         if (!apk.abi.isSupported) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = stringResource(R.string.unsupported_abi),
-                                modifier = Modifier.size(ButtonDefaults.IconSize).padding(end = 4.dp),
+                            SegmentedButtonDefaults.colors(
+                                inactiveContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                                activeContainerColor = MaterialTheme.colorScheme.error,
+                                inactiveContentColor = MaterialTheme.colorScheme.onSurface,
+                                activeContentColor = MaterialTheme.colorScheme.onError,
+                            )
+                        } else {
+                            SegmentedButtonDefaults.colors()
+                        }
+                    SegmentedButton(
+                        selected = selectedIndex == index,
+                        onClick = { selectedIndex = index },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = apks.size),
+                        colors = colors,
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!apk.abi.isSupported) {
+                                Icon(
+                                    imageVector = Icons.Default.Warning,
+                                    contentDescription = stringResource(R.string.unsupported_abi),
+                                    modifier = Modifier
+                                        .size(ButtonDefaults.IconSize)
+                                        .padding(end = 4.dp),
+                                )
+                            }
+                            Text(
+                                text = apk.abi.name ?: "",
+                                style = MaterialTheme.typography.labelSmall,
                             )
                         }
-                        Text(
-                            text = apk.abi.name ?: "",
-                            style = MaterialTheme.typography.labelSmall,
-                        )
                     }
                 }
             }
-        }
 
-        Spacer(Modifier.height(ArchiveGroupCardTokens.SpacerHeight))
+            Spacer(Modifier.height(ArchiveGroupCardTokens.SpacerHeight))
+        }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (appState?.isInstalled == true) {

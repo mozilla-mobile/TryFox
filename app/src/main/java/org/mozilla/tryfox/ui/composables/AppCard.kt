@@ -42,7 +42,6 @@ fun AppCard(
     job: JobDetailsUiModel,
     viewModel: TryFoxViewModel,
 ) {
-    val context = LocalContext.current
     val jobArtifacts = job.artifacts
     val (supportedArtifacts, unsupportedArtifacts) = remember(jobArtifacts) {
         jobArtifacts.partition { it.abi.isSupported }
