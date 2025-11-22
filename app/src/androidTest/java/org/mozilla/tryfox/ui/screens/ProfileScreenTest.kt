@@ -15,11 +15,11 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.tryfox.data.FakeCacheManager
 import org.mozilla.tryfox.data.FakeDownloadFileRepository
-import org.mozilla.tryfox.data.FakeTreeherderRepository
 import org.mozilla.tryfox.data.FakeIntentManager
+import org.mozilla.tryfox.data.FakeTreeherderRepository
 import org.mozilla.tryfox.data.FakeUserDataRepository
-import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.data.managers.CacheManager
+import org.mozilla.tryfox.data.repositories.UserDataRepository
 
 @RunWith(AndroidJUnit4::class)
 class ProfileScreenTest {

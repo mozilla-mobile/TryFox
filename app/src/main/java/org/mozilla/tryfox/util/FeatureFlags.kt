@@ -1,5 +1,5 @@
 package org.mozilla.tryfox.util
 
 object FeatureFlags {
-    const val showAbiSelector: Boolean = false
+    const val SHOW_ABI_SELECTOR: Boolean = false
 }

@@ -12,8 +12,8 @@ import org.mozilla.tryfox.data.ReleaseType
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.network.MozillaArchivesApiService
 import org.mozilla.tryfox.util.FENIX
-import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import retrofit2.HttpException
 
@@ -35,7 +35,7 @@ class DefaultMozillaArchiveRepository(
         }
 
         internal fun archiveUrlForRelease(number: String): String {
-            return "${RELEASES_FENIX_BASE_URL}${number}/android/"
+            return "${RELEASES_FENIX_BASE_URL}$number/android/"
         }
     }
 
@@ -49,28 +49,28 @@ class DefaultMozillaArchiveRepository(
             val releasesPageUrl = RELEASES_FENIX_BASE_URL
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(releasesPageUrl)
             val latestReleaseVersion = mozillaArchiveHtmlParser.parseFenixReleasesFromHtml(releasesHtml, releaseType)
-            
+
             if (latestReleaseVersion.isEmpty()) {
                 return NetworkResult.Error("No releases found for type $releaseType", null)
             }
-            
+
             // Get the release directory listing to find available ABIs
             val releaseUrl = archiveUrlForRelease(latestReleaseVersion)
             val releaseHtml = mozillaArchivesApiService.getHtmlPage(releaseUrl)
             val abis = mozillaArchiveHtmlParser.parseFenixReleaseAbisFromHtml(releaseHtml, FENIX)
-            
+
             if (abis.isEmpty()) {
                 return NetworkResult.Error("No ABIs found for release $latestReleaseVersion", null)
             }
-            
+
             val apks = abis.map { abi ->
                 constructReleaseApk(latestReleaseVersion, abi, releaseUrl, releaseType)
             }
-            
+
             if (apks.isEmpty()) {
                 return NetworkResult.Error("Failed to construct APKs for release $latestReleaseVersion", null)
             }
-            
+
             NetworkResult.Success(apks)
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch or parse Fenix releases: ${e.message}", e)
@@ -80,8 +80,8 @@ class DefaultMozillaArchiveRepository(
     private fun constructReleaseApk(version: String, abi: String, releaseBaseUrl: String, releaseType: ReleaseType): MozillaArchiveApk {
         val buildString = "fenix-$version-android${if (abi == "universal") "" else "-$abi"}/"
         val fileName = "fenix-$version.multi.android-$abi.apk"
-        val fullUrl = "${releaseBaseUrl}${buildString}${fileName}"
-        
+        val fullUrl = "${releaseBaseUrl}${buildString}$fileName"
+
         val appName = when (releaseType) {
             ReleaseType.Release -> FENIX_RELEASE
             ReleaseType.Beta -> FENIX_BETA

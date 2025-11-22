@@ -55,7 +55,7 @@ class MozillaArchiveHtmlParser {
                     val isBeta = version.contains(Regex("[ab]\\d+|beta|alpha|rc"))
                     !isBeta && version.matches(Regex("\\d+\\.\\d+(\\.\\d+)?"))
                 }
-                
+
                 // Use Version comparison to find the latest stable release
                 stableReleases.mapNotNull { Version.from(it) }
                     .maxOrNull()?.toString() ?: ""
@@ -73,18 +73,18 @@ class MozillaArchiveHtmlParser {
             .toList()
 
         val abis = mutableListOf<String>()
-        
+
         for (buildString in rawBuildStrings) {
             // Pattern: {appName}-D+.D+(.D+)?[ab]D+-android-ABI/ or {appName}-D+.D+(.D+)?-android/
             // Also supports: {appName}-D+.D+(.D+)?-android-ABI/ (stable releases)
-            // Examples: 
+            // Examples:
             // - fenix-145.0-android-arm64-v8a/ (stable)
             // - fenix-145.0-android/ (stable universal)
             // - fenix-146.0b5-android-arm64-v8a/ (beta)
             // - fenix-146.0b5-android/ (beta universal)
             val pattern = Regex("^$appName-\\d+\\.\\d+(?:\\.\\d+)?(?:[ab]\\d+)?-android(?:-(.+?))?/$")
             val matchResult = pattern.find(buildString)
-            
+
             if (matchResult != null) {
                 val abi = matchResult.groups[1]?.value
                 abis.add(abi ?: "universal")
@@ -133,6 +133,5 @@ class MozillaArchiveHtmlParser {
         }
 
         return null
-
     }
 }
