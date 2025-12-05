@@ -2,61 +2,62 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>ComplexCondition:BinButton.kt$isActuallyConfirming &amp;&amp; (!enabled || cacheState == CacheManagementState.IdleEmpty || cacheState == CacheManagementState.Clearing)</ID>
-    <ID>ComplexCondition:TreeherderApksScreen.kt$!fenixInstallerViewModel.isLoading &amp;&amp; fenixInstallerViewModel.errorMessage == null &amp;&amp; (fenixInstallerViewModel.relevantPushComment != null || fenixInstallerViewModel.relevantPushAuthor != null)</ID>
-    <ID>CyclomaticComplexMethod:BinButton.kt$@Composable fun BinButton( cacheState: CacheManagementState, onConfirm: () -&gt; Unit, enabled: Boolean )</ID>
-    <ID>CyclomaticComplexMethod:CurrentInstallState.kt$@Composable fun CurrentInstallState( appState: AppState?, apkDisplayDateString: String, modifier: Modifier = Modifier )</ID>
-    <ID>CyclomaticComplexMethod:ProfileViewModel.kt$ProfileViewModel$fun downloadArtifact(artifactUiModel: ArtifactUiModel, context: Context)</ID>
-    <ID>CyclomaticComplexMethod:ProfileViewModel.kt$ProfileViewModel$fun searchByAuthor(context: Context)</ID>
-    <ID>CyclomaticComplexMethod:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FenixInstallerApp( fenixInstallerViewModel: FenixInstallerViewModel, onNavigateUp: () -&gt; Unit, )</ID>
+    <ID>ComplexCondition:BinButton.kt$isActuallyConfirming &amp;&amp; ( !enabled || cacheState == CacheManagementState.IdleEmpty || cacheState == CacheManagementState.Clearing )</ID>
+    <ID>ComplexCondition:TreeherderApksScreen.kt$!tryFoxViewModel.isLoading &amp;&amp; tryFoxViewModel.errorMessage == null &amp;&amp; (tryFoxViewModel.relevantPushComment != null || tryFoxViewModel.relevantPushAuthor != null)</ID>
+    <ID>CyclomaticComplexMethod:BinButton.kt$@Composable fun BinButton( cacheState: CacheManagementState, onConfirm: () -&gt; Unit, enabled: Boolean, )</ID>
+    <ID>CyclomaticComplexMethod:ProfileScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ProfileScreen( modifier: Modifier = Modifier, onNavigateUp: () -&gt; Unit, profileViewModel: ProfileViewModel, )</ID>
+    <ID>CyclomaticComplexMethod:ProfileViewModel.kt$ProfileViewModel$fun searchByAuthor()</ID>
+    <ID>CyclomaticComplexMethod:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TryFoxMainScreen( tryFoxViewModel: TryFoxViewModel, onNavigateUp: () -&gt; Unit, )</ID>
+    <ID>EmptyDefaultConstructor:BinButton.kt$CacheStateProvider$()</ID>
     <ID>ForbiddenComment:PushCommentCard.kt$/* TODO: Potentially handle click, e.g. view author profile or filter by author */</ID>
     <ID>ForbiddenComment:TreeherderApksScreen.kt$// TODO: Consider creating a specific string resource for \"Download failed\" if it's a common prefix for user-facing errors.</ID>
-    <ID>FunctionNaming:AbiChip.kt$@Composable fun AbiChip( abi: AbiUiModel )</ID>
-    <ID>FunctionNaming:AppCard.kt$@Composable fun AppCard( job: JobDetailsUiModel, viewModel: FenixInstallerViewModel )</ID>
-    <ID>FunctionNaming:AppCard.kt$@Composable private fun DisplayArtifactCard( artifact: ArtifactUiModel, viewModel: FenixInstallerViewModel, context: Context )</ID>
+    <ID>FunctionNaming:AbiChip.kt$@Composable fun AbiChip( abi: AbiUiModel, )</ID>
+    <ID>FunctionNaming:AppCard.kt$@Composable fun AppCard( job: JobDetailsUiModel, viewModel: TryFoxViewModel, )</ID>
+    <ID>FunctionNaming:AppCard.kt$@Composable private fun DisplayArtifactCard( artifact: ArtifactUiModel, viewModel: TryFoxViewModel, )</ID>
     <ID>FunctionNaming:AppIcon.kt$@Composable fun AppIcon(appName: String, modifier: Modifier = Modifier)</ID>
-    <ID>FunctionNaming:ArchiveGroupCard.kt$@Composable fun ArchiveGroupCard( modifier: Modifier = Modifier, apks: List&lt;ApkUiModel&gt;, homeViewModel: HomeViewModel, context: Context, appState: AppState? )</ID>
-    <ID>FunctionNaming:ArtifactCard.kt$@OptIn(ExperimentalMaterial3Api::class) // Needed for AssistChip @Composable fun ArtifactCard( downloadState: DownloadState, abi: AbiUiModel, onDownloadClick: () -&gt; Unit, onInstallClick: (File) -&gt; Unit )</ID>
-    <ID>FunctionNaming:BinButton.kt$@Composable fun BinButton( cacheState: CacheManagementState, onConfirm: () -&gt; Unit, enabled: Boolean )</ID>
-    <ID>FunctionNaming:BinButton.kt$@Preview(showBackground = true, name = "Completion Cycle Simulation (Button initially enabled)") @Composable fun BinButtonCompletionCyclePreview()</ID>
-    <ID>FunctionNaming:BinButton.kt$@Preview(showBackground = true, name = "Confirming State (Enabled)") @Composable fun BinButtonConfirmingPreview()</ID>
-    <ID>FunctionNaming:BinButton.kt$@Preview(showBackground = true, name = "Disabled (Clearing State)") @Composable fun BinButtonLoadingPreview()</ID>
-    <ID>FunctionNaming:BinButton.kt$@Preview(showBackground = true, name = "Disabled (IdleEmpty State)") @Composable fun BinButtonDisabledIdleEmptyPreview()</ID>
-    <ID>FunctionNaming:BinButton.kt$@Preview(showBackground = true, name = "Disabled (e.g. Downloading)") @Composable fun BinButtonDisabledDownloadingPreview()</ID>
-    <ID>FunctionNaming:BinButton.kt$@Preview(showBackground = true, name = "Enabled (IdleNonEmpty State)") @Composable fun BinButtonIdleNonEmptyPreview()</ID>
-    <ID>FunctionNaming:CurrentInstallState.kt$@Composable fun CurrentInstallState( appState: AppState?, apkDisplayDateString: String, modifier: Modifier = Modifier )</ID>
+    <ID>FunctionNaming:ArchiveGroupCard.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ArchiveGroupCard( modifier: Modifier = Modifier, apks: List&lt;ApkUiModel&gt;, onDownloadClick: (ApkUiModel) -&gt; Unit, onInstallClick: (File) -&gt; Unit, onOpenAppClick: () -&gt; Unit, appState: AppState?, onDateSelected: (LocalDate) -&gt; Unit, userPickedDate: LocalDate?, appName: String, errorMessage: String?, isLoading: Boolean, dateValidator: (LocalDate) -&gt; Boolean, onClearDate: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:ArchiveGroupCard.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun ArchiveGroupAbiSelector( apks: List&lt;ApkUiModel&gt;, onDownloadClick: (ApkUiModel) -&gt; Unit, onInstallClick: (File) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:ArchiveGroupCard.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun ArchiveGroupHeader( appName: String, version: String, date: String, onDateSelected: (LocalDate) -&gt; Unit, onOpenAppClick: () -&gt; Unit, userPickedDate: LocalDate?, isDatePickerEnabled: Boolean, dateValidator: (LocalDate) -&gt; Boolean, onClearDate: () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:ArtifactCard.kt$@OptIn(ExperimentalMaterial3Api::class) // Needed for AssistChip @Composable fun ArtifactCard( downloadState: DownloadState, abi: AbiUiModel, onDownloadClick: () -&gt; Unit, onInstallClick: (File) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:BinButton.kt$@BinButtonPreview @Composable fun BinButtonDisabledDownloadingPreview( @PreviewParameter(CacheStateProvider::class) state: CacheManagementState, )</ID>
+    <ID>FunctionNaming:BinButton.kt$@Composable fun BinButton( cacheState: CacheManagementState, onConfirm: () -&gt; Unit, enabled: Boolean, )</ID>
+    <ID>FunctionNaming:BinButton.kt$@Preview( showBackground = true, name = "Completion Cycle Simulation (Button initially enabled)", widthDp = 100, heightDp = 100, ) @Composable fun BinButtonCompletionCyclePreview()</ID>
+    <ID>FunctionNaming:CurrentInstallState.kt$@Composable fun CurrentInstallState( appState: AppState?, modifier: Modifier = Modifier, )</ID>
     <ID>FunctionNaming:DownloadButton.kt$@Composable fun DownloadButton( downloadState: DownloadState, onDownloadClick: () -&gt; Unit, onInstallClick: (File) -&gt; Unit, )</ID>
-    <ID>FunctionNaming:ExpandableListView.kt$@Composable fun ExpandableListView( title: String, initiallyExpanded: Boolean = false, content: @Composable () -&gt; Unit )</ID>
-    <ID>FunctionNaming:HomeScreen.kt$@Composable fun AppNightlyComponent( state: FocusApksState, appState: AppState?, homeViewModel: HomeViewModel, // Kept for actions like downloadNightlyApk context: Context // Kept for actions within ApkCard potentially )</ID>
-    <ID>FunctionNaming:HomeScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun HomeScreen( modifier: Modifier = Modifier, onNavigateToTreeherder: () -&gt; Unit, onNavigateToProfile: () -&gt; Unit, homeViewModel: HomeViewModel = viewModel() // Assuming ViewModel is provided by Hilt or default factory later )</ID>
-    <ID>FunctionNaming:MainActivity.kt$MainActivity$@Composable fun AppNavigation(mainActivityViewModel: FenixInstallerViewModel)</ID>
+    <ID>FunctionNaming:ExpandableListView.kt$@Composable fun ExpandableListView( title: String, initiallyExpanded: Boolean = false, content: @Composable () -&gt; Unit, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@Composable fun AppComponent( app: AppUiModel, onDownloadClick: (ApkUiModel) -&gt; Unit, onInstallClick: (File) -&gt; Unit, onOpenAppClick: (String) -&gt; Unit, onDateSelected: (String, LocalDate) -&gt; Unit, dateValidator: (LocalDate) -&gt; Boolean, onClearDate: (String) -&gt; Unit, )</ID>
+    <ID>FunctionNaming:HomeScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun HomeScreen( modifier: Modifier = Modifier, onNavigateToTreeherder: () -&gt; Unit, onNavigateToProfile: () -&gt; Unit, homeViewModel: HomeViewModel = viewModel(), )</ID>
+    <ID>FunctionNaming:MainActivity.kt$MainActivity$@Composable fun AppNavigation(mainActivityViewModel: TryFoxViewModel)</ID>
     <ID>FunctionNaming:ProfileScreen.kt$@Composable private fun ErrorState(errorMessage: String, modifier: Modifier = Modifier)</ID>
-    <ID>FunctionNaming:ProfileScreen.kt$@Composable private fun JobCard( job: JobDetailsUiModel, profileViewModel: ProfileViewModel, context: Context )</ID>
-    <ID>FunctionNaming:ProfileScreen.kt$@Composable private fun ProfileSearchButton( onClick: () -&gt; Unit, enabled: Boolean, isLoading: Boolean, modifier: Modifier = Modifier )</ID>
-    <ID>FunctionNaming:ProfileScreen.kt$@OptIn(ExperimentalComposeUiApi::class) @Composable private fun UserSearchCard( email: String, onEmailChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean, modifier: Modifier = Modifier )</ID>
-    <ID>FunctionNaming:ProfileScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ProfileScreen( modifier: Modifier = Modifier, onNavigateUp: () -&gt; Unit, profileViewModel: ProfileViewModel )</ID>
+    <ID>FunctionNaming:ProfileScreen.kt$@Composable private fun JobCard( job: JobDetailsUiModel, profileViewModel: ProfileViewModel, )</ID>
+    <ID>FunctionNaming:ProfileScreen.kt$@Composable private fun ProfileSearchButton( onClick: () -&gt; Unit, enabled: Boolean, isLoading: Boolean, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:ProfileScreen.kt$@OptIn(ExperimentalComposeUiApi::class) @Composable private fun UserSearchCard( email: String, onEmailChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:ProfileScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ProfileScreen( modifier: Modifier = Modifier, onNavigateUp: () -&gt; Unit, profileViewModel: ProfileViewModel, )</ID>
     <ID>FunctionNaming:PushCommentCard.kt$@Composable fun PushCommentCard(comment: String, author: String?, revision: String)</ID>
-    <ID>FunctionNaming:Theme.kt$@Composable fun FenixInstallerTheme( darkTheme: Boolean = isSystemInDarkTheme(), // Dynamic color is available on Android 12+ dynamicColor: Boolean = true, content: @Composable () -&gt; Unit )</ID>
+    <ID>FunctionNaming:Theme.kt$@Composable fun TryFoxTheme( darkTheme: Boolean = isSystemInDarkTheme(), // Dynamic color is available on Android 12+ dynamicColor: Boolean = true, content: @Composable () -&gt; Unit, )</ID>
     <ID>FunctionNaming:TreeherderApksScreen.kt$@Composable fun ErrorState(errorMessage: String)</ID>
     <ID>FunctionNaming:TreeherderApksScreen.kt$@Composable fun LoadingState()</ID>
-    <ID>FunctionNaming:TreeherderApksScreen.kt$@Composable fun SearchButton( // This is the local SearchButton onClick: () -&gt; Unit, enabled: Boolean, isLoading: Boolean, modifier: Modifier = Modifier )</ID>
-    <ID>FunctionNaming:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FenixInstallerApp( fenixInstallerViewModel: FenixInstallerViewModel, onNavigateUp: () -&gt; Unit, )</ID>
-    <ID>FunctionNaming:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SearchSection( selectedProject: String, onProjectSelected: (String) -&gt; Unit, revision: String, onRevisionChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean )</ID>
-    <ID>LongMethod:AppCard.kt$@Composable fun AppCard( job: JobDetailsUiModel, viewModel: FenixInstallerViewModel )</ID>
-    <ID>LongMethod:ArchiveGroupCard.kt$@Composable fun ArchiveGroupCard( modifier: Modifier = Modifier, apks: List&lt;ApkUiModel&gt;, homeViewModel: HomeViewModel, context: Context, appState: AppState? )</ID>
-    <ID>LongMethod:BinButton.kt$@Composable fun BinButton( cacheState: CacheManagementState, onConfirm: () -&gt; Unit, enabled: Boolean )</ID>
-    <ID>LongMethod:CurrentInstallState.kt$@Composable fun CurrentInstallState( appState: AppState?, apkDisplayDateString: String, modifier: Modifier = Modifier )</ID>
-    <ID>LongMethod:HomeScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun HomeScreen( modifier: Modifier = Modifier, onNavigateToTreeherder: () -&gt; Unit, onNavigateToProfile: () -&gt; Unit, homeViewModel: HomeViewModel = viewModel() // Assuming ViewModel is provided by Hilt or default factory later )</ID>
-    <ID>LongMethod:MainActivity.kt$MainActivity$@Composable fun AppNavigation(mainActivityViewModel: FenixInstallerViewModel)</ID>
-    <ID>LongMethod:ProfileScreen.kt$@OptIn(ExperimentalComposeUiApi::class) @Composable private fun UserSearchCard( email: String, onEmailChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean, modifier: Modifier = Modifier )</ID>
-    <ID>LongMethod:ProfileScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ProfileScreen( modifier: Modifier = Modifier, onNavigateUp: () -&gt; Unit, profileViewModel: ProfileViewModel )</ID>
-    <ID>LongMethod:ProfileViewModel.kt$ProfileViewModel$fun downloadArtifact(artifactUiModel: ArtifactUiModel, context: Context)</ID>
-    <ID>LongMethod:ProfileViewModel.kt$ProfileViewModel$fun searchByAuthor(context: Context)</ID>
+    <ID>FunctionNaming:TreeherderApksScreen.kt$@Composable fun SearchButton( // This is the local SearchButton onClick: () -&gt; Unit, enabled: Boolean, isLoading: Boolean, modifier: Modifier = Modifier, )</ID>
+    <ID>FunctionNaming:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SearchSection( selectedProject: String, onProjectSelected: (String) -&gt; Unit, revision: String, onRevisionChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean, )</ID>
+    <ID>FunctionNaming:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TryFoxMainScreen( tryFoxViewModel: TryFoxViewModel, onNavigateUp: () -&gt; Unit, )</ID>
+    <ID>LongMethod:AppCard.kt$@Composable fun AppCard( job: JobDetailsUiModel, viewModel: TryFoxViewModel, )</ID>
+    <ID>LongMethod:ArchiveGroupCard.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ArchiveGroupCard( modifier: Modifier = Modifier, apks: List&lt;ApkUiModel&gt;, onDownloadClick: (ApkUiModel) -&gt; Unit, onInstallClick: (File) -&gt; Unit, onOpenAppClick: () -&gt; Unit, appState: AppState?, onDateSelected: (LocalDate) -&gt; Unit, userPickedDate: LocalDate?, appName: String, errorMessage: String?, isLoading: Boolean, dateValidator: (LocalDate) -&gt; Boolean, onClearDate: () -&gt; Unit, )</ID>
+    <ID>LongMethod:ArchiveGroupCard.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable private fun ArchiveGroupHeader( appName: String, version: String, date: String, onDateSelected: (LocalDate) -&gt; Unit, onOpenAppClick: () -&gt; Unit, userPickedDate: LocalDate?, isDatePickerEnabled: Boolean, dateValidator: (LocalDate) -&gt; Boolean, onClearDate: () -&gt; Unit, )</ID>
+    <ID>LongMethod:BinButton.kt$@Composable fun BinButton( cacheState: CacheManagementState, onConfirm: () -&gt; Unit, enabled: Boolean, )</ID>
+    <ID>LongMethod:HomeScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun HomeScreen( modifier: Modifier = Modifier, onNavigateToTreeherder: () -&gt; Unit, onNavigateToProfile: () -&gt; Unit, homeViewModel: HomeViewModel = viewModel(), )</ID>
+    <ID>LongMethod:HomeViewModel.kt$HomeViewModel$fun initialLoad()</ID>
+    <ID>LongMethod:MainActivity.kt$MainActivity$@Composable fun AppNavigation(mainActivityViewModel: TryFoxViewModel)</ID>
+    <ID>LongMethod:ProfileScreen.kt$@OptIn(ExperimentalComposeUiApi::class) @Composable private fun UserSearchCard( email: String, onEmailChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean, modifier: Modifier = Modifier, )</ID>
+    <ID>LongMethod:ProfileScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ProfileScreen( modifier: Modifier = Modifier, onNavigateUp: () -&gt; Unit, profileViewModel: ProfileViewModel, )</ID>
+    <ID>LongMethod:ProfileViewModel.kt$ProfileViewModel$fun downloadArtifact(artifactUiModel: ArtifactUiModel)</ID>
+    <ID>LongMethod:ProfileViewModel.kt$ProfileViewModel$fun searchByAuthor()</ID>
     <ID>LongMethod:PushCommentCard.kt$@Composable fun PushCommentCard(comment: String, author: String?, revision: String)</ID>
-    <ID>LongMethod:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FenixInstallerApp( fenixInstallerViewModel: FenixInstallerViewModel, onNavigateUp: () -&gt; Unit, )</ID>
-    <ID>LongMethod:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SearchSection( selectedProject: String, onProjectSelected: (String) -&gt; Unit, revision: String, onRevisionChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean )</ID>
-    <ID>LongParameterList:TreeherderApksScreen.kt$( selectedProject: String, onProjectSelected: (String) -&gt; Unit, revision: String, onRevisionChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean )</ID>
-    <ID>MagicNumber:AppGraphBindings.kt$AppGraphBindings$30</ID>
+    <ID>LongMethod:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SearchSection( selectedProject: String, onProjectSelected: (String) -&gt; Unit, revision: String, onRevisionChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean, )</ID>
+    <ID>LongMethod:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun TryFoxMainScreen( tryFoxViewModel: TryFoxViewModel, onNavigateUp: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:ArchiveGroupCard.kt$( appName: String, version: String, date: String, onDateSelected: (LocalDate) -&gt; Unit, onOpenAppClick: () -&gt; Unit, userPickedDate: LocalDate?, isDatePickerEnabled: Boolean, dateValidator: (LocalDate) -&gt; Boolean, onClearDate: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:ArchiveGroupCard.kt$( modifier: Modifier = Modifier, apks: List&lt;ApkUiModel&gt;, onDownloadClick: (ApkUiModel) -&gt; Unit, onInstallClick: (File) -&gt; Unit, onOpenAppClick: () -&gt; Unit, appState: AppState?, onDateSelected: (LocalDate) -&gt; Unit, userPickedDate: LocalDate?, appName: String, errorMessage: String?, isLoading: Boolean, dateValidator: (LocalDate) -&gt; Boolean, onClearDate: () -&gt; Unit, )</ID>
+    <ID>LongParameterList:HomeScreen.kt$( app: AppUiModel, onDownloadClick: (ApkUiModel) -&gt; Unit, onInstallClick: (File) -&gt; Unit, onOpenAppClick: (String) -&gt; Unit, onDateSelected: (String, LocalDate) -&gt; Unit, dateValidator: (LocalDate) -&gt; Boolean, onClearDate: (String) -&gt; Unit, )</ID>
+    <ID>LongParameterList:TreeherderApksScreen.kt$( selectedProject: String, onProjectSelected: (String) -&gt; Unit, revision: String, onRevisionChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean, )</ID>
     <ID>MagicNumber:BinButton.kt$200</ID>
     <ID>MagicNumber:BinButton.kt$2000L</ID>
     <ID>MagicNumber:BinButton.kt$300</ID>
@@ -67,95 +68,85 @@
     <ID>MagicNumber:Color.kt$0xFFCCC2DC</ID>
     <ID>MagicNumber:Color.kt$0xFFD0BCFF</ID>
     <ID>MagicNumber:Color.kt$0xFFEFB8C8</ID>
-    <ID>MagicNumber:CurrentInstallState.kt$31</ID>
-    <ID>MagicNumber:CurrentInstallState.kt$7</ID>
     <ID>MagicNumber:FenixRepository.kt$FenixRepository$10</ID>
     <ID>MagicNumber:FenixRepository.kt$FenixRepository$1024</ID>
     <ID>MagicNumber:FenixRepository.kt$FenixRepository$4</ID>
     <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$10</ID>
+    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$12</ID>
+    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$13</ID>
+    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$2021</ID>
+    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$2023</ID>
+    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$21</ID>
+    <ID>MagicNumber:HomeViewModel.kt$HomeViewModel$7</ID>
     <ID>MagicNumber:JobDetailsSerializer.kt$JobDetailsSerializer$14</ID>
     <ID>MagicNumber:JobDetailsSerializer.kt$JobDetailsSerializer$3</ID>
     <ID>MagicNumber:JobDetailsSerializer.kt$JobDetailsSerializer$4</ID>
     <ID>MagicNumber:JobDetailsSerializer.kt$JobDetailsSerializer$5</ID>
+    <ID>MagicNumber:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$10</ID>
     <ID>MagicNumber:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$3</ID>
     <ID>MagicNumber:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$4</ID>
+    <ID>MagicNumber:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$404</ID>
     <ID>MagicNumber:TreeherderApksScreen.kt$0.5f</ID>
-    <ID>MatchingDeclarationName:JobUiModel.kt$JobDetailsUiModel</ID>
-    <ID>MatchingDeclarationName:UiModels.kt$DownloadState</ID>
     <ID>MaxLineLength:AbiChip.kt$label = { Text(abi.name ?: stringResource(id = R.string.abi_chip_unknown_abi_name), style = MaterialTheme.typography.labelSmall) }</ID>
     <ID>MaxLineLength:AppCard.kt$ErrorState(errorMessage = stringResource(id = R.string.app_card_download_failed_message, errorMessage ?: stringResource(id = R.string.common_unknown_error)))</ID>
     <ID>MaxLineLength:AppCard.kt$contentDescription = if (isExpanded) stringResource(id = R.string.app_card_collapse_description) else stringResource(id = R.string.app_card_expand_description)</ID>
     <ID>MaxLineLength:AppCard.kt$text = stringResource(id = R.string.app_card_unsupported_apks_title, unsupportedArtifacts.size)</ID>
-    <ID>MaxLineLength:AppGraphBindings.kt$AppGraphBindings$fun</ID>
     <ID>MaxLineLength:AppIcon.kt$appName.contains("fenix-nightly", ignoreCase = true) -&gt; R.drawable.ic_fenix_nightly to R.string.app_icon_firefox_nightly_description</ID>
-    <ID>MaxLineLength:ArchiveGroupCard.kt$Text(stringResource(id = R.string.archive_group_card_no_apk_details), style = MaterialTheme.typography.bodyMedium)</ID>
-    <ID>MaxLineLength:ArchiveGroupCard.kt$Text(stringResource(id = R.string.archive_group_card_no_apks_for_date), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 8.dp))</ID>
-    <ID>MaxLineLength:BinButton.kt$if</ID>
-    <ID>MaxLineLength:BinButton.kt$val contentDescRes = if (isActuallyConfirming) R.string.bin_button_confirm_clear_cache_description else R.string.bin_button_clear_cache_description</ID>
-    <ID>MaxLineLength:BinButton.kt$var currentCacheState by remember { mutableStateOf&lt;CacheManagementState&gt;(CacheManagementState.IdleNonEmpty) }</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$Log.d("FenixInstallerViewModel", "Download action for $downloadKey - already in progress or downloaded. State: ${artifactUiModel.downloadState}")</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$Log.d("FenixInstallerViewModel", "Found push ID: $pushId for project: $selectedProject, revision: $revision")</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$Log.d("FenixInstallerViewModel", "Starting job/artifact search for project: $selectedProject, revision: $revision")</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$Log.e("FenixInstallerViewModel", "Error fetching artifacts for task ID $taskId: ${artifactsResult.message}", artifactsResult.cause)</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$Log.e("FenixInstallerViewModel", "Error fetching/parsing jobs for push ID $pushId: ${jobsResult.message}", jobsResult.cause)</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$Log.i("FenixInstallerViewModel", "Download completed for $downloadKey at ${result.data.absolutePath}")</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$Log.i("FenixInstallerViewModel", "Preparing to fetch artifacts for job: '${netJob.jobName}' (TaskID: ${netJob.taskId})")</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$Log.i("FenixInstallerViewModel", "Setting project to: ${project ?: "default (try)"}, revision from deep link to: $newRevision and triggering search.")</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$if</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$private</ID>
-    <ID>MaxLineLength:FenixInstallerViewModel.kt$FenixInstallerViewModel$updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(result.message))</ID>
+    <ID>MaxLineLength:AppIcon.kt$appName.contains("reference", ignoreCase = true) -&gt; R.drawable.ic_reference_browser to R.string.app_icon_reference_browser_description</ID>
+    <ID>MaxLineLength:ArchiveGroupCard.kt$initialSelectedDateMillis = initialDate.atStartOfDayIn(TimeZone.currentSystemDefault()).toEpochMilliseconds()</ID>
+    <ID>MaxLineLength:ArchiveGroupCard.kt$val initialDate = userPickedDate ?: parseDateToLocalDate(date) ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date</ID>
+    <ID>MaxLineLength:DateUtils.kt$Instant.fromEpochMilliseconds(parseDateToMillis(dateString)).toLocalDateTime(TimeZone.currentSystemDefault()).date</ID>
+    <ID>MaxLineLength:FakeMozillaPackageManager.kt$FakeMozillaPackageManager$get() = apps["org.mozilla.reference.browser"] ?: AppState("Reference Browser", "org.mozilla.reference.browser", null, null)</ID>
     <ID>MaxLineLength:FenixRepository.kt$FenixRepository$if</ID>
     <ID>MaxLineLength:FenixRepository.kt$FenixRepository$logcat(LogPriority.ERROR, TAG) { "Download failed for URL $downloadUrl: ${e.message}\n${Log.getStackTraceString(e)}" }</ID>
     <ID>MaxLineLength:FenixRepository.kt$FenixRepository$logcat(LogPriority.ERROR, TAG) { "Exception during file I/O stream operations: ${e.message}\n${Log.getStackTraceString(e)}" }</ID>
     <ID>MaxLineLength:FenixRepository.kt$FenixRepository$logcat(LogPriority.WARN, TAG) { "Exception closing InputStream: ${e.message}\n${Log.getStackTraceString(e)}" }</ID>
     <ID>MaxLineLength:FenixRepository.kt$FenixRepository$logcat(LogPriority.WARN, TAG) { "Exception closing OutputStream: ${e.message}\n${Log.getStackTraceString(e)}" }</ID>
-    <ID>MaxLineLength:HomeScreen.kt$Column</ID>
-    <ID>MaxLineLength:HomeScreen.kt$Text(stringResource(id = R.string.home_fetching_nightly_builds), modifier = Modifier.padding(top = 8.dp))</ID>
-    <ID>MaxLineLength:HomeScreen.kt$val currentCacheState = (screenState as? HomeScreenState.Loaded)?.cacheManagementState ?: CacheManagementState.IdleEmpty</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$it.copy(fenixBuildsState = errorState, isDownloadingAnyFile = checkIsDownloading(errorState, it.focusBuildsState))</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$it.copy(fenixBuildsState = newState, isDownloadingAnyFile = checkIsDownloading(newState, it.focusBuildsState))</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$it.copy(focusBuildsState = errorState, isDownloadingAnyFile = checkIsDownloading(it.fenixBuildsState, errorState))</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$it.copy(focusBuildsState = newState, isDownloadingAnyFile = checkIsDownloading(it.fenixBuildsState, newState))</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$private</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$return if (!isFenixPopulated &amp;&amp; !isFocusPopulated) CacheManagementState.IdleEmpty else CacheManagementState.IdleNonEmpty</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$updateApkDownloadStateInScreenState(apkInfo.appName, apkInfo.uniqueKey, DownloadState.DownloadFailed(result.message))</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$updateApkDownloadStateInScreenState(apkInfo.appName, apkInfo.uniqueKey, DownloadState.Downloaded(result.data))</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$updateApkDownloadStateInScreenState(apkInfo.appName, apkInfo.uniqueKey, DownloadState.InProgress(progress))</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$val</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$val fenixDownloading = (fenixState as? FocusApksState.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$val focusDownloading = (focusState as? FocusApksState.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$val isCompatible = deviceSupportedAbis.any { deviceAbi -&gt; deviceAbi.equals(parsedApk.abiName, ignoreCase = true) }</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$val newState = if (apks.isEmpty()) FocusApksState.Error("No Fenix nightly builds found.") else FocusApksState.Success(apks)</ID>
-    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$val newState = if (apks.isEmpty()) FocusApksState.Error("No Focus nightly builds found.") else FocusApksState.Success(apks)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertEquals("Cache state should be IdleEmpty when cache is empty", CacheManagementState.IdleEmpty, state!!.cacheManagementState)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertEquals("Cache state should be IdleNonEmpty", CacheManagementState.IdleNonEmpty, state!!.cacheManagementState)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertEquals("Error fetching Fenix nightly builds: $errorMessage", (state.fenixBuildsState as FocusApksState.Error).message)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue("DownloadState should be DownloadFailed", failedApkInfo!!.downloadState is DownloadState.DownloadFailed)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue("Initial HomeScreenState should be InitialLoading", viewModel.homeScreenState.value is HomeScreenState.InitialLoading)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue((loadedState.fenixBuildsState as FocusApksState.Success).apks.first().downloadState is DownloadState.Downloaded)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue((loadedState.fenixBuildsState as FocusApksState.Success).apks.first().downloadState is DownloadState.NotDownloaded)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$fullUrl = "http://fake.url/$dateRaw-$appName-$version-android-$abi/$appName-$version.multi.android-$abi.apk"</ID>
+    <ID>MaxLineLength:HomeScreen.kt$contentDescription = stringResource(id = R.string.home_search_treeherder_button_description)</ID>
+    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$is NetworkResult.Error -&gt; ApksResult.Error("Error fetching $appName nightly builds for $date: ${result.message}")</ID>
+    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$is NetworkResult.Error -&gt; ApksResult.Error("Error fetching $appName nightly builds: ${result.message}")</ID>
+    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$isDownloadingAnyFile = if (newCacheState is CacheManagementState.IdleEmpty) false else currentState.isDownloadingAnyFile</ID>
+    <ID>MaxLineLength:HomeViewModel.kt$HomeViewModel$val updatedApks = apksResult.apks.map { it.copy(downloadState = DownloadState.NotDownloaded) }</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$"https://firefox-ci-tc.services.mozilla.com/api/index/v1/task/mobile.v2.$appName.nightly.latest.$abi/artifacts/public/target.$abi.apk"</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertEquals(CacheManagementState.IdleEmpty, loadedState.cacheManagementState, "Cache state should be IdleEmpty after clear")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertEquals(CacheManagementState.IdleNonEmpty, loadedState.cacheManagementState, "Cache state should be IdleNonEmpty initially")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertEquals(CacheManagementState.IdleNonEmpty, state!!.cacheManagementState, "Cache state should be IdleNonEmpty")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue(failedApkInfo!!.downloadState is DownloadState.DownloadFailed, "DownloadState should be DownloadFailed")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue(fenixStateAfterClear.apks.first().downloadState is DownloadState.NotDownloaded, "Fenix APK download state should be NotDownloaded after clear")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue(fenixSuccessStatePre.apks.first().downloadState is DownloadState.Downloaded, "Fenix APK download state should be Downloaded")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue(rbStateAfterClear.apks.first().downloadState is DownloadState.NotDownloaded, "RB APK download state should be NotDownloaded after clear")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue(rbSuccessStatePre.apks.first().downloadState is DownloadState.Downloaded, "RB APK download state should be Downloaded")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$assertTrue(viewModel.homeScreenState.value is HomeScreenState.InitialLoading, "Initial HomeScreenState should be InitialLoading")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$fun</ID>
     <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$private</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$val mockFenixAppState = AppState(name = testFenixAppName, packageName = "org.mozilla.fenix", version = "123", installDateMillis = 0L)</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$viewModel.deviceSupportedAbisForTesting = listOf("arm64-v8a", "x86_64", "armeabi-v7a")</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds()).thenReturn(NetworkResult.Success(listOf(fenixParsed)))</ID>
-    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFocusNightlyBuilds()).thenReturn(NetworkResult.Success(listOf(focusParsed)))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$val fenixCacheActualDir = File(tempCacheDir, "${fenixApkUiForCache.appName}/${fenixApkUiForCache.date.take(10)}")</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(emptyList()))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(listOf(fenixParsed)))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(listOf(olderFenixParsed, newerFenixParsed)))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(eq(selectedDate))).thenReturn(NetworkResult.Success(listOf(dateSpecificParsed)))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(eq(selectedDate))).thenReturn(NetworkResult.Success(listOf(fenixParsed)))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFenixNightlyBuilds(null)).thenReturn(NetworkResult.Success(listOf(initialParsed)))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFocusNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(emptyList()))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getFocusNightlyBuilds(anyOrNull())).thenReturn(NetworkResult.Success(listOf(focusParsed)))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getReferenceBrowserNightlyBuilds()).thenReturn(NetworkResult.Success(emptyList()))</ID>
+    <ID>MaxLineLength:HomeViewModelTest.kt$HomeViewModelTest$whenever(mockMozillaArchiveRepository.getReferenceBrowserNightlyBuilds()).thenReturn(NetworkResult.Success(listOf(rbParsed)))</ID>
     <ID>MaxLineLength:JobDetailsSerializer.kt$JobDetailsSerializer$throw SerializationException("JsonArray too short to deserialize into JobDetails. Size: ${jsonArray.size}, expected at least 15 elements.")</ID>
     <ID>MaxLineLength:JobDetailsSerializer.kt$JobDetailsSerializer$val jsonArray = jsonInput.decodeJsonElement() as? JsonArray ?: throw SerializationException("Expected JsonArray")</ID>
     <ID>MaxLineLength:JobDetailsSerializer.kt$JobDetailsSerializer$val jsonInput = decoder as? JsonDecoder ?: throw SerializationException("This deserializer can only be used with JSON")</ID>
-    <ID>MaxLineLength:MainActivity.kt$MainActivity$"TreeherderSearchWithArgs composable: project='${project}', revision='${revision}' from NavBackStackEntry. ID: ${backStackEntry.id}"</ID>
+    <ID>MaxLineLength:MainActivity.kt$MainActivity$"TreeherderSearchWithArgs composable: project='$project', revision='$revision' from NavBackStackEntry. ID: ${backStackEntry.id}"</ID>
+    <ID>MaxLineLength:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$override suspend fun getFenixNightlyBuilds(date: LocalDate?): NetworkResult&lt;List&lt;ParsedNightlyApk&gt;&gt;</ID>
+    <ID>MaxLineLength:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$override suspend fun getFocusNightlyBuilds(date: LocalDate?): NetworkResult&lt;List&lt;ParsedNightlyApk&gt;&gt;</ID>
     <ID>MaxLineLength:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$private suspend</ID>
-    <ID>MaxLineLength:MozillaArchiveRepositoryImplTest.kt$MozillaArchiveRepositoryImplTest$ParsedNightlyApk(fenixDirString1, fenixDate1, fenixAppName, fenixVersion, fenixAbi1, fenixFullUrl1, fenixFileName1)</ID>
-    <ID>MaxLineLength:MozillaArchiveRepositoryImplTest.kt$MozillaArchiveRepositoryImplTest$ParsedNightlyApk(fenixDirString2, fenixDate2, fenixAppName, fenixVersion, fenixAbi2, fenixFullUrl2, fenixFileName2)</ID>
-    <ID>MaxLineLength:MozillaArchiveRepositoryImplTest.kt$MozillaArchiveRepositoryImplTest$whenever(mockApiService.getHtmlPage(MozillaArchiveRepositoryImpl.fenixArchiveUrl)).thenThrow(RuntimeException(errorMessage))</ID>
-    <ID>MaxLineLength:MozillaArchiveRepositoryImplTest.kt$MozillaArchiveRepositoryImplTest$whenever(mockApiService.getHtmlPage(MozillaArchiveRepositoryImpl.focusArchiveUrl)).thenThrow(RuntimeException(errorMessage))</ID>
+    <ID>MaxLineLength:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl.Companion$private const val REFERENCE_BROWSER_TASK_BASE_URL = "https://firefox-ci-tc.services.mozilla.com/api/index/v1/task/mobile.v2.reference-browser.nightly.latest."</ID>
+    <ID>MaxLineLength:MozillaArchiveRepositoryImplTest.kt$MozillaArchiveRepositoryImplTest$private val fenixFullUrl1 = "https://archive.mozilla.org/pub/fenix/nightly/$YEAR/$MONTH/$fenixDirString1$fenixFileName1"</ID>
+    <ID>MaxLineLength:MozillaArchiveRepositoryImplTest.kt$MozillaArchiveRepositoryImplTest$private val fenixFullUrl2 = "https://archive.mozilla.org/pub/fenix/nightly/$YEAR/$MONTH/$fenixDirString2$fenixFileName2"</ID>
+    <ID>MaxLineLength:MozillaArchiveRepositoryImplTest.kt$MozillaArchiveRepositoryImplTest$private val focusFullUrl = "https://archive.mozilla.org/pub/focus/nightly/$YEAR/$MONTH/$focusDirString$focusFileName"</ID>
     <ID>MaxLineLength:ProfileScreen.kt$PushCommentCard(comment = push.pushComment, author = push.author, revision = push.revision ?: "unknown_revision")</ID>
     <ID>MaxLineLength:ProfileScreen.kt$contentDescription = stringResource(id = R.string.profile_screen_clear_email_description)</ID>
     <ID>MaxLineLength:ProfileScreen.kt$items</ID>
     <ID>MaxLineLength:ProfileViewModel.kt$ProfileViewModel$determinedPushComment = pushResult.revisions.firstOrNull()?.comments ?: "No comment"</ID>
     <ID>MaxLineLength:ProfileViewModel.kt$ProfileViewModel$if</ID>
     <ID>MaxLineLength:ProfileViewModel.kt$ProfileViewModel$logcat(LogPriority.DEBUG, TAG) { "getPushesByAuthor success, processing ${result.data.results.size} pushes" }</ID>
-    <ID>MaxLineLength:ProfileViewModel.kt$ProfileViewModel$logcat(LogPriority.ERROR, TAG) { "Error checking cache status: ${e.message}\n${Log.getStackTraceString(e)}" }</ID>
     <ID>MaxLineLength:ProfileViewModel.kt$ProfileViewModel$logcat(LogPriority.VERBOSE, TAG) { "Download progress for ${artifactUiModel.name}: $bytesDownloaded / $totalBytes ($currentProgressFloat)" }</ID>
     <ID>MaxLineLength:ProfileViewModel.kt$ProfileViewModel$logcat(LogPriority.VERBOSE, TAG) { "No jobs with artifacts for push ID: ${pushResult.id}" }</ID>
     <ID>MaxLineLength:ProfileViewModel.kt$ProfileViewModel$logcat(LogPriority.VERBOSE, TAG) { "No signed, non-test jobs for push ID: ${pushResult.id}" }</ID>
@@ -168,52 +159,47 @@
     <ID>MaxLineLength:PushCommentCard.kt$style = MaterialTheme.typography.bodyMedium.copy(color = MaterialTheme.colorScheme.onSecondaryContainer)</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$// Re-using the SearchButton from ProfileScreen implies it's either moved to a common composables location or defined here.</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$// TODO: Consider creating a specific string resource for \"Download failed\" if it's a common prefix for user-facing errors.</ID>
+    <ID>MaxLineLength:TreeherderApksScreen.kt$// This case should ideally be handled by the PushCommentCard itself not rendering if both are empty/null</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$// this would need refactoring to a common composable. The current `SearchButton` defined below seems tailored for this screen.</ID>
-    <ID>MaxLineLength:TreeherderApksScreen.kt$//This case should ideally be handled by the PushCommentCard itself not rendering if both are empty/null</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(id = R.string.common_back_button_description))</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$contentDescription = stringResource(id = R.string.treeherder_apks_search_button_description)</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$if</ID>
-    <ID>MaxLineLength:TreeherderApksScreen.kt$isLoading = fenixInstallerViewModel.isLoading &amp;&amp; fenixInstallerViewModel.selectedJobs.isEmpty() &amp;&amp; fenixInstallerViewModel.relevantPushComment == null</ID>
-    <ID>MaxLineLength:TreeherderApksScreen.kt$onProjectSelected = { actualProjectValue -&gt; fenixInstallerViewModel.updateSelectedProject(actualProjectValue) }</ID>
+    <ID>MaxLineLength:TreeherderApksScreen.kt$isLoading = tryFoxViewModel.isLoading &amp;&amp; tryFoxViewModel.selectedJobs.isEmpty() &amp;&amp; tryFoxViewModel.relevantPushComment == null</ID>
+    <ID>MaxLineLength:TreeherderApksScreen.kt$onProjectSelected = { actualProjectValue -&gt; tryFoxViewModel.updateSelectedProject(actualProjectValue) }</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 12.dp, bottomEnd = 12.dp)</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 0.dp, bottomEnd = 0.dp)</ID>
-    <ID>MaxLineLength:TreeherderApksScreen.kt$text = stringResource(id = R.string.treeherder_apks_jobs_found_message, fenixInstallerViewModel.selectedJobs.size)</ID>
+    <ID>MaxLineLength:TreeherderApksScreen.kt$text = stringResource(id = R.string.treeherder_apks_jobs_found_message, tryFoxViewModel.selectedJobs.size)</ID>
     <ID>MaxLineLength:TreeherderApksScreen.kt$}</ID>
-    <ID>MaxLineLength:UserDataRepository.kt$private</ID>
-    <ID>NestedBlockDepth:HomeViewModel.kt$HomeViewModel$private fun isAppCachePopulated(appSpecificCacheDir: File): Boolean</ID>
-    <ID>NewLineAtEndOfFile:AbiChip.kt$org.mozilla.tryfox.ui.composables.AbiChip.kt</ID>
-    <ID>NewLineAtEndOfFile:AbiUiModel.kt$org.mozilla.tryfox.ui.models.AbiUiModel.kt</ID>
-    <ID>NewLineAtEndOfFile:Color.kt$org.mozilla.tryfox.ui.theme.Color.kt</ID>
-    <ID>NewLineAtEndOfFile:ExampleUnitTest.kt$org.mozilla.tryfox.ExampleUnitTest.kt</ID>
-    <ID>NewLineAtEndOfFile:ExpandableListView.kt$org.mozilla.tryfox.ui.composables.ExpandableListView.kt</ID>
-    <ID>NewLineAtEndOfFile:FocusApksState.kt$org.mozilla.tryfox.ui.models.FocusApksState.kt</ID>
-    <ID>NewLineAtEndOfFile:JobDetailsSerializer.kt$org.mozilla.tryfox.data.JobDetailsSerializer.kt</ID>
-    <ID>NewLineAtEndOfFile:JobDetailsSerializerTest.kt$org.mozilla.tryfox.JobDetailsSerializerTest.kt</ID>
-    <ID>NewLineAtEndOfFile:JobUiModel.kt$org.mozilla.tryfox.ui.models.JobUiModel.kt</ID>
-    <ID>NewLineAtEndOfFile:Theme.kt$org.mozilla.tryfox.ui.theme.Theme.kt</ID>
-    <ID>NewLineAtEndOfFile:Type.kt$org.mozilla.tryfox.ui.theme.Type.kt</ID>
-    <ID>NewLineAtEndOfFile:UiModels.kt$org.mozilla.tryfox.data.UiModels.kt</ID>
-    <ID>ReturnCount:FenixInstallerViewModel.kt$FenixInstallerViewModel$fun getDownloadedFile(artifactName: String, context: Context, taskId: String): File?</ID>
-    <ID>ReturnCount:HomeViewModel.kt$HomeViewModel$private fun isAppCachePopulated(appSpecificCacheDir: File): Boolean</ID>
-    <ID>ReturnCount:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$private fun parseNightlyBuildsFromHtml( html: String, archiveUrl: String, // This parameter is the fully constructed URL for the month app: String // "fenix" or "focus" ): List&lt;ParsedNightlyApk&gt;</ID>
-    <ID>ReturnCount:ProfileViewModel.kt$ProfileViewModel$fun getDownloadedFile(artifactName: String, context: Context, taskId: String): File?</ID>
-    <ID>SwallowedException:CurrentInstallState.kt$e: Exception</ID>
-    <ID>SwallowedException:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:CurrentInstallState.kt$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:FenixInstallerViewModel.kt$FenixInstallerViewModel$e: Exception</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$Log.d("FenixInstallerViewModel", "Download action for $downloadKey - already in progress or downloaded. State: ${artifactUiModel.downloadState}")</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$Log.d("FenixInstallerViewModel", "Found push ID: $pushId for project: $selectedProject, revision: $revision")</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$Log.d("FenixInstallerViewModel", "Starting job/artifact search for project: $selectedProject, revision: $revision")</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$Log.e("FenixInstallerViewModel", "Error fetching artifacts for task ID $taskId: ${artifactsResult.message}", artifactsResult.cause)</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$Log.e("FenixInstallerViewModel", "Error fetching/parsing jobs for push ID $pushId: ${jobsResult.message}", jobsResult.cause)</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$Log.i("FenixInstallerViewModel", "Download completed for $downloadKey at ${result.data.absolutePath}")</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$Log.i("FenixInstallerViewModel", "Preparing to fetch artifacts for job: '${netJob.jobName}' (TaskID: ${netJob.taskId})")</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$Log.i("FenixInstallerViewModel", "Setting project to: ${project ?: "default (try)"}, revision from deep link to: $newRevision and triggering search.")</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$if</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$private</ID>
+    <ID>MaxLineLength:TryFoxViewModel.kt$TryFoxViewModel$updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(result.message))</ID>
+    <ID>ReturnCount:DateUtils.kt$@OptIn(FormatStringsInDatetimeFormats::class) fun parseDateToMillis(dateString: String): Long</ID>
+    <ID>ReturnCount:DefaultCacheManager.kt$DefaultCacheManager$private fun isAppCachePopulated(appName: String): Boolean</ID>
+    <ID>ReturnCount:HomeViewModel.kt$HomeViewModel$private fun getLatestApks(apks: List&lt;ParsedNightlyApk&gt;): List&lt;ParsedNightlyApk&gt;</ID>
+    <ID>ReturnCount:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$private fun parseNightlyBuildsFromHtml( html: String, archiveUrl: String, app: String, date: LocalDate?, ): List&lt;ParsedNightlyApk&gt;</ID>
+    <ID>ReturnCount:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$private suspend fun getNightlyBuilds(appName: String, date: LocalDate? = null): NetworkResult&lt;List&lt;ParsedNightlyApk&gt;&gt;</ID>
+    <ID>SwallowedException:DateUtils.kt$e: Exception</ID>
+    <ID>SwallowedException:HomeViewModelTest.kt$HomeViewModelTest$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DateUtils.kt$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DefaultCacheManager.kt$DefaultCacheManager$e: Exception</ID>
+    <ID>TooGenericExceptionCaught:DefaultMozillaPackageManager.kt$DefaultMozillaPackageManager$e: Exception</ID>
     <ID>TooGenericExceptionCaught:FenixRepository.kt$FenixRepository$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:HomeViewModel.kt$HomeViewModel$e: Exception</ID>
     <ID>TooGenericExceptionCaught:JobDetailsSerializer.kt$JobDetailsSerializer$e: Exception</ID>
     <ID>TooGenericExceptionCaught:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:MozillaPackageManager.kt$MozillaPackageManager$e: Exception</ID>
-    <ID>TooGenericExceptionCaught:ProfileViewModel.kt$ProfileViewModel$e: Exception</ID>
-    <ID>TooManyFunctions:AppGraphBindings.kt$AppGraphBindings</ID>
-    <ID>TooManyFunctions:FenixInstallerViewModel.kt$FenixInstallerViewModel : ViewModel</ID>
     <ID>TooManyFunctions:HomeViewModel.kt$HomeViewModel : ViewModel</ID>
-    <ID>UnusedPrivateProperty:HomeViewModelTest.kt$HomeViewModelTest$private val testDateFormatted = testDateRaw.formatApkDateForTest()</ID>
+    <ID>TooManyFunctions:TryFoxViewModel.kt$TryFoxViewModel : ViewModel</ID>
+    <ID>UnusedParameter:MozillaArchiveRepositoryImpl.kt$MozillaArchiveRepositoryImpl$app: String</ID>
+    <ID>UnusedPrivateProperty:AppCard.kt$val context = LocalContext.current</ID>
+    <ID>UnusedPrivateProperty:HomeViewModel.kt$HomeViewModel$private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO</ID>
+    <ID>UnusedPrivateProperty:HomeViewModel.kt$HomeViewModel.Companion$private const val TAG = "HomeViewModel"</ID>
     <ID>UnusedPrivateProperty:TreeherderApksScreen.kt$private const val TAG = "FenixInstallerScreen"</ID>
-    <ID>WildcardImport:ExampleUnitTest.kt$import org.junit.Assert.*</ID>
-    <ID>WildcardImport:HomeViewModelTest.kt$import kotlinx.coroutines.test.*</ID>
-    <ID>WildcardImport:HomeViewModelTest.kt$import org.junit.Assert.*</ID>
   </CurrentIssues>
 </SmellBaseline>
