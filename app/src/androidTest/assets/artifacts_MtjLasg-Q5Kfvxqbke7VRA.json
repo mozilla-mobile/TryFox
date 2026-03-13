@@ -1,0 +1,46 @@
+{
+  "artifacts": [
+    {
+      "storageType": "s3",
+      "name": "public/build/target.arm64-v8a.apk",
+      "expires": "2025-09-23T16:57:07.283Z",
+      "contentType": "application/vnd.android.package-archive"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/build/target.armeabi-v7a.apk",
+      "expires": "2025-09-23T16:57:07.283Z",
+      "contentType": "application/vnd.android.package-archive"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/build/target.x86_64.apk",
+      "expires": "2025-09-23T16:57:07.283Z",
+      "contentType": "application/vnd.android.package-archive"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/build/target.x86.apk",
+      "expires": "2025-09-23T16:57:07.283Z",
+      "contentType": "application/vnd.android.package-archive"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/chain-of-trust.json",
+      "expires": "2025-09-23T16:57:07.283Z",
+      "contentType": "application/json"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/logs/chain_of_trust.log",
+      "expires": "2025-09-23T16:57:07.283Z",
+      "contentType": "text/plain"
+    },
+    {
+      "storageType": "s3",
+      "name": "public/logs/live_backing.log",
+      "expires": "2025-09-23T16:57:07.283Z",
+      "contentType": "text/plain"
+    }
+  ]
+}
