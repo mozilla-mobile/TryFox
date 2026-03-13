@@ -1,0 +1,669 @@
+# Aggregation (aka
+
+Author: Zac Sweers
+Date: 2025-09-06T12:14:48.440Z
+Source: zacsweers.github.io
+URL: https://zacsweers.github.io/metro/0.6.4/aggregation.html
+Date saved: 2025-09-06T12:14:48.440Z
+
+> A multiplatform dependency injection framework for Kotlin
+
+---
+
+Metro supports Anvil-style aggregation in graphs via `@ContributesTo` and `@ContributesBinding` annotations. As aggregation is a first-class citizen of Metro’s API, there is no `@MergeComponent` annotation like in Anvil. Instead, `@DependencyGraph` defines which contribution scope it supports directly.
+
+```
+@DependencyGraph(scope=AppScope::class)interfaceAppGraph
+```
+
+When a graph declares a `scope`, all contributions to that scope are aggregated into the final graph implementation in code gen.
+
+If a graph supports multiple scopes, use `additionalScopes`.
+
+```
+@DependencyGraph(AppScope::class,additionalScopes=[LoggedOutScope::class])interfaceAppGraph
+```
+
+Similar to [kotlin-inject-anvil](https://github.com/amzn/kotlin-inject-anvil), `@DependencyGraph` supports excluding contributions by class. This is useful for cases like tests, where you may want to contribute a test/fake implementation that supersedes the “real” graph.
+
+```
+@DependencyGraph(scope=AppScope::class,excludes=[RealNetworkProviders::class])interfaceTestAppGraph@ContributesTo(AppScope::class)interfaceTestNetworkProviders{@ProvidesfunprovideHttpClient():TestHttpClient}
+```
+
+## @ContributesTo[¶](#contributesto "Permanent link")
+
+This annotation is used to contribute graph interfaces to the target scope to be merged in at graph-processing time to the final merged graph class as another supertype.
+
+```
+@ContributesTo(AppScope::class)interfaceNetworkProviders{@ProvidesfunprovideHttpClient():HttpClient}
+```
+
+This annotation is _repeatable_ and can be used to contribute to multiple scopes.
+
+```
+@ContributesTo(AppScope::class)@ContributesTo(LoggedInScope::class)interfaceNetworkProviders{@ProvidesfunprovideHttpClient():HttpClient}
+```
+
+Similar to [kotlin-inject-anvil](https://github.com/amzn/kotlin-inject-anvil), `@ContributesBinding` (as well as the other `@Contributes*` annotations) supports replacing other contributions by class. This is useful for cases like tests, where you may want to contribute a test/fake implementation that supersedes the “real” graph.
+
+```
+@DependencyGraph(AppScope::class)interfaceTestAppGraph@ContributesTo(AppScope::class,replaces=[RealNetworkProviders::class])interfaceTestNetworkProviders{@ProvidesfunprovideHttpClient():TestHttpClient}
+```
+
+## @ContributesBinding[¶](#contributesbinding "Permanent link")
+
+This annotation is used to contribute injected classes to a target scope as a given bound type.
+
+The below example will contribute the `CacheImpl` class as a `Cache` type to `AppScope`.
+
+```
+@ContributesBinding(AppScope::class)@InjectclassCacheImpl(...):Cache
+```
+
+For simple cases where there is a single supertype, that type is implicitly used as the bound type. If your bound type is qualified, for the implicit case you can put the qualifier on the class.
+
+```
+@Named("cache")@ContributesBinding(AppScope::class)@InjectclassCacheImpl(...):Cache
+```
+
+For classes with multiple supertypes or advanced cases where you want to bind an ancestor type, you can explicitly define this via `binding` parameter.
+
+```
+@Named("cache")@ContributesBinding(scope=AppScope::class,binding=binding<Cache>())@InjectclassCacheImpl(...):Cache,AnotherType
+```
+
+Tip
+
+Whoa, is that a function call in an annotation argument? Nope! `binding` is just a decapitalized class in this case, intentionally designed for readability. It’s an adjective in this context and the functional syntax better conveys that.
+
+Note that the bound type is defined as the type argument to `@ContributesBinding`. This allows for the bound type to be generic and is validated in FIR.
+
+Qualifier annotations can also be specified on the `binding` type parameter and will take precedence over any qualifiers on the class itself.
+
+```
+@ContributesBinding(scope=AppScope::class,binding=binding<@Named("cache")Cache>())@InjectclassCacheImpl(...):Cache,AnotherType
+```
+
+This annotation is _repeatable_ and can be used to contribute to multiple scopes.
+
+```
+@ContributesBinding(scope=AppScope::class,binding=binding<Cache>())@ContributesBinding(scope=AppScope::class,binding=binding<AnotherType>())@InjectclassCacheImpl(...):Cache,AnotherType
+```
+
+Tip
+
+Contributions may be `object` classes. In this event, Metro will automatically provide the object instance in its binding.
+
+## @ContributesIntoSet/@ContributesIntoMap[¶](#contributesintosetcontributesintomap "Permanent link")
+
+To contribute into a multibinding, use the `@ContributesIntoSet` or `@ContributesIntoMap` annotations as needed.
+
+```
+@ContributesIntoSet(AppScope::class)@InjectclassCacheImpl(...):Cache
+```
+
+Same rules around qualifiers and `binding()` apply in this scenario
+
+To contribute into a Map multibinding, the map key annotation must be specified on the class or `binding` type argument.
+
+```
+// Will be contributed into a Map multibinding with @StringKey("Networking")@ContributesIntoMap(AppScope::class)@StringKey("Networking")@InjectclassCacheImpl(...):Cache// Or if using binding@ContributesIntoMap(scope=AppScope::class,binding=binding<@StringKey("Networking")Cache>())@InjectclassCacheImpl(...):Cache
+```
+
+This annotation is also repeatable and can be used to contribute to multiple scopes, multiple bound types, and multiple map keys.
+
+You can use `@IntoMap`/`@IntoSet` to provide into the same container:
+
+```
+// Method 1: applying @ContributesIntoMap to bind directly from the implementation class@ContributesIntoMap(AppScope::class)@StringKey("remote")@InjectclassRemoteCache(...):Cache// Method 2: Declare the class, then provide @IntoMap binding separately via a BindingContainerclassLocalCache(...):Cache@BindingContainer@ContributesTo(AppScope::class)objectCacheBindingContainer{@Provides@IntoMap@StringKey("local")funcache():Cache=LocalCache(...)}// Accessing the resultant map, containing both implementations:@InjectclassCompositeCache(privatevalcaches:Map<String,Cache>){vallocal:Cache=caches["local"]valremote:Cache=caches["remote"]}// Alternatively, specify Provider in the map type to lazily-initialize the implementations@InjectclassCompositeCacheAlternate(privatevalcaches:Map<String,Provider<Cache>>){vallocal:Cache=caches["local"]()valremote:Provider<Cache>=caches["remote"]funsomeTimeLater(){remote().doSomethingWithCache()}}
+```
+
+## Contributing Binding Containers[¶](#contributing-binding-containers "Permanent link")
+
+Binding containers (see [Binding Containers](dependency-graphs.html#binding-containers)) can also be contributed to scopes via `@ContributesTo`:
+
+```
+@ContributesTo(AppScope::class)@BindingContainerobjectNetworkBindings{@ProvidesfunprovideHttpClient():HttpClient=HttpClient()}@DependencyGraph(AppScope::class)interfaceAppGraph{valhttpClient:HttpClient}
+```
+
+### Replacing Contributed Binding Containers[¶](#replacing-contributed-binding-containers "Permanent link")
+
+Similar to other contribution types, binding containers can replace other contributed binding containers:
+
+```
+// In production@ContributesTo(AppScope::class)@BindingContainerobjectNetworkBindings{@ProvidesfunprovideHttpClient():HttpClient=HttpClient()}// In tests@ContributesTo(AppScope::class,replaces=[NetworkBindings::class])@BindingContainerobjectFakeNetworkBindings{@ProvidesfunprovideFakeHttpClient():HttpClient=FakeHttpClient()}
+```
+
+### Replacing Contributed Bindings[¶](#replacing-contributed-bindings "Permanent link")
+
+Binding containers can replace other contributed bindings, too:
+
+```
+// In production@ContributesBinding(AppScope::class)@InjectclassHttpClientImpl:HttpClient// In tests@ContributesTo(AppScope::class,replaces=[HttpClientImpl::class])@BindingContainerobjectFakeNetworkBindings{@ProvidesfunprovideFakeHttpClient():HttpClient=FakeHttpClient()}
+```
+
+### Excluding Contributed Binding Containers[¶](#excluding-contributed-binding-containers "Permanent link")
+
+Graphs can exclude specific contributed binding containers:
+
+```
+@ContributesTo(AppScope::class)@BindingContainerobjectNetworkBindings{@ProvidesfunprovideHttpClient():HttpClient=HttpClient()}@DependencyGraph(AppScope::class,excludes=[NetworkBindings::class])interfaceTestAppGraph{// NetworkBindings will not be included}
+```
+
+## Implementation notes[¶](#implementation-notes "Permanent link")
+
+This leans on Kotlin’s ability to put generic type parameters on annotations. That in turn allows for both generic bound types and to contribute map bindings to multiple map keys.
+
+Because it’s a first-party feature, there’s no need for intermediary “merged” components like kotlin-inject-anvil and anvil-ksp do.
+
+Generated contributing interfaces are generated to the `metro.hints` package and located during graph supertype generation in FIR downstream. Any contributed bindings are implemented as `@Binds` (± IntoSet/IntoMap/etc) annotated properties.# Bindings - Metro
+
+Author: Zac Sweers
+Date: 2025-09-06T12:14:41.575Z
+Source: zacsweers.github.io
+URL: https://zacsweers.github.io/metro/0.6.4/bindings.html
+Date saved: 2025-09-06T12:14:41.575Z
+
+> A multiplatform dependency injection framework for Kotlin
+
+---
+
+## Qualifiers[¶](#qualifiers "Permanent link")
+
+Like Dagger and KI, Metro supports _qualifier annotations_ to allow disambiguation of types. These are applied at injection and provision sites. A qualifier annotation is any annotation annotated with `@Qualifier`. For convenience, there is an included `@Named` qualifier available in Metro’s runtime that can be used too.
+
+A “type key” in Metro is composed of a concrete type and (if any) qualifier annotation attached to it.
+
+```
+@DependencyGraphinterfaceAppGraph{valint:Int@Named("named")valnamedInt:Int@ProvidesfunprovideInt():Int=3@Provides@Named("named")funprovideNamedInt():Int=4}
+```
+
+## @Binds[¶](#binds "Permanent link")
+
+In many cases, a developer may have an implementation type on the graph that they want to expose as just its supertype.
+
+Like Dagger, Metro supports this with `@Binds`.
+
+For these cases, an abstract provider can be specified with the following conditions.
+
+*   It must be abstract
+*   It must define one extension receiver that is a subtype of its provided type
+
+```
+@DependencyGraphinterfaceAppGraph{valmessage:Message// Bind MessageImpl as Message@BindsvalMessageImpl.bind:Message@ProvidesfunprovideText():String="Hello, world!"}@InjectclassMessageImpl(valtext:String):Message
+```
+
+If you want to limit access to these from your API, you can make these declarations `private` and just return `this`. Note it’s still important to annotate them with `@Binds` so that the Metro compiler understands its intent! Otherwise, it’s an error to _implement_ these declarations.
+
+`@Binds` declarations can also declare multibinding annotations.
+
+```
+@DependencyGraphinterfaceAppGraph{valmessages:Message@Binds@IntoSetvalMessageImpl.bind:Message}
+```
+
+`@Binds` declarations may also be declared in [binding Containers](dependency-graphs.html#binding-containers).
+
+Note
+
+In theory, you can implement a provider with a getter that replicates this (similar to how kotlin-inject uses `@get:Provider` + `this`), but this will be an error in FIR because Metro can generate more efficient code at compile-time if you use `@Binds`. This is because Metro can avoid calling the function entirely and just use this information at compile-time to optimize the generated code.
+
+## Multibindings[¶](#multibindings "Permanent link")
+
+Like Dagger and KI, Metro supports `Set` and `Map` multibindings. Multibindings are collections of bindings of a common type. Multibindings are implicitly declared by the existence of providers annotated with `@IntoSet`, `@IntoMap`, or `@ElementsIntoSet`.
+
+```
+@DependencyGraphinterfaceSetMultibinding{// contains a set of [1, 2, 3, 4]valints:Set<Int>@Provides@IntoSetfunprovideInt1()=1@Provides@IntoSetfunprovideInt2()=2@Provides@ElementsIntoSetfunprovideInts()=setOf(3,4)}
+```
+
+Map multibindings use `@IntoMap` and require a _map key_ annotation. Map keys are any annotation annotated with `@MapKey`. Metro’s runtime includes a number of common ones like `@ClassKey` and `@StringKey`.
+
+```
+@DependencyGraphinterfaceMapMultibinding{// contains a map of {1:1, 2:2}valints:Map<Int,Int>@Provides@IntoMap@IntKey(1)funprovideInt1()=1@Provides@IntoMap@IntKey(2)funprovideInt2()=2}
+```
+
+Alternatively, they can be declared with an `@Multibinds`\-annotated accessor property/function in a component. This member will be implemented by the Metro compiler and is useful for scenarios where the multibinding may be empty.
+
+```
+@DependencyGraphinterfaceMapMultibinding{@Multibinds(allowEmpty=true)valints:Map<Int,Int>}
+```
+
+Multibinding collections are immutable at runtime and cannot be defined as mutable at request sites.
+
+Map multibindings support injecting _map providers_, where the value type can be wrapped in `Provider`.
+
+```
+@DependencyGraphinterfaceMapMultibinding{@Multibinds(allowEmpty=true)valints:Map<Int,Provider<Int>>}
+```
+
+Unlike Dagger, empty multibindings in Metro are a compile error by default. Empty multibindings are allowed but must be opted into via `@Multibinds(allowEmpty = true)`.
+
+#### Implementation notes[¶](#implementation-notes "Permanent link")
+
+Metro takes inspiration from Guice in handling these in the binding graph. Since they cannot be added directly to the graph as-is (otherwise they would cause duplicate binding errors), a synthetic `@MultibindingElement`_qualifier_ annotation is generated for them at compile-time to disambiguate them. These are user-invisible but allows them to participate directly in graph validation like any other dependency. Metro then just adds these bindings as dependencies to `Binding.Multibinding` types.
+
+## Optional Dependencies[¶](#optional-dependencies "Permanent link")
+
+Metro supports optional dependencies by leaning on Kotlin’s native support for default parameter values. These are checked at injection sites and are allowed to be missing from the dependency graph when performing a lookup at validation/code-gen time.
+
+The below example would, since there is no `Int` binding provided, provide a message of `Count: -1`.
+
+```
+@DependencyGraphinterfaceAppGraph{valmessage:String@ProvidesfunprovideMessage(count:Int=-1)="Count: $count"}
+```
+
+Dagger supports a similar feature via `@BindsOptionalOf`, but requires a separate declaration of this optional dependency to the graph.
+
+KI supports the same feature.
+
+## Nullability[¶](#nullability "Permanent link")
+
+As nullability is a first-class concept in Kotlin, Metro supports it too. Bindings in Metro graphs may be nullable, but it’s important to understand how Metro treats them!
+
+In short, Metro will treat nullable types as different type keys than their non-nullable analogues. That is to say, `String` and `String?` are treated as distinct types in Metro.
+
+Furthermore, a `String` binding cannot satisfy a `String?` automatically. You _may_ however `@Binds` a `String` to a `String?` and Metro will treat it as a valid binding.
+
+```
+@DependencyGraph(Unit::class)interfaceExampleGraph{valint:IntvalnullableInt:Int?@ProvidesfunprovideInt():Int=1@BindsvalInt.bindAsNullable:Int?}
+```
+
+#### Implementation notes[¶](#implementation-notes_1 "Permanent link")
+
+While kotlin-inject can support this by simply invoking functions with omitted arguments, Metro has to support this in generated factories.
+
+To accomplish this, Metro will slightly modify how generated provider/constructor injection factory classes look compared to Dagger. Since we are working in IR, we can copy the default value expressions from the source function/constructor to the factory’s newInstance and create() functions. This in turn allows calling generated graphs to simply omit absent binding arguments from their creation calls. This is a tried and tested pattern used by other first party plugins, namely kotlinx-serialization.
+
+There are a few cases that need to be handled here:
+
+*   Expressions may reference previous parameters or instance members. To support this, we’ll transform them in IR to point at new parameters in those functions.
+*   Expressions may reference private instance members. To support this, Metro factories are generated as nested classes within the source class or graph.
+    *   This does depart from how dagger factories work, but if we ever wanted to have some sort of interop for that we could always generate bridging factory classes in the places dagger expects later.
+*   Parameters in `create()` need to be wrapped in `Provider` calls. This means that for cases where they back-reference other parameters, those will need to be transformed into `invoke()` calls on those providers too.# Injection Types - Metro
+
+Author: Zac Sweers
+Date: 2025-09-06T12:14:27.204Z
+Source: zacsweers.github.io
+URL: https://zacsweers.github.io/metro/0.6.4/injection-types.html
+Date saved: 2025-09-06T12:14:27.204Z
+
+> A multiplatform dependency injection framework for Kotlin
+
+---
+
+Metro supports multiple common injection types.
+
+## Constructor Injection[¶](#constructor-injection "Permanent link")
+
+Most types should use constructor injection if possible. For this case, you can annotate either a class itself (if it has exactly one, primary constructor) or exactly one specific constructor.
+
+```
+@InjectclassClassInjectedclassSpecificConstructorInjection(valtext:String){@Injectconstructor(value:Int):this(value.toString())}
+```
+
+Constructor-injected classes can be instantiated+managed entirely by Metro and encourages immutability.
+
+## Assisted Injection[¶](#assisted-injection "Permanent link")
+
+For types that require dynamic dependencies at instantiation, assisted injection can be used to supply these inputs. In this case - an injected constructor (or class with one constructor) must be annotated with `@Inject`, assisted parameters annotated with `@Assisted`, and a factory interface or abstract class with one single abstract function that accepts these assisted parameters and returns the target class.
+
+```
+@InjectclassHttpClient(@Assistedvaltimeout:Duration,valcache:Cache){@AssistedFactoryfuninterfaceFactory{funcreate(timeout:Duration):HttpClient}}
+```
+
+Then, the `@AssistedFactory`\-annotated type can be accessed from the dependency graph.
+
+```
+@InjectclassApiClient(httpClientFactory:HttpClient.Factory){privatevalhttpClient=httpClientFactory.create(30.seconds)}
+```
+
+Like Dagger, the `@Assisted` parameters can take optional `value` keys to disambiguate matching types.
+
+```
+@InjectclassHttpClient(@Assisted("connect")valconnectTimeout:Duration,@Assisted("request")valrequestTimeout:Duration,valcache:Cache){@AssistedFactoryfuninterfaceFactory{funcreate(@Assisted("connect")connectTimeout:Duration,@Assisted("request")requestTimeout:Duration,):HttpClient}}
+```
+
+### Automatic Assisted Factory Generation[¶](#automatic-assisted-factory-generation "Permanent link")
+
+Metro supports automatic generation of assisted factories via opt-in compiler option. If enabled, Metro will automatically generate a default factory as a nested class within the injected type.
+
+```
+@InjectclassHttpClient(@AssistedtimeoutDuration:Duration,cache:Cache,){// Generated by Metro@AssistedFactoryfuninterfaceFactory{funcreate(timeoutDuration:Duration):HttpClient}}
+```
+
+If a nested class called `Factory` is already present, Metro will do nothing.
+
+### Why opt-in?[¶](#why-opt-in "Permanent link")
+
+The main reason this is behind an opt-in option at the moment is because compiler plugin IDE support is rudimentary at best and currently requires enabling a custom registry flag. See [the docs for how to enable IDE support](installation.html#ide-support).
+
+Because of this, it’s likely better for now to just hand-write the equivalent class that Metro generates. If you still wish to proceed with using this, it can be enabled via the Gradle DSL.
+
+```
+metro { generateAssistedFactories.set(true) } 
+```
+
+## Member Injection[¶](#member-injection "Permanent link")
+
+Metro supports _member injection_ to inject mutable properties or functions post-construction or into existing class instances.
+
+This can be useful for classes that cannot be constructor-injected, for example Android Activity classes (on older SDK versions) as well as constructor-injected classes that perhaps don’t want or need to expose certain types directly in their constructors.
+
+Tip
+
+Unlike Dagger and kotlin-inject, injected members in Metro can be `private`.
+
+Note
+
+Member function injection does not (currently) support default values.
+
+```
+classProfileActivity:Activity(){// Property injection@Injectprivatelateinitvardb:UserDatabase@Injectprivatevarnotifications:Notifications? =null// Function injection@InjectprivatefuninjectUser(user:User){// ...}}
+```
+
+Like Dagger, these classes can be injected via multiple avenues.
+
+### 1\. In constructor-injected types, `@Inject`\-annotated members are injected _automatically_.[¶](#1-in-constructor-injected-types-inject-annotated-members-are-injected-automatically "Permanent link")
+
+```
+// Injection with constructor injection@InjectclassProfileInjector(// ...){// Automatically injected during constructor injection@InjectprivatefuninjectUser(value:String){// ...}}
+```
+
+In these cases, Metro will automatically inject these members automatically and immediately after instantiation during constructor injection.
+
+### 2\. Exposing a `fun inject(target: ProfileActivity)` function on the graph[¶](#2-exposing-a-fun-injecttarget-profileactivity-function-on-the-graph "Permanent link")
+
+```
+// Graph inject() functions@DependencyGraphinterfaceAppGraph{// ...funinject(target:ProfileActivity)}// Somewhere elsevalgraph=createGraph<AppGraph>()graph.inject(profileActivity)
+```
+
+With this option, you can call `graph.inject(target)` on the instance with members you wish to inject.
+
+### 3\. Requesting a `MembersInjector` instance from the dependency graph.[¶](#3-requesting-a-membersinjector-instance-from-the-dependency-graph "Permanent link")
+
+```
+// Injection with MembersInjector@InjectclassProfileInjector(privatevalinjector:MembersInjector<ProfileActivity>){funperformInjection(activity:ProfileActivity){injector.inject(activity)}}
+```
+
+Like Dagger, option #3 is accomplished via `MembersInjector` interface at runtime and in code gen. This should be reserved for advanced use cases.
+
+### Implementation notes[¶](#implementation-notes "Permanent link")
+
+*   Property accessors don’t use `get`/`set` names in `inject{name}()` function names.
+*   MembersInjector classes are generated as nested classes, allowing private member access.
+    *   This includes parent classes’ private members (!!)
+*   Optional bindings are not supported for injected member functions currently, but may be possible in the future.
+
+## Top-level Function Injection[¶](#top-level-function-injection "Permanent link")
+
+Like KI, Metro supports top-level function injection (behind an opt-in compiler option). The primary use case for this is composable functions and standalone applications that run from `main` functions.
+
+```
+@InjectfunApp(message:String){// ...}
+```
+
+To do this, Metro’s FIR plugin will generate a concrete type that acts as a bridge for this function.
+
+```
+@InjectclassAppClass(privatevalmessage:Provider<String>){operatorfuninvoke(){App(message())}}
+```
+
+Because it’s generated in FIR, this type will be user-visible in the IDE and can then be referenced in a graph.
+
+_Note that this feature requires enabling third party FIR plugins in the IDE to fully work. It will compile without it, but generated wrapper classes will be red/missing in the IDE._
+
+Note
+
+The generated class is called `<function name>` + `Class` because of a limitation in the Kotlin compiler. TODO Link issue?
+
+```
+@DependencyGraphinterfaceAppGraph{valapp:AppClass@DependencyGraph.FactoryfuninterfaceFactory{funcreate(@Providesmessage:String):AppGraph}}// Usagevalapp=createGraphFactory<AppGraph.Factory>().create("Hello, world!").app// Run the appapp()
+```
+
+To add assisted parameters, use `@Assisted` on the parameters in the function description. These will be propagated accordingly.
+
+```
+@InjectfunApp(@Assistedmessage:String){// ...}// Generates...@InjectclassAppClass{operatorfuninvoke(message:String){App(message)}}// Usagevalapp=createGraph<AppGraph>().app// Run the appapp("Hello, world!")
+```
+
+This is particularly useful for Compose, and `@Composable` functions will be copied over accordingly.
+
+```
+@Inject@ComposablefunApp(@Assistedmessage:String){// ...}// Generates...@InjectclassAppClass{@Composableoperatorfuninvoke(message:String){App(message)}}// UsagevalApp=createGraph<AppGraph>().app// Call it in compositionsetContent{App("Hello, world!")}
+```
+
+Similarly, if the injected function is a `suspend` function, the `suspend` keyword will be ported to the generated `invoke()` function too.
+
+### Why opt-in?[¶](#why-opt-in_1 "Permanent link")
+
+There are two reasons this is behind an opt-in option at the moment.
+
+1.  Generating top-level declarations in Kotlin compiler plugins (in FIR specifically) is not currently compatible with incremental compilation.
+2.  IDE support is rudimentary at best and currently requires enabling a custom registry flag. See [the docs for how to enable IDE support](installation.html#ide-support).
+
+Because of this, it’s likely better for now to just hand-write the equivalent class that Metro generates. If you still wish to proceed with using this, it can be enabled via the Gradle DSL.
+
+```
+metro{enableTopLevelFunctionInjection.set(true)}
+```
+
+### Implementation notes[¶](#implementation-notes_1 "Permanent link")
+
+*   This is fairly different from kotlin-inject’s typealias approach. This is necessary because Metro doesn’t use higher order function types or typealiases as qualifiers.
+*   Since the compose-compiler’s IR transformer may run _before_ Metro’s, we check for this during implementation body generation and look up the transformed target composable function as needed.# Installation - Metro
+
+Author: Zac Sweers
+Date: 2025-09-06T12:14:02.312Z
+Source: zacsweers.github.io
+URL: https://zacsweers.github.io/metro/0.6.4/installation.html
+Date saved: 2025-09-06T12:14:02.312Z
+
+> A multiplatform dependency injection framework for Kotlin
+
+---
+
+Metro is primarily applied via its companion Gradle plugin.
+
+```
+plugins{kotlin("multiplatform")// or jvm, android, etcid("dev.zacsweers.metro")}
+```
+
+…and that’s it! This will add metro’s runtime dependencies and do all the necessary compiler plugin wiring.
+
+If applying in other build systems, apply it however that build system conventionally applies Kotlin compiler plugins. For example with [Bazel](https://github.com/bazelbuild/rules_kotlin?tab=readme-ov-file#kotlin-compiler-plugins):
+
+```
+load("@rules_kotlin//kotlin:core.bzl","kt_compiler_plugin")load("@rules_kotlin//kotlin:jvm.bzl","kt_jvm_library")kt_compiler_plugin(name="metro_plugin",compile_phase=True,id="dev.zacsweers.metro.compiler",options={"enabled":"true","debug":"false",},deps=["@maven//:dev_zacsweers_metro_compiler",],)kt_jvm_library(name="sample",# The SampleGraph class is annotated with @DependencyGraphsrcs=["SampleGraph.kt"],plugins=[":metro_plugin",],deps=["@maven//:dev_zacsweers_metro_runtime_jvm",],)
+```
+
+## IDE Support[¶](#ide-support "Permanent link")
+
+The K2 Kotlin IntelliJ plugin supports running third party FIR plugins in the IDE, but this feature is hidden behind a flag. Some Metro features can take advantage of this, namely diagnostic reporting directly in the IDE and some opt-in features to see generated declarations.
+
+To enable it, do the following:
+
+1.  Enable K2 Mode for the Kotlin IntelliJ plugin.
+2.  Open the Registry
+3.  Set the `kotlin.k2.only.bundled.compiler.plugins.enabled` entry to `false`.
+
+Note that support is unstable and subject to change.# Metro
+
+Author: Zac Sweers
+Date: 2025-09-06T12:13:13.575Z
+Source: zacsweers.github.io
+URL: https://zacsweers.github.io/metro/0.6.4/index.html
+Date saved: 2025-09-06T12:13:13.575Z
+
+> A multiplatform dependency injection framework for Kotlin
+
+---
+
+## Introduction[¶](#introduction "Permanent link")
+
+Metro is a compile-time dependency injection framework that draws heavy inspiration from [Dagger](https://github.com/google/dagger), [Anvil](https://github.com/square/anvil), and [Kotlin-Inject](https://github.com/evant/kotlin-inject). It seeks to unify their best features under one, cohesive solution while adding a few new features and implemented as a compiler plugin.
+
+### Why another DI framework?[¶](#why-another-di-framework "Permanent link")
+
+It’s felt for some time like the Kotlin community has been waiting for a library at the intersection of these different tools and features. Different tools exist for parts of these, but there’s not yet been a unified solution that checks all these boxes, leaves behind some of these tools’ limitations, and embraces newer features that native compiler plugins offer.
+
+In short, Metro stands on the shoulders of giants. It doesn’t try to reinvent the wheel, it does try to make those wheels work better together.
+
+Note
+
+_I’m aware of the [XKCD comic](https://xkcd.com/927/) 🙂, I think Metro offers a compelling feature set with interop hooks that make it easy to integrate with an existing codebase._
+
+## Installation[¶](#installation "Permanent link")
+
+Apply the gradle plugin.
+
+```
+plugins{id("dev.zacsweers.metro")version"x.y.z"}
+```
+
+And that’s it! The default configuration will add the multiplatform `runtime` artifact (which has annotations you can use) and wire it all automatically.
+
+You can configure custom behaviors with APIs on the `metro` DSL extension.
+
+```
+metro{// Defines whether or not metro is enabled. Useful if you want to gate this behind a dynamic// build configuration.enabled=true// Default// Enable (extremely) verbose debug loggingdebug=false// Default// See the kdoc on MetroPluginExtension for full details}
+```
+
+Snapshots of the development version are available in [Sonatype’s `snapshots` repository](https://central.sonatype.com/repository/maven-snapshots/).
+
+## Supported platforms[¶](#supported-platforms "Permanent link")
+
+The compiler plugin itself supports all multiplatform project types. The first-party annotations artifact is also multiplatform and supports all common JVM, JS, and native targets.
+
+Contribution hint generation is _not_ currently supported on native or Wasm targets until [KT-58886](https://youtrack.jetbrains.com/issue/KT-58886) is resolved. They do work within the same compilation though.
+
+## Caveats[¶](#caveats "Permanent link")
+
+*   Kotlin compiler plugins are not a stable API! Compiled outputs from this plugin _should_ be stable, but usage in newer versions of kotlinc are not guaranteed to be stable. That said, Metro will strive to make matching releases available quickly and test against Kotlin prereleases eagerly.
+
+# Metro Intrinsics - Metro
+
+Author: Zac Sweers
+Date: 2025-09-06T12:14:37.330Z
+Source: zacsweers.github.io
+URL: https://zacsweers.github.io/metro/0.6.4/metro-intrinsics.html
+Date saved: 2025-09-06T12:14:37.330Z
+
+> A multiplatform dependency injection framework for Kotlin
+
+---
+
+Like Dagger, Metro supports injection of bindings wrapped in intrinsic types. Namely - `Provider` and `Lazy`. These are useful for deferring creation/initialization of dependencies. These only need to be requested at the injection site, Metro’s code gen will generate all the necessary stitching to fulfill that request.
+
+## `Provider`[¶](#provider "Permanent link")
+
+`Provider` is like Dagger’s `Provider` — it is a simple interface who’s `invoke()` call returns a new instance every time. If the underlying binding is scoped, then the same (scoped) instance is returned every time `invoke()` is called.
+
+```
+@InjectclassHttpClient(valcacheProvider:Provider<Cache>){funcreateCache(){valcache=cacheProvider()}}
+```
+
+## `Lazy`[¶](#lazy "Permanent link")
+
+`Lazy` is Kotlin’s standard library `Lazy`. It lazily computes a value the first time it’s evaluated and is thread-safe.
+
+```
+@InjectclassHttpClient(valcacheProvider:Lazy<Cache>){funcreateCache(){// The value is computed once and cached aftervalcache=cacheProvider.value}}
+```
+
+Note that `Lazy` is different from _scoping_ in that it is confined to the scope of the _injected type_, rather than the component instance itself. There is functionally no difference between injecting a `Provider` or `Lazy` of a _scoped_ binding. A `Lazy` of a scoped binding can still be useful to defer initialization. The underlying implementation in Metro’s `DoubleCheck` prevents double memoization in this case.
+
+Why doesn’t `Provider` just use a property like `Lazy`?
+
+A property is appropriate for `Lazy` because it fits the definition of being a _computed_ value that is idempotent for repeat calls. Metro opts to make its `Provider` use an `invoke()` function because it does not abide by that contract.
+
+## Providers of Lazy[¶](#providers-of-lazy "Permanent link")
+
+Metro supports combining `Provider` and `Lazy` to inject `Provider<Lazy<T>>`. On unscoped bindings this means the provider will return a new deferrable computable value (i.e. a new Lazy). Meanwhile `Lazy<Provider<T>>` is meaningless and not supported.# Provides - Metro
+
+Author: Zac Sweers
+Date: 2025-09-06T12:14:23.508Z
+Source: zacsweers.github.io
+URL: https://zacsweers.github.io/metro/0.6.4/provides.html
+Date saved: 2025-09-06T12:14:23.508Z
+
+> A multiplatform dependency injection framework for Kotlin
+
+---
+
+Providers can be defined in graphs or supertypes that graphs extend. Defining them in supertypes allows for them to be reused across multiple graphs and organize providers into logic groups. This is similar to how modules in Dagger work.
+
+```
+interfaceNetworkProviders{@ProvidesfunprovideHttpClient():HttpClient=HttpClient()}@DependencyGraphinterfaceAppGraph:NetworkProviders
+```
+
+Provider _functions_ should be `private` by default and are _automatically_ transformed to be private by the Metro compiler. This means you can write a provider function with no explicit (or public) visibility and it will be made private by Metro at compile-time.
+
+Provider _properties_ cannot be private yet due to [KT-76257](https://youtrack.jetbrains.com/issue/KT-76257/), but may be supported in the future.
+
+Providers may also be declared in [binding Containers](dependency-graphs.html#binding-containers).
+
+Tip
+
+It’s recommended to _not_ call providers from each other.
+
+#### Overrides[¶](#overrides "Permanent link")
+
+It is an error to override providers declarations. While it can be enticing for testing reasons to try to replicate Dagger 1’s _module overrides_, it quickly becomes difficult to reason about in code gen.
+
+*   What if you override with sub/supertypes?
+*   What if your override’s implementation needs different dependencies?
+
+To the testing end, it is recommended to instead leverage the `DependencyGraph.excludes` + `ContributesTo.replaces` APIs in merging.
+
+```
+// Don't do this pattern!interfaceNetworkProviders{@ProvidesfunprovideHttpClient():HttpClient=HttpClient()}@DependencyGraphinterfaceTestAppGraph:NetworkProviders{// This will fail to compileoverridefunprovideHttpClient():HttpClient=TestHttpClient()}
+```
+
+#### Companion Providers[¶](#companion-providers "Permanent link")
+
+Providers can alternatively be implemented in `companion object`s for staticization.
+
+```
+interfaceMessageGraph{valmessage:Stringcompanionobject{@ProvidesprivatefunprovideMessage():String="Hello, world!"}}
+```
+
+#### Implementation Notes[¶](#implementation-notes "Permanent link")
+
+private interface functions are not usually visible to downstream compilations in IR. To work around this, Metro will use a [new API in Kotlin 2.1.20](https://github.com/JetBrains/kotlin/blob/b2bceb12ef57664c4f9b168157c3a097a81a6e5f/compiler/ir/backend.common/src/org/jetbrains/kotlin/backend/common/extensions/IrGeneratedDeclarationsRegistrar.kt#L26) to add custom metadata to the parent class to denote these private providers’ existence and where to find them.# Scopes - Metro
+
+Author: Zac Sweers
+Date: 2025-09-06T12:14:31.001Z
+Source: zacsweers.github.io
+URL: https://zacsweers.github.io/metro/0.6.4/scopes.html
+Date saved: 2025-09-06T12:14:31.001Z
+
+> A multiplatform dependency injection framework for Kotlin
+
+---
+
+Like Dagger and KI, Metro supports _scopes_ to limit instances of types on the dependency graph. A scope is any annotation annotated with `@Scope`, with a convenience `@SingleIn` scope available in Metro’s runtime.
+
+Scopes must be applied to either the injected class or the provider function providing that binding. They must also match the graph that they are used in.
+
+```
+@SingleIn(AppScope::class)@DependencyGraphabstractclassAppGraph{privatevarcounter=0abstractvalcount:Int@SingleIn(AppScope::class)@ProvidesfunprovideCount()=counter++}
+```
+
+In the above example, multiple calls to `AppGraph.count` will always return 0 because the returned value from `provideCount()` will be cached in the `AppGraph` instance the first time it’s called.
+
+It is an error for an unscoped graph to access scoped bindings.
+
+```
+@DependencyGraphinterfaceAppGraph{// This is an error!valexampleClass:ExampleClass}@SingleIn(AppScope::class)@InjectclassExampleClass
+```
+
+It is also an error for a scoped graph to access scoped bindings whose scope does not match.
+
+```
+@SingleIn(AppScope::class)@DependencyGraphinterfaceAppGraph{// This is an error!valexampleClass:ExampleClass}@SingleIn(UserScope::class)@InjectclassExampleClass
+```
+
+Like Dagger, graphs can have multiple scopes that they support.
+
+```
+@ScopeannotationclassSingleton@Singleton@SingleIn(AppScope::class)@DependencyGraphinterfaceAppGraph{// This is okvalexampleClass:ExampleClass}@SingleIn(AppScope::class)@InjectclassExampleClass
+```

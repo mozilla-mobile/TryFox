@@ -30,6 +30,9 @@ A simple Android app to search, download, and install Fenix (Firefox for Android
         `https://treeherder.mozilla.org/jobs?repo=<PROJECT>&revision=<REVISION>`
         (e.g., `https://treeherder.mozilla.org/jobs?repo=try&revision=c2f3f652a3a063cb7933c2781038a25974cd09ec`)
         The app will select the correct project and load the revision.
+    -   Open the app directly with the custom TryFox scheme using the same query parameters:
+        `tryfox://jobs?repo=<PROJECT>&revision=<REVISION>`
+        `tryfox://jobs?author=<EMAIL>`
 
 ## Usage
 
@@ -43,7 +46,7 @@ A simple Android app to search, download, and install Fenix (Firefox for Android
     -   Tap "Download" to fetch an APK. Progress will be shown on the button.
     -   Once downloaded, the button changes to "Install". Tap it to install the APK.
     -   Unsupported APKs can be viewed by expanding their section.
-7.  Alternatively, click a Treeherder link (formatted as described in Deep Link Integration) to open the app directly to that build.
+7.  Alternatively, click a Treeherder link or a `tryfox://jobs?...` link to open the app directly to that build or profile view.
 
 ## API Endpoints Used
 

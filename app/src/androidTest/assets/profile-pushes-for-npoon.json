@@ -1,0 +1,61 @@
+{
+  "meta": {
+    "count": 10,
+    "repository": "try",
+    "filter_params": {
+      "full": "true",
+      "count": "10",
+      "author": "npoon@mozilla.com"
+    }
+  },
+  "results": [
+    {
+      "id": 1712468,
+      "revision": "bab9725e928ab3de804281a6d6eeb467a5709920",
+      "author": "npoon@mozilla.com",
+      "revisions": [
+        {
+          "result_set_id": 1712468,
+          "repository_id": 4,
+          "revision": "bab9725e928ab3de804281a6d6eeb467a5709920",
+          "author": "Nicholas Poon <npoon@mozilla.com>",
+          "comments": "Fuzzy query='build-components&query='test-components&query='build-apk-fenix-debug&query='signing-apk-fenix-debug&query='build-apk-fenix-android-test-debug&query='signing-apk-fenix-android-test-debug&query='test-apk-fenix-debug&query='ui-test-apk-fenix-arm-debug&query='build-apk-focus-debug&query='signing-apk-focus-debug&query='build-apk-focus-android-test-debug&query='signing-apk-focus-android-test-debug&query='test-apk-focus-debug&query='ui-test-apk-focus-arm-debug&query=^source-test 'android | 'fenix | 'focus&query='generate-baseline-profile-firebase-fenix\n\nmach try command: `./mach try --preset firefox-android`\n\nPushed via `mach try fuzzy`"
+        },
+        {
+          "result_set_id": 1712468,
+          "repository_id": 4,
+          "revision": "548e16edbdad1b992a03a6113d2f37f9a3ea23ef",
+          "author": "Nicholas Poon <npoon@mozilla.com>",
+          "comments": "Bug 1985035 - Update tests that use `PingType.testBeforeNextSubmit` to ensure that the callback is running\n\nI also manually added failing assertions to the callbacks to ensure that the test would fail in this case\n\nDifferential Revision: https://phabricator.services.mozilla.com/D262585"
+        }
+      ],
+      "revision_count": 2,
+      "push_timestamp": 1756302348,
+      "repository_id": 4
+    },
+    {
+      "id": 1711578,
+      "revision": "47e31ea0adff5b3270d76c73aa66f3eafde85316",
+      "author": "npoon@mozilla.com",
+      "revisions": [
+        {
+          "result_set_id": 1711578,
+          "repository_id": 4,
+          "revision": "47e31ea0adff5b3270d76c73aa66f3eafde85316",
+          "author": "Nicholas Poon <npoon@mozilla.com>",
+          "comments": "Fuzzy query='build-components&query='test-components&query='build-apk-fenix-debug&query='signing-apk-fenix-debug&query='build-apk-fenix-android-test-debug&query='signing-apk-fenix-android-test-debug&query='test-apk-fenix-debug&query='ui-test-apk-fenix-arm-debug&query='build-apk-focus-debug&query='signing-apk-focus-debug&query='build-apk-focus-android-test-debug&query='signing-apk-focus-android-test-debug&query='test-apk-focus-debug&query='ui-test-apk-focus-arm-debug&query=^source-test 'android | 'fenix | 'focus&query='generate-baseline-profile-firebase-fenix\n\nmach try command: `./mach try --preset firefox-android`\n\nPushed via `mach try fuzzy`"
+        },
+        {
+          "result_set_id": 1711578,
+          "repository_id": 4,
+          "revision": "4dd18bad252fc883504960b2efd1f3f6441854bd",
+          "author": "Nicholas Poon <npoon@mozilla.com>",
+          "comments": "Bug 1984474 - Fix AbstractFetchDownloadServiceTest.WHEN clearAllDownloadsNotificationsAndJobs is called THEN all non-completed downloads are cancelled to test the correct behaviour\n\nDifferential Revision: https://phabricator.services.mozilla.com/D262424"
+        }
+      ],
+      "revision_count": 2,
+      "push_timestamp": 1756227150,
+      "repository_id": 4
+    }
+  ]
+}

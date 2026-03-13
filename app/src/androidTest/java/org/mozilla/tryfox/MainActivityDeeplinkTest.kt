@@ -98,4 +98,40 @@ class MainActivityDeeplinkTest {
             composeTestRule.onNodeWithText(email).assertExists()
         }
     }
+
+    @Test
+    fun testTryfoxScheme_withRevision_populatesRevision() {
+        val project = "mozilla-central"
+        val revision = "1234abcdef"
+        val deeplinkUri =
+            Uri.parse("tryfox://jobs?repo=$project&revision=$revision")
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = deeplinkUri
+            }
+
+        ActivityScenario.launch<MainActivity>(intent).use {
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithText(revision).assertExists()
+        }
+    }
+
+    @Test
+    fun testTryfoxScheme_withAuthorEmail_populatesProfileScreen() {
+        val email = "tthibaud@mozilla.com"
+        val encodedEmail = "tthibaud%40mozilla.com"
+        val deeplinkUri =
+            Uri.parse("tryfox://jobs?author=$encodedEmail")
+        val intent =
+            Intent(ApplicationProvider.getApplicationContext(), MainActivity::class.java).apply {
+                action = Intent.ACTION_VIEW
+                data = deeplinkUri
+            }
+
+        ActivityScenario.launch<MainActivity>(intent).use {
+            composeTestRule.waitForIdle()
+            composeTestRule.onNodeWithText(email).assertExists()
+        }
+    }
 }
