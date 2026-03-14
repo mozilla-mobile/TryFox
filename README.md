@@ -10,19 +10,6 @@ A simple Android app to search, download, and install Fenix (Firefox for Android
 
 Install the latest APK from [TryFox Releases](https://github.com/mozilla-mobile/TryFox/releases/latest).
 
-To make TryFox handle Treeherder links on Android:
-
-1. Install TryFox an
-2. Open Android `Settings`.
-3. Go to `Apps` or `Applications`.
-3. Select `TryFox`.
-4. Open `Open by default`.
-5. Tap `Supported web addresses` or `Add link`.
-6. Enable `treeherder.mozilla.org`.
-7. If your device shows an `Open supported links` toggle or menu, set it to `Open in this app`.
-
-After that, opening a Treeherder URL such as `https://treeherder.mozilla.org/jobs?repo=try&revision=<REVISION>` should offer or directly open TryFox, depending on your Android version and current default-browser settings.
-
 ## Features
 
 <table>
