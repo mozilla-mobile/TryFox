@@ -25,9 +25,18 @@ After that, opening a Treeherder URL such as `https://treeherder.mozilla.org/job
 
 ## Features
 
-<video src="doc/tryfox-demo-jan-2026.mp4" controls muted playsinline width="720">
-  Your browser does not support the video tag.
-</video>
+<table>
+  <tr>
+    <td align="center"><strong>Date Picking</strong></td>
+    <td align="center"><strong>Treeherder Screen</strong></td>
+    <td align="center"><strong>Deeplink</strong></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="doc/tryfox-date-picking.gif" alt="Date picking demo" width="220" /></td>
+    <td align="center"><img src="doc/tryfox-treeherder.gif" alt="Treeherder screen demo" width="220" /></td>
+    <td align="center"><img src="doc/tryfox-deeplink.gif" alt="Deeplink demo" width="220" /></td>
+  </tr>
+</table>
 
 -   **Multi-Project Support**: Select from projects:
     -   `try` (default)
