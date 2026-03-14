@@ -3,7 +3,6 @@ package org.mozilla.tryfox
 import android.net.Uri
 import java.net.URI
 import java.net.URLDecoder
-import java.nio.charset.StandardCharsets
 
 sealed interface AppDeepLinkDestination {
     data class TreeherderSearch(
@@ -70,7 +69,7 @@ object AppDeepLinkParser {
     }
 
     private fun parseTarget(uri: URI): String? {
-        val fragmentTarget = parseTargetFromFragment(uri.fragment)
+        val fragmentTarget = parseTargetFromFragment(uri.rawFragment)
         if (fragmentTarget != null) {
             return fragmentTarget
         }
@@ -92,7 +91,7 @@ object AppDeepLinkParser {
             return parseQueryString(directQuery)
         }
 
-        return parseParametersFromFragment(uri.fragment)
+        return parseParametersFromFragment(uri.rawFragment)
     }
 
     private fun parseParametersFromFragment(fragment: String?): Map<String, String> {
@@ -121,5 +120,5 @@ object AppDeepLinkParser {
             .toMap()
     }
 
-    private fun decode(value: String): String = URLDecoder.decode(value, StandardCharsets.UTF_8)
+    private fun decode(value: String): String = URLDecoder.decode(value, Charsets.UTF_8.name())
 }

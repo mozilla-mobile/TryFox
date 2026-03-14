@@ -64,6 +64,18 @@ class AppDeepLinkParserTest {
     }
 
     @Test
+    fun `parses treeherder hash link with encoded author`() {
+        val uri = "https://treeherder.mozilla.org/#/jobs?author=try%2Buser%40mozilla.com"
+
+        val destination = AppDeepLinkParser.parse(uri)
+
+        assertEquals(
+            AppDeepLinkDestination.Profile(email = "try+user@mozilla.com"),
+            destination,
+        )
+    }
+
+    @Test
     fun `defaults repo to try when missing`() {
         val uri = "tryfox://jobs?revision=abcdef123456"
 
