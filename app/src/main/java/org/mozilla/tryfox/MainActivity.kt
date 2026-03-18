@@ -3,7 +3,6 @@ package org.mozilla.tryfox
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -68,12 +67,10 @@ sealed class NavScreen(val route: String) {
  * This activity sets up the navigation host and handles deep links.
  */
 class MainActivity : ComponentActivity() {
-
     private lateinit var navController: NavHostController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.d("MainActivity", "onCreate called. Intent: $intent, Data: ${intent?.data}")
         enableEdgeToEdge()
         setContent {
             TryFoxTheme {
@@ -85,7 +82,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        Log.d("MainActivity", "onNewIntent called. Intent: $intent, Data: ${intent.data}")
         setIntent(intent)
         if (::navController.isInitialized) {
             routeDeepLink(intent)
@@ -100,7 +96,6 @@ class MainActivity : ComponentActivity() {
     fun AppNavigation() {
         val localNavController = rememberNavController()
         this@MainActivity.navController = localNavController
-        Log.d("MainActivity", "AppNavigation: NavController instance assigned: $localNavController")
 
         LaunchedEffect(localNavController) {
             routeDeepLink(intent)
@@ -119,6 +114,8 @@ class MainActivity : ComponentActivity() {
                 // mainActivityViewModel is already injected and passed as a parameter
                 TryFoxMainScreen(
                     tryFoxViewModel = koinViewModel(),
+                    deepLinkProject = null,
+                    deepLinkRevision = null,
                     onNavigateUp = { localNavController.popBackStack() },
                 )
             }
@@ -131,12 +128,10 @@ class MainActivity : ComponentActivity() {
             ) { backStackEntry ->
                 val project = backStackEntry.arguments?.getString("project")
                 val revision = backStackEntry.arguments?.getString("revision")
-                Log.d(
-                    "MainActivity",
-                    "TreeherderSearchWithArgs composable: project='$project', revision='$revision' from NavBackStackEntry. ID: ${backStackEntry.id}",
-                )
                 TryFoxMainScreen(
                     tryFoxViewModel = koinViewModel { parametersOf(project, revision) },
+                    deepLinkProject = project,
+                    deepLinkRevision = revision,
                     onNavigateUp = { localNavController.popBackStack() },
                 )
             }

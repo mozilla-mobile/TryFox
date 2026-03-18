@@ -66,6 +66,20 @@ class FakeTreeherderRepository(
         }
     }
 
+    override suspend fun getJobsForPushPage(
+        pushId: Int,
+        page: Int,
+        count: Int,
+    ): NetworkResult<TreeherderJobsResponse> {
+        return if (simulateNetworkError) {
+            NetworkResult.Error(networkErrorMessage)
+        } else if (page == 1) {
+            getJobsForPush(pushId)
+        } else {
+            NetworkResult.Success(TreeherderJobsResponse(results = emptyList()))
+        }
+    }
+
     override suspend fun getArtifactsForTask(taskId: String): NetworkResult<ArtifactsResponse> {
         return if (simulateNetworkError) {
             NetworkResult.Error(networkErrorMessage)

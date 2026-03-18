@@ -1,7 +1,6 @@
 package org.mozilla.tryfox.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +30,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
@@ -53,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -63,8 +64,6 @@ import org.mozilla.tryfox.ui.composables.AppCard
 import org.mozilla.tryfox.ui.composables.BinButton
 import org.mozilla.tryfox.ui.composables.PushCommentCard
 
-private const val TAG = "FenixInstallerScreen"
-
 // Project name mappings
 private val projectDisplayToActualMap = mapOf(
     "try" to "try",
@@ -74,10 +73,15 @@ private val projectDisplayToActualMap = mapOf(
 )
 private val projectActualToDisplayMap = projectDisplayToActualMap.entries.associate { (k, v) -> v to k }
 
+internal const val TREEHERDER_LOADING_STATE_TAG = "treeherder_loading_state"
+internal const val TREEHERDER_RESULTS_HEADER_TAG = "treeherder_results_header"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TryFoxMainScreen(
     tryFoxViewModel: TryFoxViewModel,
+    deepLinkProject: String?,
+    deepLinkRevision: String?,
     onNavigateUp: () -> Unit,
 ) {
     val cacheState by tryFoxViewModel.cacheState.collectAsState()
@@ -85,6 +89,17 @@ fun TryFoxMainScreen(
 
     LaunchedEffect(Unit) {
         tryFoxViewModel.checkCacheStatus()
+    }
+
+    LaunchedEffect(deepLinkProject, deepLinkRevision) {
+        if (!deepLinkRevision.isNullOrBlank()) {
+            val resolvedProject = deepLinkProject ?: "try"
+            val projectChanged = tryFoxViewModel.selectedProject != resolvedProject
+            val revisionChanged = tryFoxViewModel.revision != deepLinkRevision
+            if (projectChanged || revisionChanged) {
+                tryFoxViewModel.setRevisionFromDeepLinkAndSearch(resolvedProject, deepLinkRevision)
+            }
+        }
     }
 
     val binButtonEnabled = !isDownloading && cacheState == CacheManagementState.IdleNonEmpty
@@ -140,12 +155,8 @@ fun TryFoxMainScreen(
                     revision = tryFoxViewModel.revision,
                     onRevisionChange = { tryFoxViewModel.updateRevision(it) },
                     onSearchClick = { tryFoxViewModel.searchJobsAndArtifacts() },
-                    isLoading = tryFoxViewModel.isLoading && tryFoxViewModel.selectedJobs.isEmpty() && tryFoxViewModel.relevantPushComment == null,
+                    isLoading = tryFoxViewModel.isLoading,
                 )
-            }
-
-            if (tryFoxViewModel.isLoading && tryFoxViewModel.selectedJobs.isEmpty() && tryFoxViewModel.relevantPushComment == null) {
-                item { LoadingState() }
             }
 
             tryFoxViewModel.errorMessage?.let {
@@ -167,13 +178,19 @@ fun TryFoxMainScreen(
                 }
             }
 
-            if (tryFoxViewModel.selectedJobs.isNotEmpty()) {
+            if (tryFoxViewModel.isLoading) {
+                item {
+                    LoadingState(candidateCount = tryFoxViewModel.isLoadingJobArtifacts.size)
+                }
+            } else if (tryFoxViewModel.selectedJobs.isNotEmpty()) {
                 item {
                     Text(
                         text = stringResource(id = R.string.treeherder_apks_jobs_found_message, tryFoxViewModel.selectedJobs.size),
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 8.dp),
+                        modifier = Modifier
+                            .padding(bottom = 8.dp)
+                            .testTag(TREEHERDER_RESULTS_HEADER_TAG),
                     )
                 }
 
@@ -320,13 +337,48 @@ fun SearchButton( // This is the local SearchButton
 }
 
 @Composable
-fun LoadingState() {
-    Box(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
-        contentAlignment = Alignment.Center,
+fun LoadingState(candidateCount: Int) {
+    Card(
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag(TREEHERDER_LOADING_STATE_TAG),
     ) {
-        CircularProgressIndicator()
-        Text(stringResource(id = R.string.treeherder_apks_loading_message), modifier = Modifier.padding(top = 60.dp))
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(36.dp),
+                strokeWidth = 3.dp,
+            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    text = "Loading signed APKs",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    text = if (candidateCount > 0) {
+                        "Inspecting $candidateCount candidate job${if (candidateCount == 1) "" else "s"} and resolving APK artifacts."
+                    } else {
+                        stringResource(id = R.string.treeherder_apks_loading_message)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 

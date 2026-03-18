@@ -24,7 +24,11 @@ interface TreeherderApiService {
     ): TreeherderRevisionResponse
 
     @GET("jobs/")
-    suspend fun getJobsForPush(@Query("push_id") pushId: Int): TreeherderJobsResponse
+    suspend fun getJobsForPush(
+        @Query("push_id") pushId: Int,
+        @Query("count") count: Int = 2000,
+        @Query("page") page: Int = 1,
+    ): TreeherderJobsResponse
 
     @GET
     suspend fun getArtifactsForTask(@Url url: String): ArtifactsResponse

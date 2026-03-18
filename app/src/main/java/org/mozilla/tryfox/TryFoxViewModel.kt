@@ -1,6 +1,7 @@
 package org.mozilla.tryfox
 
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -8,15 +9,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
@@ -45,7 +51,42 @@ class TryFoxViewModel(
     private val intentManager: IntentManager,
     project: String?,
     revision: String?,
+    private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
+    private val elapsedRealtimeProvider: () -> Long = SystemClock::elapsedRealtime,
+    private val infoLogger: (String, String) -> Int = Log::i,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
 ) : ViewModel() {
+    companion object {
+        private const val TAG = "TryFoxViewModel"
+        private const val MAX_PARALLEL_ARTIFACT_REQUESTS = 6
+        private val APK_JOB_NAME_HINTS = listOf(
+            "signing-apk",
+            "android-apk",
+            "apk-focus",
+            "apk-fenix",
+            "apk-reference-browser",
+            "apk-geckoview",
+        )
+        private val NON_ANDROID_PLATFORM_HINTS = listOf(
+            "ios",
+            "mac",
+            "macos",
+            "macosx",
+            "win",
+            "windows",
+            "linux",
+            "desktop",
+        )
+        private val ANDROID_PRODUCT_HINTS = listOf(
+            "focus",
+            "fenix",
+            "reference-browser",
+            "geckoview",
+            "android",
+        )
+    }
+
     var revision by mutableStateOf(revision ?: "")
         private set
 
@@ -77,10 +118,9 @@ class TryFoxViewModel(
 
     var onInstallApk: ((File) -> Unit)? = null
 
-    private val deviceSupportedAbis: List<String> by lazy { Build.SUPPORTED_ABIS.toList() }
+    private val deviceSupportedAbis: List<String> by lazy { supportedAbis }
 
     init {
-        Log.d("TryFoxViewModel", "TryFoxViewModel created with revision: $revision, repo: $project")
         if (revision != null) {
             searchJobsAndArtifacts()
         }
@@ -109,17 +149,14 @@ class TryFoxViewModel(
     }
 
     fun updateRevision(newRevision: String) {
-        Log.d("FenixInstallerViewModel", "Updating revision to: $newRevision")
         revision = newRevision
     }
 
     fun updateSelectedProject(newProject: String) {
-        Log.d("FenixInstallerViewModel", "Updating selected project to: $newProject")
         selectedProject = newProject
     }
 
     fun setRevisionFromDeepLinkAndSearch(project: String?, newRevision: String) {
-        Log.i("FenixInstallerViewModel", "Setting project to: ${project ?: "default (try)"}, revision from deep link to: $newRevision and triggering search.")
         selectedProject = project ?: "try"
         revision = newRevision
         relevantPushComment = null
@@ -153,7 +190,7 @@ class TryFoxViewModel(
             errorMessage = "Please enter a revision to search."
             return
         }
-        Log.d("FenixInstallerViewModel", "Starting job/artifact search for project: $selectedProject, revision: $revision")
+        val loadStartMs = elapsedRealtimeProvider()
 
         viewModelScope.launch {
             isLoading = true
@@ -187,82 +224,233 @@ class TryFoxViewModel(
                     if (pushData.results.isEmpty()) {
                         errorMessage = "No push found for project: $selectedProject, revision: $revision"
                         isLoading = false
+                        isLoadingJobArtifacts.clear()
                         return@launch
                     }
                     val pushId = pushData.results.first().id
-                    Log.d("FenixInstallerViewModel", "Found push ID: $pushId for project: $selectedProject, revision: $revision")
-                    fetchJobs(pushId)
+                    fetchJobs(pushId, loadStartMs)
                 }
                 is NetworkResult.Error -> {
                     errorMessage = "Error fetching revision details for $selectedProject: ${revisionResult.message}"
                     isLoading = false
+                    isLoadingJobArtifacts.clear()
                 }
             }
         }
     }
 
-    private suspend fun fetchJobs(pushId: Int) {
-        Log.d("FenixInstallerViewModel", "Fetching jobs for push ID: $pushId")
-        when (val jobsResult = fenixRepository.getJobsForPush(pushId)) {
-            is NetworkResult.Success -> {
-                val networkJobDetailsList = jobsResult.data.results
-                    .filter { it.isSignedBuild && !it.isTest }
+    private suspend fun fetchJobs(pushId: Int, loadStartMs: Long = elapsedRealtimeProvider()) {
+        val pageSize = 2000
+        val artifactSemaphore = Semaphore(MAX_PARALLEL_ARTIFACT_REQUESTS)
+        val seenTaskIds = mutableSetOf<String>()
+        val jobsWithArtifacts = mutableListOf<JobDetailsUiModel>()
+        val artifactFetches = mutableListOf<kotlinx.coroutines.Deferred<JobDetailsUiModel>>()
+        val fallbackJobUiModels = mutableListOf<JobDetailsUiModel>()
+        var page = 1
+        var pageFetchFailed = false
 
-                if (networkJobDetailsList.isEmpty()) {
-                    errorMessage = "No jobs found matching the criteria for this push."
-                } else {
-                    val initialJobUiModels = networkJobDetailsList.map { netJob ->
-                        Log.i("FenixInstallerViewModel", "Preparing to fetch artifacts for job: '${netJob.jobName}' (TaskID: ${netJob.taskId})")
-                        isLoadingJobArtifacts[netJob.taskId] = true
-                        JobDetailsUiModel(
-                            appName = netJob.appName,
-                            jobName = netJob.jobName,
-                            jobSymbol = netJob.jobSymbol,
-                            taskId = netJob.taskId,
-                            isSignedBuild = netJob.isSignedBuild,
-                            isTest = netJob.isTest,
-                            artifacts = emptyList(),
-                        )
-                    }
+        coroutineScope {
+            while (true) {
+                when (val jobsResult = fenixRepository.getJobsForPushPage(pushId = pushId, page = page, count = pageSize)) {
+                    is NetworkResult.Success -> {
+                        val pageJobs = jobsResult.data.results
 
-                    val updatedJobUiModels = initialJobUiModels.map {
-                        viewModelScope.async(Dispatchers.IO) {
-                            // Consider ioDispatcher if repository calls are blocking
-                            val fetchedArtifacts = fetchArtifacts(it.taskId)
-                            isLoadingJobArtifacts[it.taskId] = false
-                            it.copy(artifacts = fetchedArtifacts)
+                        if (pageJobs.isEmpty()) {
+                            break
                         }
-                    }.awaitAll()
 
-                    val finalJobsToShow = updatedJobUiModels.filter { it.artifacts.isNotEmpty() }
+                        val candidateJobs = pageJobs
+                            .asSequence()
+                            .filter { job -> seenTaskIds.add(job.taskId) }
+                            .filter(::isAndroidArtifactCandidate)
+                            .toList()
 
-                    if (finalJobsToShow.isEmpty()) {
-                        errorMessage = "Selected jobs found, but no APKs in any of them. Check build logs."
+                        val preferredCandidates = candidateJobs.filter(::isPreferredSignedApkJob)
+                        val fallbackCandidates = candidateJobs.filterNot(::isPreferredSignedApkJob)
+
+                        val preferredJobUiModels = preferredCandidates.map { netJob ->
+                            isLoadingJobArtifacts[netJob.taskId] = true
+                            JobDetailsUiModel(
+                                appName = netJob.appName,
+                                jobName = netJob.jobName,
+                                jobSymbol = netJob.jobSymbol,
+                                taskId = netJob.taskId,
+                                isSignedBuild = netJob.isSignedBuild,
+                                isTest = netJob.isTest,
+                                artifacts = emptyList(),
+                            )
+                        }
+
+                        val fallbackPageJobUiModels = fallbackCandidates.map { netJob ->
+                            JobDetailsUiModel(
+                                appName = netJob.appName,
+                                jobName = netJob.jobName,
+                                jobSymbol = netJob.jobSymbol,
+                                taskId = netJob.taskId,
+                                isSignedBuild = netJob.isSignedBuild,
+                                isTest = netJob.isTest,
+                                artifacts = emptyList(),
+                            )
+                        }
+                        fallbackJobUiModels += fallbackPageJobUiModels
+
+                        if (preferredJobUiModels.isNotEmpty()) {
+                            selectedJobs = selectedJobs + preferredJobUiModels
+                            artifactFetches += preferredJobUiModels.map { jobUiModel ->
+                                async(ioDispatcher) {
+                                    val fetchedArtifacts = artifactSemaphore.withPermit {
+                                        fetchArtifacts(jobUiModel.taskId)
+                                    }
+                                    val updatedJob = jobUiModel.copy(artifacts = fetchedArtifacts)
+
+                                    withContext(mainDispatcher) {
+                                        isLoadingJobArtifacts[jobUiModel.taskId] = false
+                                        selectedJobs = if (fetchedArtifacts.isEmpty()) {
+                                            selectedJobs.filterNot { it.taskId == jobUiModel.taskId }
+                                        } else {
+                                            selectedJobs.map {
+                                                if (it.taskId == jobUiModel.taskId) {
+                                                    updatedJob
+                                                } else {
+                                                    it
+                                                }
+                                            }
+                                        }
+                                    }
+                                    updatedJob
+                                }
+                            }
+                        }
+
+                        if (pageJobs.size < pageSize) {
+                            break
+                        }
+                        page += 1
                     }
-                    selectedJobs = finalJobsToShow
+                    is NetworkResult.Error -> {
+                        pageFetchFailed = true
+                        val hasStartedLoadingResults = selectedJobs.isNotEmpty() || artifactFetches.isNotEmpty() || jobsWithArtifacts.isNotEmpty()
+                        errorMessage = if (!hasStartedLoadingResults) {
+                            "Error fetching jobs: ${jobsResult.message}"
+                        } else {
+                            "Some jobs could not be loaded: ${jobsResult.message}"
+                        }
+                        break
+                    }
                 }
             }
-            is NetworkResult.Error -> {
-                errorMessage = "Error fetching jobs: ${jobsResult.message}"
-                Log.e("FenixInstallerViewModel", "Error fetching/parsing jobs for push ID $pushId: ${jobsResult.message}", jobsResult.cause)
+
+            val updatedJobUiModels = artifactFetches.awaitAll()
+            jobsWithArtifacts += updatedJobUiModels.filter { it.artifacts.isNotEmpty() }
+
+            if (jobsWithArtifacts.isEmpty() && fallbackJobUiModels.isNotEmpty() && !pageFetchFailed) {
+                selectedJobs = fallbackJobUiModels
+                fallbackJobUiModels.forEach { isLoadingJobArtifacts[it.taskId] = true }
+
+                val fallbackUpdatedJobs = fallbackJobUiModels.map { jobUiModel ->
+                    async(ioDispatcher) {
+                        val fetchedArtifacts = artifactSemaphore.withPermit {
+                            fetchArtifacts(jobUiModel.taskId)
+                        }
+                        val updatedJob = jobUiModel.copy(artifacts = fetchedArtifacts)
+
+                        withContext(mainDispatcher) {
+                            isLoadingJobArtifacts[jobUiModel.taskId] = false
+                            selectedJobs = if (fetchedArtifacts.isEmpty()) {
+                                selectedJobs.filterNot { it.taskId == jobUiModel.taskId }
+                            } else {
+                                selectedJobs.map {
+                                    if (it.taskId == jobUiModel.taskId) {
+                                        updatedJob
+                                    } else {
+                                        it
+                                    }
+                                }
+                            }
+                        }
+                        updatedJob
+                    }
+                }.awaitAll()
+
+                jobsWithArtifacts += fallbackUpdatedJobs.filter { it.artifacts.isNotEmpty() }
             }
         }
+
+        if (jobsWithArtifacts.isEmpty() && !pageFetchFailed) {
+            errorMessage = "Selected jobs found, but no APKs in any of them. Check build logs."
+        }
+
+        selectedJobs = selectedJobs.filter { it.artifacts.isNotEmpty() }
+        infoLogger(
+            TAG,
+            "searchJobsAndArtifacts: finished in ${elapsedRealtimeProvider() - loadStartMs} ms with ${selectedJobs.size} job(s) shown",
+        )
+        isLoadingJobArtifacts.clear()
         isLoading = false
         checkAndUpdateDownloadingStatus()
     }
 
+    private fun isAndroidArtifactCandidate(job: org.mozilla.tryfox.data.JobDetails): Boolean {
+        if (job.isTest) {
+            return false
+        }
+        if (!job.isSignedBuild) {
+            return false
+        }
+        return isLikelySignedApkProducer(job)
+    }
+
+    private fun isAndroidArtifactCandidateRaw(job: org.mozilla.tryfox.data.JobDetails): Boolean {
+        val appName = job.appName.lowercase()
+        val jobName = job.jobName.lowercase()
+
+        return jobName.contains("build-android") ||
+            jobName.contains("android-components") ||
+            jobName.contains("fenix") ||
+            jobName.contains("focus") ||
+            jobName.contains("reference-browser") ||
+            jobName.contains("geckoview") ||
+            appName == "fenix" ||
+            appName == "focus" ||
+            appName == "reference-browser" ||
+            appName == "geckoview"
+    }
+
+    private fun isLikelySignedApkProducer(job: org.mozilla.tryfox.data.JobDetails): Boolean {
+        val appName = job.appName.lowercase()
+        val jobName = job.jobName.lowercase()
+
+        if (!isAndroidArtifactCandidateRaw(job)) {
+            return false
+        }
+
+        if (NON_ANDROID_PLATFORM_HINTS.any { hint -> jobName.contains(hint) }) {
+            return false
+        }
+
+        if (APK_JOB_NAME_HINTS.any { hint -> jobName.contains(hint) }) {
+            return true
+        }
+
+        val hasAndroidProductHint = ANDROID_PRODUCT_HINTS.any { hint ->
+            jobName.contains(hint) || appName == hint
+        }
+        val hasApkHint = jobName.contains("apk")
+
+        return hasAndroidProductHint && hasApkHint
+    }
+
+    private fun isPreferredSignedApkJob(job: org.mozilla.tryfox.data.JobDetails): Boolean {
+        val jobName = job.jobName.lowercase()
+        return jobName.contains("signing-apk")
+    }
+
     private suspend fun fetchArtifacts(taskId: String): List<ArtifactUiModel> {
-        Log.d("FenixInstallerViewModel", "Fetching artifacts for task ID: $taskId")
         return when (val artifactsResult = fenixRepository.getArtifactsForTask(taskId)) {
             is NetworkResult.Success -> {
-                val filteredApks = artifactsResult.data.artifacts.filter {
-                    it.name.endsWith(".apk", ignoreCase = true)
-                }
-                Log.i("FenixInstallerViewModel", "Found ${filteredApks.size} APK(s) for task ID: $taskId.")
-                if (filteredApks.isEmpty()) {
-                    Log.w("FenixInstallerViewModel", "No APKs found for task ID: $taskId. Check the build logs.")
-                }
-                filteredApks.map { artifact ->
+                artifactsResult.data.artifacts.filter { artifact ->
+                    artifact.name.endsWith(".apk", ignoreCase = true)
+                }.map { artifact ->
                     val artifactFileName = artifact.name.substringAfterLast('/')
                     val downloadedFile = getDownloadedFile(artifactFileName, taskId)
                     val downloadState = if (downloadedFile != null) {
@@ -287,25 +475,19 @@ class TryFoxViewModel(
                     )
                 }
             }
-            is NetworkResult.Error -> {
-                Log.e("FenixInstallerViewModel", "Error fetching artifacts for task ID $taskId: ${artifactsResult.message}", artifactsResult.cause)
-                emptyList()
-            }
+            is NetworkResult.Error -> emptyList()
         }
     }
 
     fun downloadArtifact(artifactUiModel: ArtifactUiModel) {
         val artifactFileName = artifactUiModel.name.substringAfterLast('/')
         val taskId = artifactUiModel.taskId
-        val downloadKey = artifactUiModel.uniqueKey
 
         if (artifactUiModel.downloadState is DownloadState.InProgress || artifactUiModel.downloadState is DownloadState.Downloaded) {
-            Log.d("FenixInstallerViewModel", "Download action for $downloadKey - already in progress or downloaded. State: ${artifactUiModel.downloadState}")
             return
         }
-         if (taskId.isBlank()) {
+        if (taskId.isBlank()) {
             val blankTaskIdMsg = "Task ID is blank for $artifactFileName"
-            Log.e("FenixInstallerViewModel", blankTaskIdMsg)
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(blankTaskIdMsg))
             return
         }
@@ -313,8 +495,6 @@ class TryFoxViewModel(
         viewModelScope.launch {
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(0f))
             // cacheManager.checkCacheStatus() will be called after download success/failure
-
-            Log.i("FenixInstallerViewModel", "Starting download for $downloadKey")
 
             val downloadUrl = artifactUiModel.downloadUrl
 
@@ -336,20 +516,16 @@ class TryFoxViewModel(
                         0f
                     }
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(progress))
-                    Log.d("FenixInstallerViewModel", "Download progress for $downloadKey: ${(progress * 100).toInt()}%")
                 },
             )
 
             when (result) {
                 is NetworkResult.Success -> {
-                    Log.i("FenixInstallerViewModel", "Download completed for $downloadKey at ${result.data.absolutePath}")
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.Downloaded(result.data))
                     cacheManager.checkCacheStatus() // Update cache status via CacheManager
                     onInstallApk?.invoke(result.data)
                 }
                 is NetworkResult.Error -> {
-                    val failureMessage = "Download failed for $artifactFileName: ${result.message}"
-                    Log.e("FenixInstallerViewModel", failureMessage, result.cause)
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(result.message))
                     cacheManager.checkCacheStatus() // Update cache status via CacheManager
                 }

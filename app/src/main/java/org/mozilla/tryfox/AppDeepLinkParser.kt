@@ -26,7 +26,6 @@ object AppDeepLinkParser {
     fun parse(uriString: String?): AppDeepLinkDestination? {
         if (uriString.isNullOrBlank()) return null
         val uri = runCatching { URI(uriString) }.getOrNull() ?: return null
-
         return when (uri.scheme?.lowercase()) {
             "https" -> parseTreeherderUri(uri)
             TRYFOX_SCHEME -> parseTryFoxUri(uri)
@@ -70,9 +69,7 @@ object AppDeepLinkParser {
 
     private fun parseTarget(uri: URI): String? {
         val fragmentTarget = parseTargetFromFragment(uri.rawFragment)
-        if (fragmentTarget != null) {
-            return fragmentTarget
-        }
+        if (fragmentTarget != null) return fragmentTarget
 
         uri.host?.takeIf { it.equals(JOBS_TARGET, ignoreCase = true) }?.let {
             return JOBS_TARGET
@@ -87,10 +84,7 @@ object AppDeepLinkParser {
 
     private fun parseParameters(uri: URI): Map<String, String> {
         val directQuery = uri.rawQuery
-        if (!directQuery.isNullOrBlank()) {
-            return parseQueryString(directQuery)
-        }
-
+        if (!directQuery.isNullOrBlank()) return parseQueryString(directQuery)
         return parseParametersFromFragment(uri.rawFragment)
     }
 

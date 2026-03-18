@@ -34,7 +34,40 @@ class DefaultTreeherderRepository(
     }
 
     override suspend fun getJobsForPush(pushId: Int): NetworkResult<TreeherderJobsResponse> {
-        return safeApiCall { treeherderApiService.getJobsForPush(pushId) }
+        return safeApiCall {
+            val pageSize = 2000
+            val allJobs = mutableListOf<org.mozilla.tryfox.data.JobDetails>()
+            var page = 1
+
+            while (true) {
+                val response = treeherderApiService.getJobsForPush(pushId = pushId, count = pageSize, page = page)
+                val pageResults = response.results
+
+                if (pageResults.isEmpty()) {
+                    break
+                }
+
+                allJobs += pageResults
+
+                if (pageResults.size < pageSize) {
+                    break
+                }
+
+                page += 1
+            }
+
+            TreeherderJobsResponse(results = allJobs)
+        }
+    }
+
+    override suspend fun getJobsForPushPage(
+        pushId: Int,
+        page: Int,
+        count: Int,
+    ): NetworkResult<TreeherderJobsResponse> {
+        return safeApiCall {
+            treeherderApiService.getJobsForPush(pushId = pushId, count = count, page = page)
+        }
     }
 
     override suspend fun getArtifactsForTask(taskId: String): NetworkResult<ArtifactsResponse> {
