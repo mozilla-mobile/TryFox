@@ -25,7 +25,9 @@ import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DateAwareReleaseRepository
 import org.mozilla.tryfox.data.repositories.DownloadFileRepository
+import org.mozilla.tryfox.data.repositories.MajorVersionAwareReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
+import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
@@ -183,26 +185,7 @@ class HomeViewModel(
         }
 
         val newApps = releaseRepositories.associate { repository ->
-            repository.appName to repository.getLatestReleases()
-        }.mapValues { (appName, result) ->
-            val appState = appInfoMap[appName]
-            val apksResult = when (result) {
-                is NetworkResult.Success -> {
-                    val latestApks = getLatestApks(result.data)
-                    ApksResult.Success(convertParsedApksToUiModels(latestApks))
-                }
-
-                is NetworkResult.Error -> ApksResult.Error(
-                    "Error fetching $appName nightly builds: ${result.message}",
-                )
-            }
-            AppUiModel(
-                name = appName,
-                packageName = appState?.packageName ?: "",
-                installedVersion = appState?.version,
-                installedDate = appState?.formattedInstallDate,
-                apks = apksResult,
-            )
+            repository.appName to buildAppUiModel(repository, appInfoMap[repository.appName])
         }
 
         val isDownloading = newApps.values.any { app ->
@@ -232,6 +215,53 @@ class HomeViewModel(
         }
         val latestDateString = apks.maxOfOrNull { it.rawDateString ?: "" }
         return apks.filter { it.rawDateString == latestDateString }
+    }
+
+    private suspend fun buildAppUiModel(
+        repository: ReleaseRepository,
+        appState: AppState?,
+    ): AppUiModel {
+        val (apksResult, selectedReleaseMajor, availableReleaseMajors) =
+            if (repository is MajorVersionAwareReleaseRepository) {
+                when (val majorResult = repository.getAvailableReleaseMajors()) {
+                    is NetworkResult.Success -> {
+                        val selectedMajor = majorResult.data.firstOrNull()
+                        val releaseResult = if (selectedMajor != null) {
+                            repository.getReleasesForMajor(selectedMajor)
+                        } else {
+                            NetworkResult.Success(emptyList())
+                        }
+
+                        Triple(
+                            releaseResult.toApksResult(repository.appName),
+                            selectedMajor,
+                            majorResult.data,
+                        )
+                    }
+
+                    is NetworkResult.Error -> Triple(
+                        ApksResult.Error("Error fetching ${repository.appName} builds: ${majorResult.message}"),
+                        null,
+                        emptyList(),
+                    )
+                }
+            } else {
+                Triple(
+                    repository.getLatestReleases().toApksResult(repository.appName),
+                    null,
+                    emptyList(),
+                )
+            }
+
+        return AppUiModel(
+            name = repository.appName,
+            packageName = appState?.packageName ?: "",
+            installedVersion = appState?.version,
+            installedDate = appState?.formattedInstallDate,
+            apks = apksResult,
+            selectedReleaseMajor = selectedReleaseMajor,
+            availableReleaseMajors = availableReleaseMajors,
+        )
     }
 
     private fun convertParsedApksToUiModels(parsedApks: List<MozillaArchiveApk>): List<ApkUiModel> {
@@ -416,6 +446,36 @@ class HomeViewModel(
         }
     }
 
+    fun onReleaseVersionSelected(appName: String, majorVersion: Int) {
+        val repository =
+            releaseRepositories.firstOrNull { it.appName == appName } as? MajorVersionAwareReleaseRepository
+                ?: return
+
+        viewModelScope.launch(ioDispatcher) {
+            val currentState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
+            val appToUpdate = currentState.apps[appName] ?: return@launch
+
+            val updatedApps = currentState.apps.toMutableMap()
+            updatedApps[appName] = appToUpdate.copy(
+                apks = ApksResult.Loading,
+                selectedReleaseMajor = majorVersion,
+            )
+            _homeScreenState.value = currentState.copy(apps = updatedApps)
+
+            val newApksResult = repository.getReleasesForMajor(majorVersion).toApksResult(appName)
+
+            val latestState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
+            val latestApp = latestState.apps[appName] ?: return@launch
+            val finalUpdatedApps = latestState.apps.toMutableMap()
+            finalUpdatedApps[appName] = latestApp.copy(
+                apks = newApksResult,
+                selectedReleaseMajor = majorVersion,
+            )
+
+            _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
+        }
+    }
+
     private fun updateDate(
         appName: String,
         date: LocalDate?,
@@ -479,6 +539,19 @@ class HomeViewModel(
         _homeScreenState.update { currentState ->
             if (currentState !is HomeScreenState.Loaded) return@update currentState
             currentState.copy(tryfoxApp = null)
+        }
+    }
+
+    private fun NetworkResult<List<MozillaArchiveApk>>.toApksResult(appName: String): ApksResult {
+        return when (this) {
+            is NetworkResult.Success -> {
+                val latestApks = getLatestApks(data)
+                ApksResult.Success(convertParsedApksToUiModels(latestApks))
+            }
+
+            is NetworkResult.Error -> ApksResult.Error(
+                "Error fetching $appName builds: $message",
+            )
         }
     }
 

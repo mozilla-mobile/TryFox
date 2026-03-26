@@ -40,6 +40,7 @@
     <string name="archive_group_card_supported_apks">Supported by your device (%1$d)</string>
     <string name="archive_group_card_unsupported_apks">Not supported by your device (%1$d)</string>
     <string name="archive_group_card_no_apks_for_date">No APKs found for this date.</string>
+    <string name="archive_group_card_no_apks_for_release_version">No APKs found for this release.</string>
     <string name="profile_screen_title">Profile</string>
     <string name="profile_screen_loading_pushes">Loading pushes…</string>
     <string name="profile_screen_no_pushes_found">No pushes found for this author.</string>
@@ -60,6 +61,7 @@
     <string name="app_name_reference_browser">Reference Browser</string>
     <string name="unsupported_abi">Unsupported ABI</string>
     <string name="clear_date_selection">Clear date selection</string>
+    <string name="release_version_chip_description">Select Firefox Release version</string>
     <string name="uninstall_button_label">Uninstall</string>
     <string name="installed_chip_label">Installed</string>
     <string name="not_installed_chip_label">Not installed</string>

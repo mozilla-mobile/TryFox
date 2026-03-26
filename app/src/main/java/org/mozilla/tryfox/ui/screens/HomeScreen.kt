@@ -185,6 +185,9 @@ fun HomeScreen(
                                 },
                                 dateValidator = homeViewModel.getDateValidator(app.name),
                                 onClearDate = { appName -> homeViewModel.onClearDate(appName) },
+                                onReleaseVersionSelected = { appName, majorVersion ->
+                                    homeViewModel.onReleaseVersionSelected(appName, majorVersion)
+                                },
                             )
                         }
                     }
@@ -232,6 +235,7 @@ fun AppComponent(
     onDateSelected: (String, LocalDate) -> Unit,
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: (String) -> Unit,
+    onReleaseVersionSelected: (String, Int) -> Unit,
 ) {
     val apksResult = app.apks
 
@@ -264,6 +268,9 @@ fun AppComponent(
         },
         onDateSelected = { date -> onDateSelected(app.name, date) },
         userPickedDate = app.userPickedDate,
+        selectedReleaseMajor = app.selectedReleaseMajor,
+        availableReleaseMajors = app.availableReleaseMajors,
+        onReleaseVersionSelected = { major -> onReleaseVersionSelected(app.name, major) },
         appName = app.name,
         errorMessage = (apksResult as? ApksResult.Error)?.message,
         isLoading = apksResult is ApksResult.Loading,

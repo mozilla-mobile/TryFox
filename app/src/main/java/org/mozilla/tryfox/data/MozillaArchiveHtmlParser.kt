@@ -2,7 +2,6 @@ package org.mozilla.tryfox.data
 
 import kotlinx.datetime.LocalDate
 import org.mozilla.tryfox.model.MozillaArchiveApk
-import org.mozilla.tryfox.util.Version
 import java.util.regex.Pattern
 
 class MozillaArchiveHtmlParser {
@@ -34,6 +33,10 @@ class MozillaArchiveHtmlParser {
     }
 
     fun parseFenixReleasesFromHtml(html: String, releaseType: ReleaseType = ReleaseType.Beta): String {
+        return parseFenixReleaseVersionsFromHtml(html, releaseType).firstOrNull() ?: ""
+    }
+
+    fun parseFenixReleaseVersionsFromHtml(html: String, releaseType: ReleaseType = ReleaseType.Beta): List<String> {
         val releasePattern = Regex("<a href=\"[^\"]+\">([0-9.]+[a-zA-Z0-9.-]*)/</a>")
         val rawReleaseStrings = releasePattern.findAll(html)
             .mapNotNull { it.groups[1]?.value }
@@ -41,26 +44,28 @@ class MozillaArchiveHtmlParser {
 
         return when (releaseType) {
             ReleaseType.Beta -> {
-                // Filter for beta versions only (containing 'b')
-                val betaReleases = rawReleaseStrings.filter { version ->
+                rawReleaseStrings.filter { version ->
                     version.contains(Regex("[ab]\\d+"))
-                }
-                betaReleases.maxWithOrNull(::compareReleaseVersions) ?: ""
+                }.sortedWith(::compareReleaseVersions).reversed()
             }
             ReleaseType.Release -> {
-                // Filter for stable releases matching pattern: D+.D+(.D+)?
-                // Exclude beta versions (containing 'b', 'beta', 'a', 'alpha', etc.)
-                val stableReleases = rawReleaseStrings.filter { version ->
-                    // Check if it matches the pattern D+.D+(.D+)? and has no pre-release identifier
-                    val isBeta = version.contains(Regex("[ab]\\d+|beta|alpha|rc"))
-                    !isBeta && version.matches(Regex("\\d+\\.\\d+(\\.\\d+)?"))
-                }
-
-                // Use Version comparison to find the latest stable release
-                stableReleases.mapNotNull { Version.from(it) }
-                    .maxOrNull()?.toString() ?: ""
+                rawReleaseStrings.filter(::isStableReleaseVersion)
+                    .sortedWith(::compareReleaseVersions)
+                    .reversed()
             }
         }
+    }
+
+    fun parseFenixReleaseMajorsFromHtml(html: String): List<Int> {
+        return parseFenixReleaseVersionsFromHtml(html, ReleaseType.Release)
+            .mapNotNull { version -> version.substringBefore('.').toIntOrNull() }
+            .distinct()
+    }
+
+    fun parseLatestFenixReleaseForMajor(html: String, majorVersion: Int): String {
+        return parseFenixReleaseVersionsFromHtml(html, ReleaseType.Release)
+            .firstOrNull { version -> version.substringBefore('.').toIntOrNull() == majorVersion }
+            ?: ""
     }
 
     fun parseFenixReleaseAbisFromHtml(html: String, appName: String): List<String> {
@@ -106,6 +111,11 @@ class MozillaArchiveHtmlParser {
             }
         }
         return 0
+    }
+
+    private fun isStableReleaseVersion(version: String): Boolean {
+        val isPreRelease = version.contains(Regex("[ab]\\d+|beta|alpha|rc", RegexOption.IGNORE_CASE))
+        return !isPreRelease && version.matches(Regex("\\d+\\.\\d+(\\.\\d+)?"))
     }
 
     private fun parseBuildString(buildString: String, archiveUrl: String): MozillaArchiveApk? {

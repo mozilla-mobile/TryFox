@@ -45,36 +45,83 @@ class DefaultMozillaArchiveRepository(
 
     override suspend fun getFenixReleaseBuilds(releaseType: ReleaseType): NetworkResult<List<MozillaArchiveApk>> {
         return try {
-            // Get the latest release version
-            val releasesPageUrl = RELEASES_FENIX_BASE_URL
-            val releasesHtml = mozillaArchivesApiService.getHtmlPage(releasesPageUrl)
+            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
             val latestReleaseVersion = mozillaArchiveHtmlParser.parseFenixReleasesFromHtml(releasesHtml, releaseType)
 
             if (latestReleaseVersion.isEmpty()) {
                 return NetworkResult.Error("No releases found for type $releaseType", null)
             }
 
-            // Get the release directory listing to find available ABIs
-            val releaseUrl = archiveUrlForRelease(latestReleaseVersion)
-            val releaseHtml = mozillaArchivesApiService.getHtmlPage(releaseUrl)
-            val abis = mozillaArchiveHtmlParser.parseFenixReleaseAbisFromHtml(releaseHtml, FENIX)
-
-            if (abis.isEmpty()) {
-                return NetworkResult.Error("No ABIs found for release $latestReleaseVersion", null)
-            }
-
-            val apks = abis.map { abi ->
-                constructReleaseApk(latestReleaseVersion, abi, releaseUrl, releaseType)
-            }
-
-            if (apks.isEmpty()) {
-                return NetworkResult.Error("Failed to construct APKs for release $latestReleaseVersion", null)
-            }
-
-            NetworkResult.Success(apks)
+            fetchReleaseApksForVersion(latestReleaseVersion, releaseType)
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch or parse Fenix releases: ${e.message}", e)
         }
+    }
+
+    override suspend fun getFenixReleaseMajorVersions(releaseType: ReleaseType): NetworkResult<List<Int>> {
+        return try {
+            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
+            val releaseMajors = when (releaseType) {
+                ReleaseType.Release -> mozillaArchiveHtmlParser.parseFenixReleaseMajorsFromHtml(releasesHtml)
+                ReleaseType.Beta -> mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
+                    .mapNotNull { version -> version.substringBefore('.').toIntOrNull() }
+                    .distinct()
+            }
+
+            if (releaseMajors.isEmpty()) {
+                return NetworkResult.Error("No release major versions found for type $releaseType", null)
+            }
+
+            NetworkResult.Success(releaseMajors)
+        } catch (e: Exception) {
+            NetworkResult.Error("Failed to fetch Fenix release major versions: ${e.message}", e)
+        }
+    }
+
+    override suspend fun getFenixReleaseBuildsForMajor(
+        majorVersion: Int,
+        releaseType: ReleaseType,
+    ): NetworkResult<List<MozillaArchiveApk>> {
+        return try {
+            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
+            val resolvedVersion = when (releaseType) {
+                ReleaseType.Release -> mozillaArchiveHtmlParser.parseLatestFenixReleaseForMajor(releasesHtml, majorVersion)
+                ReleaseType.Beta -> mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
+                    .firstOrNull { version -> version.substringBefore('.').toIntOrNull() == majorVersion }
+                    ?: ""
+            }
+
+            if (resolvedVersion.isEmpty()) {
+                return NetworkResult.Error("No releases found for major version $majorVersion", null)
+            }
+
+            fetchReleaseApksForVersion(resolvedVersion, releaseType)
+        } catch (e: Exception) {
+            NetworkResult.Error("Failed to fetch Fenix release $majorVersion: ${e.message}", e)
+        }
+    }
+
+    private suspend fun fetchReleaseApksForVersion(
+        version: String,
+        releaseType: ReleaseType,
+    ): NetworkResult<List<MozillaArchiveApk>> {
+        val releaseUrl = archiveUrlForRelease(version)
+        val releaseHtml = mozillaArchivesApiService.getHtmlPage(releaseUrl)
+        val abis = mozillaArchiveHtmlParser.parseFenixReleaseAbisFromHtml(releaseHtml, FENIX)
+
+        if (abis.isEmpty()) {
+            return NetworkResult.Error("No ABIs found for release $version", null)
+        }
+
+        val apks = abis.map { abi ->
+            constructReleaseApk(version, abi, releaseUrl, releaseType)
+        }
+
+        if (apks.isEmpty()) {
+            return NetworkResult.Error("Failed to construct APKs for release $version", null)
+        }
+
+        return NetworkResult.Success(apks)
     }
 
     private fun constructReleaseApk(version: String, abi: String, releaseBaseUrl: String, releaseType: ReleaseType): MozillaArchiveApk {

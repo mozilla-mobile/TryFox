@@ -22,4 +22,11 @@ interface MozillaArchiveRepository {
      * @return List of available MozillaArchiveApk for the release
      */
     suspend fun getFenixReleaseBuilds(releaseType: ReleaseType = ReleaseType.Beta): NetworkResult<List<MozillaArchiveApk>>
+
+    suspend fun getFenixReleaseMajorVersions(releaseType: ReleaseType = ReleaseType.Release): NetworkResult<List<Int>>
+
+    suspend fun getFenixReleaseBuildsForMajor(
+        majorVersion: Int,
+        releaseType: ReleaseType = ReleaseType.Release,
+    ): NetworkResult<List<MozillaArchiveApk>>
 }

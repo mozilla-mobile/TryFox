@@ -10,10 +10,18 @@ import org.mozilla.tryfox.util.FENIX_RELEASE
  */
 class FenixReleaseReleaseRepository(
     private val mozillaArchiveRepository: MozillaArchiveRepository,
-) : ReleaseRepository {
+) : MajorVersionAwareReleaseRepository {
     override val appName: String = FENIX_RELEASE
 
     override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
         return mozillaArchiveRepository.getFenixReleaseBuilds(ReleaseType.Release)
+    }
+
+    override suspend fun getAvailableReleaseMajors(): NetworkResult<List<Int>> {
+        return mozillaArchiveRepository.getFenixReleaseMajorVersions(ReleaseType.Release)
+    }
+
+    override suspend fun getReleasesForMajor(majorVersion: Int): NetworkResult<List<MozillaArchiveApk>> {
+        return mozillaArchiveRepository.getFenixReleaseBuildsForMajor(majorVersion, ReleaseType.Release)
     }
 }

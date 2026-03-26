@@ -16,6 +16,8 @@ data class AppUiModel(
     val installedDate: String?,
     val apks: ApksResult,
     val userPickedDate: LocalDate? = null,
+    val selectedReleaseMajor: Int? = null,
+    val availableReleaseMajors: List<Int> = emptyList(),
 )
 
 val AppUiModel.newVersionAvailable: Boolean

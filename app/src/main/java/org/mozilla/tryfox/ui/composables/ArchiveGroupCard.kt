@@ -1,16 +1,23 @@
 package org.mozilla.tryfox.ui.composables
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AssistChip
@@ -21,6 +28,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,6 +39,7 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -42,7 +52,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.Clock
 import kotlinx.datetime.Instant
@@ -83,11 +96,14 @@ fun ArchiveGroupCard(
     appState: AppState?,
     onDateSelected: (LocalDate) -> Unit,
     userPickedDate: LocalDate?,
+    selectedReleaseMajor: Int?,
+    availableReleaseMajors: List<Int>,
     appName: String,
     errorMessage: String?,
     isLoading: Boolean,
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: () -> Unit,
+    onReleaseVersionSelected: (Int) -> Unit,
 ) {
     ElevatedCard(
         modifier =
@@ -112,10 +128,13 @@ fun ArchiveGroupCard(
                 date = dateFromApk,
                 onDateSelected = onDateSelected,
                 userPickedDate = userPickedDate,
+                selectedReleaseMajor = selectedReleaseMajor,
+                availableReleaseMajors = availableReleaseMajors,
                 isDatePickerEnabled = isDatePickerEnabled,
                 dateValidator = dateValidator,
                 onClearDate = onClearDate,
                 onOpenAppClick = onOpenAppClick,
+                onReleaseVersionSelected = onReleaseVersionSelected,
             )
             Spacer(modifier = Modifier.height(ArchiveGroupCardTokens.SpacerHeight))
 
@@ -152,7 +171,13 @@ fun ArchiveGroupCard(
 
                 else -> {
                     Text(
-                        stringResource(id = R.string.archive_group_card_no_apks_for_date),
+                        stringResource(
+                            id = if (appName == FENIX_RELEASE) {
+                                R.string.archive_group_card_no_apks_for_release_version
+                            } else {
+                                R.string.archive_group_card_no_apks_for_date
+                            },
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(top = ArchiveGroupCardTokens.NoApksPaddingTop),
                     )
@@ -171,13 +196,17 @@ private fun ArchiveGroupHeader(
     onDateSelected: (LocalDate) -> Unit,
     onOpenAppClick: () -> Unit,
     userPickedDate: LocalDate?,
+    selectedReleaseMajor: Int?,
+    availableReleaseMajors: List<Int>,
     isDatePickerEnabled: Boolean,
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: () -> Unit,
+    onReleaseVersionSelected: (Int) -> Unit,
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     val displayDate = userPickedDate?.toString() ?: date
     val friendlyAppName = getFriendlyAppName(appName)
+    val isFenixRelease = appName == FENIX_RELEASE
 
     Row(verticalAlignment = Alignment.CenterVertically) {
         AppIcon(
@@ -186,14 +215,29 @@ private fun ArchiveGroupHeader(
                 .size(ArchiveGroupCardTokens.AppIconSize)
                 .clickable { onOpenAppClick() },
         )
-        Text(
-            text = "$friendlyAppName $version",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
-        )
+        if (isFenixRelease) {
+            Text(
+                text = friendlyAppName,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+            ReleaseVersionSelector(
+                selectedReleaseMajor = selectedReleaseMajor ?: version.substringBefore('.').toIntOrNull(),
+                availableReleaseMajors = availableReleaseMajors,
+                onReleaseVersionSelected = onReleaseVersionSelected,
+            )
+        } else {
+            Text(
+                text = "$friendlyAppName $version",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
+            )
+        }
         Spacer(modifier = Modifier.weight(1f))
-        if (displayDate.isNotBlank()) {
+        if (!isFenixRelease && displayDate.isNotBlank()) {
             val chipColors = if (userPickedDate != null) {
                 AssistChipDefaults.assistChipColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
@@ -261,6 +305,79 @@ private fun ArchiveGroupHeader(
             },
         ) {
             DatePicker(state = datePickerState)
+        }
+    }
+}
+
+@Composable
+private fun ReleaseVersionSelector(
+    selectedReleaseMajor: Int?,
+    availableReleaseMajors: List<Int>,
+    onReleaseVersionSelected: (Int) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedMajor = selectedReleaseMajor ?: availableReleaseMajors.firstOrNull()
+
+    Box {
+        Surface(
+            modifier = Modifier
+                .clickable(enabled = availableReleaseMajors.isNotEmpty()) { expanded = true }
+                .semantics {
+                    contentDescription = "Selected Firefox Release major version ${selectedMajor ?: ""}"
+                },
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outlineVariant,
+            ),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            ) {
+                Text(
+                    text = selectedMajor?.toString() ?: "--",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                    contentDescription = stringResource(R.string.release_version_chip_description),
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            offset = DpOffset(x = 0.dp, y = 4.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 280.dp)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                availableReleaseMajors.forEach { majorVersion ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = majorVersion.toString(),
+                                fontWeight = if (majorVersion == selectedMajor) {
+                                    FontWeight.SemiBold
+                                } else {
+                                    FontWeight.Normal
+                                },
+                            )
+                        },
+                        onClick = {
+                            expanded = false
+                            onReleaseVersionSelected(majorVersion)
+                        },
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+                    )
+                }
+            }
         }
     }
 }

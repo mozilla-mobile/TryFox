@@ -36,6 +36,7 @@ import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
 import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
+import org.mozilla.tryfox.data.repositories.FenixReleaseReleaseRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.model.AppState
@@ -45,6 +46,7 @@ import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.util.FENIX
+import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
@@ -71,6 +73,7 @@ class HomeViewModelTest {
     lateinit var tempCacheDir: File
 
     private val testFenixAppName = FENIX
+    private val testFenixReleaseAppName = FENIX_RELEASE
     private val testFocusAppName = FOCUS
     private val testReferenceBrowserAppName = REFERENCE_BROWSER
     private val testTryFoxAppName = TRYFOX
@@ -143,6 +146,22 @@ class HomeViewModelTest {
             downloadState = downloadState,
             uniqueKey = uniqueKey,
             apkDir = apkDir,
+        )
+    }
+
+    private fun createTestParsedReleaseApk(
+        version: String,
+        abi: String = testAbi,
+    ): MozillaArchiveApk {
+        val fileName = "fenix-$version.multi.android-$abi.apk"
+        return MozillaArchiveApk(
+            originalString = "fenix-$version-android-$abi/",
+            rawDateString = "",
+            appName = testFenixReleaseAppName,
+            version = version,
+            abiName = abi,
+            fullUrl = "https://archive.mozilla.org/pub/fenix/releases/$version/android/fenix-$version-android-$abi/$fileName",
+            fileName = fileName,
         )
     }
 
@@ -278,6 +297,68 @@ class HomeViewModelTest {
             newerFenixParsed.rawDateString?.formatApkDateForTest(),
             fenixApksResult.apks.first().date,
         )
+    }
+
+    @Test
+    fun `initialLoad with Fenix Release majors should select latest major and expose picker options`() = runTest {
+        val latestReleaseApk = createTestParsedReleaseApk(version = "145.0.1")
+        val releaseRepositories = listOf(
+            FenixReleaseReleaseRepository(
+                FakeMozillaArchiveRepository(
+                    fenixReleaseMajors = NetworkResult.Success(listOf(145, 144, 143)),
+                    fenixReleasesByMajor = mapOf(
+                        145 to NetworkResult.Success(listOf(latestReleaseApk)),
+                    ),
+                ),
+            ),
+        )
+
+        viewModel = createViewModel(releaseRepositories = releaseRepositories)
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        val fenixReleaseApp = state.apps[FENIX_RELEASE]
+
+        assertNotNull(fenixReleaseApp)
+        assertEquals(145, fenixReleaseApp!!.selectedReleaseMajor)
+        assertEquals(listOf(145, 144, 143), fenixReleaseApp.availableReleaseMajors)
+        assertTrue(fenixReleaseApp.apks is ApksResult.Success)
+        assertEquals("145.0.1", (fenixReleaseApp.apks as ApksResult.Success).apks.first().version)
+    }
+
+    @Test
+    fun `onReleaseVersionSelected should reload Fenix Release APKs for selected major`() = runTest {
+        val latestReleaseApk = createTestParsedReleaseApk(version = "145.0.1")
+        val olderReleaseApk = createTestParsedReleaseApk(version = "144.0.2")
+        val releaseRepositories = listOf(
+            FenixReleaseReleaseRepository(
+                FakeMozillaArchiveRepository(
+                    fenixReleaseMajors = NetworkResult.Success(listOf(145, 144)),
+                    fenixReleasesByMajor = mapOf(
+                        145 to NetworkResult.Success(listOf(latestReleaseApk)),
+                        144 to NetworkResult.Success(listOf(olderReleaseApk)),
+                    ),
+                ),
+            ),
+        )
+
+        viewModel = createViewModel(releaseRepositories = releaseRepositories)
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        viewModel.onReleaseVersionSelected(FENIX_RELEASE, 144)
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        val fenixReleaseApp = state.apps[FENIX_RELEASE]
+
+        assertNotNull(fenixReleaseApp)
+        assertEquals(144, fenixReleaseApp!!.selectedReleaseMajor)
+        assertEquals("144.0.2", (fenixReleaseApp.apks as ApksResult.Success).apks.first().version)
     }
 
     @Test
