@@ -124,6 +124,45 @@ class FenixReleaseTest {
         }
     }
 
+    @Test
+    fun `test getFocusReleaseMajorVersions returns stable major versions`() = runBlocking {
+        val mockApiService: MozillaArchivesApiService = mock()
+        val releasesListHtml = loadHtmlResource("fenix-releases-page.html")
+
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FOCUS_BASE_URL))
+            .thenReturn(releasesListHtml)
+
+        val repository = DefaultMozillaArchiveRepository(mockApiService)
+        val result = repository.getFocusReleaseMajorVersions()
+
+        assertTrue(result is NetworkResult.Success)
+        if (result is NetworkResult.Success) {
+            assertEquals(listOf(145, 144, 143, 142), result.data.take(4))
+        }
+    }
+
+    @Test
+    fun `test getFocusReleaseBuildsForMajor resolves latest stable patch`() = runBlocking {
+        val mockApiService: MozillaArchivesApiService = mock()
+        val releasesListHtml = loadHtmlResource("fenix-releases-major-selection.html")
+        val releaseDetailsHtml = loadHtmlResource("focus-releases-147.html")
+
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FOCUS_BASE_URL))
+            .thenReturn(releasesListHtml)
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForRelease(DefaultMozillaArchiveRepository.RELEASES_FOCUS_BASE_URL, "146.0.1")))
+            .thenReturn(releaseDetailsHtml)
+
+        val repository = DefaultMozillaArchiveRepository(mockApiService)
+        val result = repository.getFocusReleaseBuildsForMajor(146)
+
+        assertTrue(result is NetworkResult.Success)
+        if (result is NetworkResult.Success) {
+            assertTrue(result.data.all { it.version == "146.0.1" })
+            assertTrue(result.data.all { it.appName == "focus-release" })
+            assertTrue(result.data.any { it.fullUrl.contains("focus-146.0.1.multi.android-arm64-v8a.apk") })
+        }
+    }
+
     // Tests for parseFenixReleasesFromHtml
 
     @Test

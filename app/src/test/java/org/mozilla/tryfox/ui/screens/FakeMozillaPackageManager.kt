@@ -8,6 +8,7 @@ import org.mozilla.tryfox.util.FENIX_BETA_PACKAGE
 import org.mozilla.tryfox.util.FENIX_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE_PACKAGE
 import org.mozilla.tryfox.util.FOCUS_NIGHTLY_PACKAGE
+import org.mozilla.tryfox.util.FOCUS_RELEASE_PACKAGE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER_PACKAGE
 import org.mozilla.tryfox.util.TRYFOX_PACKAGE
 
@@ -25,7 +26,10 @@ class FakeMozillaPackageManager(
         get() = apps[FENIX_BETA_PACKAGE] ?: AppState("Firefox Beta", FENIX_BETA_PACKAGE, null, null)
 
     override val focus: AppState
-        get() = apps[FOCUS_NIGHTLY_PACKAGE] ?: AppState("Focus", FOCUS_NIGHTLY_PACKAGE, null, null)
+        get() = apps[FOCUS_NIGHTLY_PACKAGE] ?: AppState("Focus Nightly", FOCUS_NIGHTLY_PACKAGE, null, null)
+
+    override val focusRelease: AppState
+        get() = apps[FOCUS_RELEASE_PACKAGE] ?: AppState("Focus Release", FOCUS_RELEASE_PACKAGE, null, null)
 
     override val referenceBrowser: AppState
         get() = apps[REFERENCE_BROWSER_PACKAGE] ?: AppState("Reference Browser", REFERENCE_BROWSER_PACKAGE, null, null)

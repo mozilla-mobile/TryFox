@@ -1,0 +1,23 @@
+package org.mozilla.tryfox.data.repositories
+
+import kotlinx.datetime.LocalDate
+import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.model.MozillaArchiveApk
+import org.mozilla.tryfox.util.FOCUS
+
+/**
+ * A [ReleaseRepository] for Focus Nightly builds.
+ */
+class FocusNightlyRepository(
+    private val mozillaArchiveRepository: MozillaArchiveRepository,
+) : DateAwareReleaseRepository {
+    override val appName: String = FOCUS
+
+    override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
+        return mozillaArchiveRepository.getFocusNightlyBuilds()
+    }
+
+    override suspend fun getReleases(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> {
+        return mozillaArchiveRepository.getFocusNightlyBuilds(date)
+    }
+}

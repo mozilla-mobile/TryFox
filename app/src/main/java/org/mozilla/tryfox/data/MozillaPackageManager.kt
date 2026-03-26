@@ -29,6 +29,11 @@ interface MozillaPackageManager {
     val focus: AppState
 
     /**
+     * The [AppState] for Focus Release.
+     */
+    val focusRelease: AppState
+
+    /**
      * The [AppState] for Reference Browser.
      */
     val referenceBrowser: AppState

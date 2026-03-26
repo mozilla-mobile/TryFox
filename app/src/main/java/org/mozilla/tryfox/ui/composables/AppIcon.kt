@@ -13,6 +13,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 
 @Composable
@@ -23,6 +24,7 @@ fun AppIcon(appName: String, modifier: Modifier = Modifier) {
         appName == FENIX_BETA -> R.drawable.ic_firefox_beta to R.string.app_icon_firefox_description
         appName == FENIX_RELEASE -> R.drawable.ic_firefox to R.string.app_icon_firefox_description
         appName == FOCUS -> R.drawable.ic_focus to R.string.app_icon_focus_description
+        appName == FOCUS_RELEASE -> R.drawable.ic_focus to R.string.app_icon_focus_description
         else -> {
             println("Titouan - Error - $appName")
             null to null

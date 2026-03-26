@@ -70,6 +70,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.FeatureFlags
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.parseDateToLocalDate
@@ -115,7 +116,8 @@ fun ArchiveGroupCard(
         val firstApk = apks.firstOrNull()
         val version = firstApk?.version ?: ""
         val dateFromApk = firstApk?.date ?: ""
-        val isDatePickerEnabled = appName != REFERENCE_BROWSER
+        val hasReleaseVersionPicker = appName == FENIX_RELEASE || appName == FOCUS_RELEASE
+        val isDatePickerEnabled = appName != REFERENCE_BROWSER && !hasReleaseVersionPicker
 
         Column(modifier = Modifier.padding(ArchiveGroupCardTokens.ColumnPadding)) {
             CurrentInstallState(
@@ -130,6 +132,7 @@ fun ArchiveGroupCard(
                 userPickedDate = userPickedDate,
                 selectedReleaseMajor = selectedReleaseMajor,
                 availableReleaseMajors = availableReleaseMajors,
+                hasReleaseVersionPicker = hasReleaseVersionPicker,
                 isDatePickerEnabled = isDatePickerEnabled,
                 dateValidator = dateValidator,
                 onClearDate = onClearDate,
@@ -172,7 +175,7 @@ fun ArchiveGroupCard(
                 else -> {
                     Text(
                         stringResource(
-                            id = if (appName == FENIX_RELEASE) {
+                            id = if (hasReleaseVersionPicker) {
                                 R.string.archive_group_card_no_apks_for_release_version
                             } else {
                                 R.string.archive_group_card_no_apks_for_date
@@ -198,6 +201,7 @@ private fun ArchiveGroupHeader(
     userPickedDate: LocalDate?,
     selectedReleaseMajor: Int?,
     availableReleaseMajors: List<Int>,
+    hasReleaseVersionPicker: Boolean,
     isDatePickerEnabled: Boolean,
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: () -> Unit,
@@ -206,38 +210,45 @@ private fun ArchiveGroupHeader(
     var showDatePicker by remember { mutableStateOf(false) }
     val displayDate = userPickedDate?.toString() ?: date
     val friendlyAppName = getFriendlyAppName(appName)
-    val isFenixRelease = appName == FENIX_RELEASE
+    val showsReleaseVersionPicker = hasReleaseVersionPicker
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        AppIcon(
-            appName = appName,
-            modifier = Modifier
-                .size(ArchiveGroupCardTokens.AppIconSize)
-                .clickable { onOpenAppClick() },
-        )
-        if (isFenixRelease) {
-            Text(
-                text = friendlyAppName,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.testTag("app_header_row_${appName.lowercase()}"),
+        ) {
+            AppIcon(
+                appName = appName,
+                modifier = Modifier
+                    .size(ArchiveGroupCardTokens.AppIconSize)
+                    .clickable { onOpenAppClick() },
             )
-            Spacer(modifier = Modifier.size(8.dp))
-            ReleaseVersionSelector(
-                selectedReleaseMajor = selectedReleaseMajor ?: version.substringBefore('.').toIntOrNull(),
-                availableReleaseMajors = availableReleaseMajors,
-                onReleaseVersionSelected = onReleaseVersionSelected,
-            )
-        } else {
-            Text(
-                text = "$friendlyAppName $version",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
-            )
+            if (showsReleaseVersionPicker) {
+                Text(
+                    text = friendlyAppName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                ReleaseVersionSelector(
+                    appName = appName,
+                    selectedReleaseMajor = selectedReleaseMajor ?: version.substringBefore('.').toIntOrNull(),
+                    availableReleaseMajors = availableReleaseMajors,
+                    onReleaseVersionSelected = onReleaseVersionSelected,
+                )
+            } else {
+                Text(
+                    text = "$friendlyAppName $version",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
+                )
+            }
+            Spacer(modifier = Modifier.weight(1f))
         }
-        Spacer(modifier = Modifier.weight(1f))
-        if (!isFenixRelease && displayDate.isNotBlank()) {
+
+        if (!showsReleaseVersionPicker && displayDate.isNotBlank()) {
             val chipColors = if (userPickedDate != null) {
                 AssistChipDefaults.assistChipColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
@@ -263,6 +274,10 @@ private fun ArchiveGroupHeader(
                         }
                     }
                 },
+                modifier = Modifier.padding(
+                    start = ArchiveGroupCardTokens.AppIconSize + 8.dp,
+                    top = 8.dp,
+                ).testTag("app_date_chip_${appName.lowercase()}"),
             )
         }
     }
@@ -311,6 +326,7 @@ private fun ArchiveGroupHeader(
 
 @Composable
 private fun ReleaseVersionSelector(
+    appName: String,
     selectedReleaseMajor: Int?,
     availableReleaseMajors: List<Int>,
     onReleaseVersionSelected: (Int) -> Unit,
@@ -324,7 +340,8 @@ private fun ReleaseVersionSelector(
                 .clickable(enabled = availableReleaseMajors.isNotEmpty()) { expanded = true }
                 .semantics {
                     contentDescription = "Selected Firefox Release major version ${selectedMajor ?: ""}"
-                },
+                }
+                .testTag("release_version_chip_${appName.lowercase()}"),
             shape = MaterialTheme.shapes.medium,
             color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
             border = BorderStroke(
@@ -471,6 +488,7 @@ private fun getFriendlyAppName(appName: String): String =
         FENIX_RELEASE -> stringResource(R.string.app_name_fenix_release)
         FENIX_BETA -> stringResource(R.string.app_name_fenix_beta)
         FOCUS -> stringResource(id = R.string.app_name_focus)
+        FOCUS_RELEASE -> stringResource(id = R.string.app_name_focus_release)
         REFERENCE_BROWSER -> stringResource(R.string.app_name_reference_browser)
         else -> appName
     }

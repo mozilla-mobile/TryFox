@@ -29,4 +29,10 @@ interface MozillaArchiveRepository {
         majorVersion: Int,
         releaseType: ReleaseType = ReleaseType.Release,
     ): NetworkResult<List<MozillaArchiveApk>>
+
+    suspend fun getFocusReleaseBuilds(): NetworkResult<List<MozillaArchiveApk>>
+
+    suspend fun getFocusReleaseMajorVersions(): NetworkResult<List<Int>>
+
+    suspend fun getFocusReleaseBuildsForMajor(majorVersion: Int): NetworkResult<List<MozillaArchiveApk>>
 }

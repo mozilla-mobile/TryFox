@@ -37,6 +37,7 @@ import org.mozilla.tryfox.data.managers.FakeIntentManager
 import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseReleaseRepository
+import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.model.AppState
@@ -48,6 +49,7 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
 import java.io.File
@@ -75,6 +77,7 @@ class HomeViewModelTest {
     private val testFenixAppName = FENIX
     private val testFenixReleaseAppName = FENIX_RELEASE
     private val testFocusAppName = FOCUS
+    private val testFocusReleaseAppName = FOCUS_RELEASE
     private val testReferenceBrowserAppName = REFERENCE_BROWSER
     private val testTryFoxAppName = TRYFOX
     private val testVersion = "125.0a1"
@@ -151,16 +154,17 @@ class HomeViewModelTest {
 
     private fun createTestParsedReleaseApk(
         version: String,
+        appName: String = testFenixReleaseAppName,
         abi: String = testAbi,
     ): MozillaArchiveApk {
-        val fileName = "fenix-$version.multi.android-$abi.apk"
+        val fileName = "$appName-$version.multi.android-$abi.apk"
         return MozillaArchiveApk(
-            originalString = "fenix-$version-android-$abi/",
+            originalString = "$appName-$version-android-$abi/",
             rawDateString = "",
-            appName = testFenixReleaseAppName,
+            appName = appName,
             version = version,
             abiName = abi,
-            fullUrl = "https://archive.mozilla.org/pub/fenix/releases/$version/android/fenix-$version-android-$abi/$fileName",
+            fullUrl = "https://archive.mozilla.org/pub/$appName/releases/$version/android/$appName-$version-android-$abi/$fileName",
             fileName = fileName,
         )
     }
@@ -214,6 +218,8 @@ class HomeViewModelTest {
             createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
         val focusParsed =
             createTestParsedNightlyApk(testFocusAppName, testDateRaw, "126.0a1", "x86_64")
+        val focusReleaseParsed =
+            createTestParsedReleaseApk("126.0.1", appName = testFocusReleaseAppName, abi = "x86_64")
         val rbParsed = createTestParsedNightlyApk(
             testReferenceBrowserAppName,
             testDateRaw,
@@ -225,7 +231,13 @@ class HomeViewModelTest {
 
         val releaseRepositories = listOf(
             FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(fenixParsed)))),
-            FocusReleaseRepository(FakeMozillaArchiveRepository(focusBuilds = NetworkResult.Success(listOf(focusParsed)))),
+            FocusNightlyRepository(FakeMozillaArchiveRepository(focusBuilds = NetworkResult.Success(listOf(focusParsed)))),
+            FocusReleaseRepository(
+                FakeMozillaArchiveRepository(
+                    focusReleaseMajors = NetworkResult.Success(listOf(126)),
+                    focusReleasesByMajor = mapOf(126 to NetworkResult.Success(listOf(focusReleaseParsed))),
+                ),
+            ),
             FakeReferenceBrowserReleaseRepository(releases = NetworkResult.Success(listOf(rbParsed))),
             FakeTryFoxReleaseRepository(releases = NetworkResult.Success(listOf(tryFoxParsed))),
         )
@@ -252,6 +264,12 @@ class HomeViewModelTest {
         assertNotNull(focusApp)
         assertTrue(focusApp!!.apks is ApksResult.Success, "Focus builds should be Success")
         assertEquals(1, (focusApp.apks as ApksResult.Success).apks.size)
+
+        val focusReleaseApp = loadedState.apps[FOCUS_RELEASE]
+        assertNotNull(focusReleaseApp)
+        assertTrue(focusReleaseApp!!.apks is ApksResult.Success, "Focus Release builds should be Success")
+        assertEquals(1, (focusReleaseApp.apks as ApksResult.Success).apks.size)
+        assertEquals(126, focusReleaseApp.selectedReleaseMajor)
 
         val rbApp = loadedState.apps[REFERENCE_BROWSER]
         assertNotNull(rbApp)
@@ -359,6 +377,38 @@ class HomeViewModelTest {
         assertNotNull(fenixReleaseApp)
         assertEquals(144, fenixReleaseApp!!.selectedReleaseMajor)
         assertEquals("144.0.2", (fenixReleaseApp.apks as ApksResult.Success).apks.first().version)
+    }
+
+    @Test
+    fun `onReleaseVersionSelected should reload Focus APKs for selected major`() = runTest {
+        val latestReleaseApk = createTestParsedReleaseApk(version = "147.0.1", appName = testFocusReleaseAppName)
+        val olderReleaseApk = createTestParsedReleaseApk(version = "146.0.1", appName = testFocusReleaseAppName)
+        val releaseRepositories = listOf(
+            FocusReleaseRepository(
+                FakeMozillaArchiveRepository(
+                    focusReleaseMajors = NetworkResult.Success(listOf(147, 146)),
+                    focusReleasesByMajor = mapOf(
+                        147 to NetworkResult.Success(listOf(latestReleaseApk)),
+                        146 to NetworkResult.Success(listOf(olderReleaseApk)),
+                    ),
+                ),
+            ),
+        )
+
+        viewModel = createViewModel(releaseRepositories = releaseRepositories)
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        viewModel.onReleaseVersionSelected(FOCUS_RELEASE, 146)
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        val focusApp = state.apps[FOCUS_RELEASE]
+
+        assertNotNull(focusApp)
+        assertEquals(146, focusApp!!.selectedReleaseMajor)
+        assertEquals("146.0.1", (focusApp.apks as ApksResult.Success).apks.first().version)
     }
 
     @Test

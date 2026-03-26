@@ -66,6 +66,7 @@ import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_NIGHTLY
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_RELEASE
 import java.util.Locale
 
 // Helper function to format app name for display
@@ -73,7 +74,8 @@ private fun formatAppNameForDisplay(appName: String): String {
     return when (appName.lowercase(Locale.getDefault())) {
         FENIX_NIGHTLY -> "Fenix Nightly"
         FENIX -> "Fenix"
-        FOCUS -> "Focus"
+        FOCUS -> "Focus Nightly"
+        FOCUS_RELEASE -> "Focus Release"
         else -> appName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
     }
 }

@@ -15,6 +15,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_RELEASE
 import retrofit2.HttpException
 
 class DefaultMozillaArchiveRepository(
@@ -26,6 +27,7 @@ class DefaultMozillaArchiveRepository(
     companion object {
         const val ARCHIVE_MOZILLA_BASE_URL = "https://archive.mozilla.org/pub/"
         const val RELEASES_FENIX_BASE_URL = "${ARCHIVE_MOZILLA_BASE_URL}fenix/releases/"
+        const val RELEASES_FOCUS_BASE_URL = "${ARCHIVE_MOZILLA_BASE_URL}focus/releases/"
 
         internal fun archiveUrlForDate(appName: String, date: LocalDate): String {
             val year = date.year.toString()
@@ -36,6 +38,10 @@ class DefaultMozillaArchiveRepository(
 
         internal fun archiveUrlForRelease(number: String): String {
             return "${RELEASES_FENIX_BASE_URL}$number/android/"
+        }
+
+        internal fun archiveUrlForRelease(baseUrl: String, number: String): String {
+            return "$baseUrl$number/android/"
         }
     }
 
@@ -52,9 +58,39 @@ class DefaultMozillaArchiveRepository(
                 return NetworkResult.Error("No releases found for type $releaseType", null)
             }
 
-            fetchReleaseApksForVersion(latestReleaseVersion, releaseType)
+            fetchReleaseApksForVersion(
+                version = latestReleaseVersion,
+                archiveBaseUrl = RELEASES_FENIX_BASE_URL,
+                archiveAppName = FENIX,
+                resultAppName = if (releaseType == ReleaseType.Release) FENIX_RELEASE else FENIX_BETA,
+                releaseType = releaseType,
+            )
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch or parse Fenix releases: ${e.message}", e)
+        }
+    }
+
+    override suspend fun getFocusReleaseBuilds(): NetworkResult<List<MozillaArchiveApk>> {
+        return try {
+            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
+            val latestReleaseVersion = mozillaArchiveHtmlParser.parseFenixReleasesFromHtml(
+                releasesHtml,
+                ReleaseType.Release,
+            )
+
+            if (latestReleaseVersion.isEmpty()) {
+                return NetworkResult.Error("No releases found for Focus", null)
+            }
+
+            fetchReleaseApksForVersion(
+                version = latestReleaseVersion,
+                archiveBaseUrl = RELEASES_FOCUS_BASE_URL,
+                archiveAppName = FOCUS,
+                resultAppName = FOCUS_RELEASE,
+                releaseType = ReleaseType.Release,
+            )
+        } catch (e: Exception) {
+            NetworkResult.Error("Failed to fetch or parse Focus releases: ${e.message}", e)
         }
     }
 
@@ -78,6 +114,21 @@ class DefaultMozillaArchiveRepository(
         }
     }
 
+    override suspend fun getFocusReleaseMajorVersions(): NetworkResult<List<Int>> {
+        return try {
+            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
+            val releaseMajors = mozillaArchiveHtmlParser.parseFenixReleaseMajorsFromHtml(releasesHtml)
+
+            if (releaseMajors.isEmpty()) {
+                return NetworkResult.Error("No Focus release major versions found", null)
+            }
+
+            NetworkResult.Success(releaseMajors)
+        } catch (e: Exception) {
+            NetworkResult.Error("Failed to fetch Focus release major versions: ${e.message}", e)
+        }
+    }
+
     override suspend fun getFenixReleaseBuildsForMajor(
         majorVersion: Int,
         releaseType: ReleaseType,
@@ -95,26 +146,56 @@ class DefaultMozillaArchiveRepository(
                 return NetworkResult.Error("No releases found for major version $majorVersion", null)
             }
 
-            fetchReleaseApksForVersion(resolvedVersion, releaseType)
+            fetchReleaseApksForVersion(
+                version = resolvedVersion,
+                archiveBaseUrl = RELEASES_FENIX_BASE_URL,
+                archiveAppName = FENIX,
+                resultAppName = if (releaseType == ReleaseType.Release) FENIX_RELEASE else FENIX_BETA,
+                releaseType = releaseType,
+            )
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch Fenix release $majorVersion: ${e.message}", e)
         }
     }
 
+    override suspend fun getFocusReleaseBuildsForMajor(majorVersion: Int): NetworkResult<List<MozillaArchiveApk>> {
+        return try {
+            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
+            val resolvedVersion = mozillaArchiveHtmlParser.parseLatestFenixReleaseForMajor(releasesHtml, majorVersion)
+
+            if (resolvedVersion.isEmpty()) {
+                return NetworkResult.Error("No Focus release found for major version $majorVersion", null)
+            }
+
+            fetchReleaseApksForVersion(
+                version = resolvedVersion,
+                archiveBaseUrl = RELEASES_FOCUS_BASE_URL,
+                archiveAppName = FOCUS,
+                resultAppName = FOCUS_RELEASE,
+                releaseType = ReleaseType.Release,
+            )
+        } catch (e: Exception) {
+            NetworkResult.Error("Failed to fetch Focus release $majorVersion: ${e.message}", e)
+        }
+    }
+
     private suspend fun fetchReleaseApksForVersion(
         version: String,
+        archiveBaseUrl: String,
+        archiveAppName: String,
+        resultAppName: String,
         releaseType: ReleaseType,
     ): NetworkResult<List<MozillaArchiveApk>> {
-        val releaseUrl = archiveUrlForRelease(version)
+        val releaseUrl = archiveUrlForRelease(archiveBaseUrl, version)
         val releaseHtml = mozillaArchivesApiService.getHtmlPage(releaseUrl)
-        val abis = mozillaArchiveHtmlParser.parseFenixReleaseAbisFromHtml(releaseHtml, FENIX)
+        val abis = mozillaArchiveHtmlParser.parseFenixReleaseAbisFromHtml(releaseHtml, archiveAppName)
 
         if (abis.isEmpty()) {
             return NetworkResult.Error("No ABIs found for release $version", null)
         }
 
         val apks = abis.map { abi ->
-            constructReleaseApk(version, abi, releaseUrl, releaseType)
+            constructReleaseApk(version, abi, releaseUrl, archiveAppName, resultAppName)
         }
 
         if (apks.isEmpty()) {
@@ -124,20 +205,21 @@ class DefaultMozillaArchiveRepository(
         return NetworkResult.Success(apks)
     }
 
-    private fun constructReleaseApk(version: String, abi: String, releaseBaseUrl: String, releaseType: ReleaseType): MozillaArchiveApk {
-        val buildString = "fenix-$version-android${if (abi == "universal") "" else "-$abi"}/"
-        val fileName = "fenix-$version.multi.android-$abi.apk"
+    private fun constructReleaseApk(
+        version: String,
+        abi: String,
+        releaseBaseUrl: String,
+        archiveAppName: String,
+        resultAppName: String,
+    ): MozillaArchiveApk {
+        val buildString = "$archiveAppName-$version-android${if (abi == "universal") "" else "-$abi"}/"
+        val fileName = "$archiveAppName-$version.multi.android-$abi.apk"
         val fullUrl = "${releaseBaseUrl}${buildString}$fileName"
-
-        val appName = when (releaseType) {
-            ReleaseType.Release -> FENIX_RELEASE
-            ReleaseType.Beta -> FENIX_BETA
-        }
 
         return MozillaArchiveApk(
             originalString = buildString,
             rawDateString = "", // Release builds don't have date strings
-            appName = appName,
+            appName = resultAppName,
             version = version,
             abiName = abi,
             fullUrl = fullUrl,
