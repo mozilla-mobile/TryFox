@@ -304,6 +304,7 @@ fun ProfileScreen(
                                         comment = push.pushComment,
                                         author = push.author,
                                         revision = push.revision ?: "unknown_revision",
+                                        pushTimestamp = push.pushTimestamp,
                                     )
                                     push.jobs.forEach { job ->
                                         JobCard(job = job, profileViewModel = profileViewModel)

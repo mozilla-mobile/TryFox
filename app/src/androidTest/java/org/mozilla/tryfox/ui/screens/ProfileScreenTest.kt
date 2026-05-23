@@ -73,6 +73,14 @@ class ProfileScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
+        val timestampChips = composeTestRule
+            .onAllNodesWithTag("push_timestamp_chip_fakerevision123", useUnmergedTree = true)
+            .fetchSemanticsNodes()
+        assertTrue(
+            "Expected a push timestamp chip to be rendered for Try push entry",
+            timestampChips.isNotEmpty(),
+        )
+
         composeTestRule.onNodeWithTag(downloadButtonInitialTag, useUnmergedTree = true)
             .performClick()
 

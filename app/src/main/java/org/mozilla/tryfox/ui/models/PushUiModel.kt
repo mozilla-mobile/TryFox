@@ -5,4 +5,5 @@ data class PushUiModel(
     val author: String,
     val jobs: List<JobDetailsUiModel>,
     val revision: String?,
+    val pushTimestamp: Long,
 )
