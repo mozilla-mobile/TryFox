@@ -35,7 +35,7 @@
     <ID>FunctionNaming:ProfileScreen.kt$@Composable private fun ProfileSearchButton( onClick: () -&gt; Unit, enabled: Boolean, isLoading: Boolean, modifier: Modifier = Modifier )</ID>
     <ID>FunctionNaming:ProfileScreen.kt$@OptIn(ExperimentalComposeUiApi::class) @Composable private fun UserSearchCard( email: String, onEmailChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean, modifier: Modifier = Modifier )</ID>
     <ID>FunctionNaming:ProfileScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ProfileScreen( modifier: Modifier = Modifier, onNavigateUp: () -&gt; Unit, profileViewModel: ProfileViewModel )</ID>
-    <ID>FunctionNaming:PushCommentCard.kt$@Composable fun PushCommentCard(comment: String, author: String?, revision: String)</ID>
+    <ID>FunctionNaming:PushCommentCard.kt$@Composable fun PushCommentCard( comment: String, author: String?, revision: String, pushTimestamp: Long, )</ID>
     <ID>FunctionNaming:Theme.kt$@Composable fun FenixInstallerTheme( darkTheme: Boolean = isSystemInDarkTheme(), // Dynamic color is available on Android 12+ dynamicColor: Boolean = true, content: @Composable () -&gt; Unit )</ID>
     <ID>FunctionNaming:TreeherderApksScreen.kt$@Composable fun ErrorState(errorMessage: String)</ID>
     <ID>FunctionNaming:TreeherderApksScreen.kt$@Composable fun LoadingState()</ID>
@@ -52,7 +52,7 @@
     <ID>LongMethod:ProfileScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun ProfileScreen( modifier: Modifier = Modifier, onNavigateUp: () -&gt; Unit, profileViewModel: ProfileViewModel )</ID>
     <ID>LongMethod:ProfileViewModel.kt$ProfileViewModel$fun downloadArtifact(artifactUiModel: ArtifactUiModel, context: Context)</ID>
     <ID>LongMethod:ProfileViewModel.kt$ProfileViewModel$fun searchByAuthor(context: Context)</ID>
-    <ID>LongMethod:PushCommentCard.kt$@Composable fun PushCommentCard(comment: String, author: String?, revision: String)</ID>
+    <ID>LongMethod:PushCommentCard.kt$@Composable fun PushCommentCard( comment: String, author: String?, revision: String, pushTimestamp: Long, )</ID>
     <ID>LongMethod:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun FenixInstallerApp( fenixInstallerViewModel: FenixInstallerViewModel, onNavigateUp: () -&gt; Unit, )</ID>
     <ID>LongMethod:TreeherderApksScreen.kt$@OptIn(ExperimentalMaterial3Api::class) @Composable fun SearchSection( selectedProject: String, onProjectSelected: (String) -&gt; Unit, revision: String, onRevisionChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean )</ID>
     <ID>LongParameterList:TreeherderApksScreen.kt$( selectedProject: String, onProjectSelected: (String) -&gt; Unit, revision: String, onRevisionChange: (String) -&gt; Unit, onSearchClick: () -&gt; Unit, isLoading: Boolean )</ID>

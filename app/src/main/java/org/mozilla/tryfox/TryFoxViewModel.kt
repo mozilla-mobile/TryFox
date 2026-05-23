@@ -99,6 +99,9 @@ class TryFoxViewModel(
     var relevantPushAuthor by mutableStateOf<String?>(null)
         private set
 
+    var relevantPushTimestamp by mutableStateOf<Long?>(null)
+        private set
+
     var isLoading by mutableStateOf(false)
         private set
 
@@ -161,6 +164,7 @@ class TryFoxViewModel(
         revision = newRevision
         relevantPushComment = null
         relevantPushAuthor = null
+        relevantPushTimestamp = null
         selectedJobs = emptyList()
         isLoadingJobArtifacts.clear()
         errorMessage = null
@@ -197,6 +201,7 @@ class TryFoxViewModel(
             errorMessage = null
             relevantPushComment = null
             relevantPushAuthor = null
+            relevantPushTimestamp = null
             selectedJobs = emptyList()
             isLoadingJobArtifacts.clear()
             cacheManager.checkCacheStatus() // Use CacheManager
@@ -216,8 +221,10 @@ class TryFoxViewModel(
                             }
                         }
                         relevantPushAuthor = firstPushResult.author
+                        relevantPushTimestamp = firstPushResult.pushTimestamp
                     } else {
                         relevantPushAuthor = null
+                        relevantPushTimestamp = null
                     }
                     relevantPushComment = foundComment
 

@@ -174,6 +174,7 @@ class ProfileViewModel(
                                             author = pushResult.author,
                                             jobs = jobsWithArtifacts,
                                             revision = pushResult.revision,
+                                            pushTimestamp = pushResult.pushTimestamp,
                                         )
                                     } else {
                                         logcat(LogPriority.VERBOSE, TAG) {

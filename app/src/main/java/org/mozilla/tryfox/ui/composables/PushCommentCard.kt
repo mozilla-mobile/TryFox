@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -28,7 +29,17 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withLink
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.format.FormatStringsInDatetimeFormats
+import kotlinx.datetime.format.byUnicodePattern
+import kotlinx.datetime.toLocalDateTime
+import org.mozilla.tryfox.ui.theme.TryFoxTheme
 import java.util.regex.Pattern
 
 // Helper data class to store link information
@@ -39,8 +50,14 @@ private data class LinkableSpan(
     val url: String,
 )
 
+@OptIn(FormatStringsInDatetimeFormats::class)
 @Composable
-fun PushCommentCard(comment: String, author: String?, revision: String) { // Added revision parameter
+fun PushCommentCard(
+    comment: String,
+    author: String?,
+    revision: String,
+    pushTimestamp: Long,
+) {
     val urlPattern = remember {
         Pattern.compile(
             "(https?://|www\\.)" + // Scheme or www.
@@ -150,6 +167,66 @@ fun PushCommentCard(comment: String, author: String?, revision: String) { // Add
                     },
                 )
             }
+
+            val formattedTimestamp = remember(pushTimestamp) {
+                val format = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd HH:mm") }
+                format.format(
+                    Instant.fromEpochSeconds(pushTimestamp)
+                        .toLocalDateTime(TimeZone.currentSystemDefault()),
+                )
+            }
+            AssistChip(
+                onClick = { },
+                label = { Text(formattedTimestamp) },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Filled.Schedule,
+                        contentDescription = "Push timestamp",
+                    )
+                },
+                modifier = Modifier.testTag("push_timestamp_chip_$revision"),
+            )
         }
+    }
+}
+
+private data class PushCommentCardPreviewState(
+    val name: String,
+    val comment: String,
+    val author: String?,
+)
+
+private class PushCommentCardStateProvider : PreviewParameterProvider<PushCommentCardPreviewState> {
+    override val values: Sequence<PushCommentCardPreviewState> = sequenceOf(
+        PushCommentCardPreviewState(
+            name = "With bug and URL",
+            comment = "Bug 1234567 - Fix flaky test. See https://treeherder.mozilla.org/jobs for details.",
+            author = "developer@mozilla.com",
+        ),
+        PushCommentCardPreviewState(
+            name = "Plain text, no author",
+            comment = "Try push for performance investigation on macOS.",
+            author = null,
+        ),
+        PushCommentCardPreviewState(
+            name = "Multiple bugs",
+            comment = "Bug 1000001, Bug 1000002 - Backout for build bustage.",
+            author = "releng@mozilla.com",
+        ),
+    )
+}
+
+@Preview(showBackground = true, widthDp = 360)
+@Composable
+private fun PushCommentCardPreview(
+    @PreviewParameter(PushCommentCardStateProvider::class) state: PushCommentCardPreviewState,
+) {
+    TryFoxTheme {
+        PushCommentCard(
+            comment = state.comment,
+            author = state.author,
+            revision = "abc123def456",
+            pushTimestamp = 1_716_460_800L,
+        )
     }
 }

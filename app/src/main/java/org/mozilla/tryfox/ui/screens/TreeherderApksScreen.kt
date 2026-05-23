@@ -167,12 +167,14 @@ fun TryFoxMainScreen(
             }
 
             tryFoxViewModel.relevantPushComment?.let { comment ->
-                if (comment.isNotBlank() || tryFoxViewModel.relevantPushAuthor != null) { // Show card if comment or author exists
+                val pushTimestamp = tryFoxViewModel.relevantPushTimestamp
+                if ((comment.isNotBlank() || tryFoxViewModel.relevantPushAuthor != null) && pushTimestamp != null) {
                     item {
                         PushCommentCard(
-                            comment = comment ?: "",
+                            comment = comment,
                             author = tryFoxViewModel.relevantPushAuthor,
-                            revision = tryFoxViewModel.revision, // Added revision
+                            revision = tryFoxViewModel.revision,
+                            pushTimestamp = pushTimestamp,
                         )
                     }
                 }
