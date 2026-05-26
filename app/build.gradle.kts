@@ -110,6 +110,12 @@ dependencies {
     implementation(libs.androidx.compose.material)
     implementation(libs.androidx.compose.material3.adaptive.navigation.suite)
 
+    // QR scanner
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
+
     // Navigation Compose
     implementation(libs.androidx.navigation.compose)
 

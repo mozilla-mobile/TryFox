@@ -18,6 +18,7 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import org.mozilla.tryfox.ui.screens.HomeScreen
 import org.mozilla.tryfox.ui.screens.ProfileScreen
+import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
 import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
@@ -29,36 +30,44 @@ sealed class NavScreen(val route: String) {
     /**
      * Represents the Home screen.
      */
-    data object Home : NavScreen("home")
+    data object Home : NavScreen(AppRoutes.HOME)
+
+    /**
+     * Represents the QR code scanner screen.
+     */
+    data object QrScanner : NavScreen(AppRoutes.QR_SCANNER)
 
     /**
      * Represents the Treeherder search screen without arguments.
      */
-    data object TreeherderSearch : NavScreen("treeherder_search")
+    data object TreeherderSearch : NavScreen(AppRoutes.TREEHERDER_SEARCH)
 
     /**
      * Represents the Treeherder search screen with project and revision arguments.
      */
-    data object TreeherderSearchWithArgs : NavScreen("treeherder_search/{project}/{revision}") {
+    data object TreeherderSearchWithArgs : NavScreen(AppRoutes.TREEHERDER_SEARCH_WITH_ARGS) {
         /**
          * Creates a route for the Treeherder search screen with the given project and revision.
          * @param project The project name.
          * @param revision The revision hash.
          * @return The formatted route string.
          */
-        fun createRoute(project: String, revision: String) = "treeherder_search/$project/$revision"
+        fun createRoute(project: String, revision: String) = AppRoutes.createTreeherderSearchRoute(
+            project = project,
+            revision = revision,
+        )
     }
 
     /**
      * Represents the Profile screen.
      */
-    data object Profile : NavScreen("profile")
+    data object Profile : NavScreen(AppRoutes.PROFILE)
 
     /**
      * Represents the Profile screen filtered by email.
      */
-    data object ProfileByEmail : NavScreen("profile_by_email?email={email}") {
-        fun createRoute(email: String) = "profile_by_email?email=${Uri.encode(email)}"
+    data object ProfileByEmail : NavScreen(AppRoutes.PROFILE_BY_EMAIL) {
+        fun createRoute(email: String) = AppRoutes.createProfileByEmailRoute(email)
     }
 }
 
@@ -92,6 +101,7 @@ class MainActivity : ComponentActivity() {
      * Composable function that sets up the application's navigation.
      * It defines the navigation graph and handles different routes and deep links.
      */
+    @Suppress("LongMethod")
     @Composable
     fun AppNavigation() {
         val localNavController = rememberNavController()
@@ -107,7 +117,16 @@ class MainActivity : ComponentActivity() {
                 HomeScreen(
                     onNavigateToTreeherder = { localNavController.navigate(NavScreen.TreeherderSearch.route) },
                     onNavigateToProfile = { localNavController.navigate(NavScreen.Profile.route) },
+                    onNavigateToQrScanner = { localNavController.navigate(NavScreen.QrScanner.route) },
                     homeViewModel = koinViewModel(),
+                )
+            }
+            composable(NavScreen.QrScanner.route) {
+                QrCodeScannerScreen(
+                    onNavigateUp = { localNavController.popBackStack() },
+                    onQrCodeScanned = { rawValue ->
+                        routeDeepLink(rawValue, popQrScanner = true)
+                    },
                 )
             }
             composable(NavScreen.TreeherderSearch.route) {
@@ -156,22 +175,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun routeDeepLink(intent: Intent?) {
-        val destination = AppDeepLinkParser.parse(intent?.data) ?: return
-        val route = when (destination) {
-            is AppDeepLinkDestination.TreeherderSearch -> {
-                NavScreen.TreeherderSearchWithArgs.createRoute(
-                    project = destination.project,
-                    revision = destination.revision,
-                )
-            }
+        routeDeepLink(intent?.data?.toString(), popQrScanner = false)
+    }
 
-            is AppDeepLinkDestination.Profile -> {
-                NavScreen.ProfileByEmail.createRoute(destination.email)
-            }
-        }
+    private fun routeDeepLink(rawValue: String?, popQrScanner: Boolean): Boolean {
+        val route = AppDeepLinkRouteMapper.routeFor(rawValue) ?: return false
 
         navController.navigate(route) {
             launchSingleTop = true
+            if (popQrScanner) {
+                popUpTo(NavScreen.QrScanner.route) {
+                    inclusive = true
+                }
+            }
         }
+        return true
     }
 }

@@ -2,6 +2,7 @@
     <string name="app_name">TryFox</string>
     <string name="home_profile_button_description">Profile</string>
     <string name="home_search_treeherder_button_description">Search Treeherder</string>
+    <string name="home_scan_qr_code_button_description">Scan QR code</string>
     <string name="home_fetching_nightly_builds">Fetching latest nightly builds...</string>
     <string name="home_loading_initial_data">Loading initial app data...</string> <!-- Added -->
     <string name="common_unknown_error">An unknown error occurred.</string>
@@ -67,4 +68,9 @@
     <string name="installed_chip_label">Installed</string>
     <string name="not_installed_chip_label">Not installed</string>
     <string name="tryfox_card_title">TryFox %1$s is available</string>
+    <string name="qr_scanner_title">Scan QR code</string>
+    <string name="qr_scanner_permission_message">Camera permission is required to scan QR codes.</string>
+    <string name="qr_scanner_retry_permission">Retry</string>
+    <string name="qr_scanner_unsupported_link">QR code is not a supported TryFox link.</string>
+    <string name="qr_scanner_camera_unavailable">Camera is unavailable.</string>
 </resources>

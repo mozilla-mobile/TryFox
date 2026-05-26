@@ -2,7 +2,10 @@ package org.mozilla.tryfox.ui.screens
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Rule
 import org.junit.Test
@@ -55,5 +58,12 @@ class HomeScreenTest {
         // --- Fenix Release Card ---
         val releaseTitleTag = "app_title_text_fenix-release"
         composeTestRule.onNodeWithTag(releaseTitleTag, useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun homeScreen_qrScannerButtonNavigatesToScannerScreen() {
+        composeTestRule.onNodeWithContentDescription("Scan QR code").performClick()
+
+        composeTestRule.onNodeWithText("Scan QR code").assertIsDisplayed()
     }
 }
