@@ -13,6 +13,7 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -60,6 +61,7 @@ import java.io.File
  * @param modifier The modifier to be applied to the component.
  * @param onNavigateToTreeherder Callback to navigate to the Treeherder search screen.
  * @param onNavigateToProfile Callback to navigate to the Profile screen.
+ * @param onNavigateToHistory Callback to navigate to the History screen.
  * @param homeViewModel The ViewModel for the Home screen.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
@@ -69,6 +71,7 @@ fun HomeScreen(
     onNavigateToTreeherder: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToQrScanner: () -> Unit,
+    onNavigateToHistory: () -> Unit,
     homeViewModel: HomeViewModel = viewModel(),
 ) {
     val screenState by homeViewModel.homeScreenState.collectAsState()
@@ -97,6 +100,12 @@ fun HomeScreen(
                     actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ),
                 actions = {
+                    IconButton(onClick = onNavigateToHistory) {
+                        Icon(
+                            imageVector = Icons.Filled.History,
+                            contentDescription = stringResource(id = R.string.home_history_button_description),
+                        )
+                    }
                     IconButton(onClick = onNavigateToQrScanner) {
                         Icon(
                             imageVector = Icons.Filled.CameraAlt,

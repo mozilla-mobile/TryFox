@@ -16,6 +16,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import org.mozilla.tryfox.ui.screens.HistoryScreen
 import org.mozilla.tryfox.ui.screens.HomeScreen
 import org.mozilla.tryfox.ui.screens.ProfileScreen
 import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
@@ -31,6 +32,11 @@ sealed class NavScreen(val route: String) {
      * Represents the Home screen.
      */
     data object Home : NavScreen(AppRoutes.HOME)
+
+    /**
+     * Represents the History screen.
+     */
+    data object History : NavScreen(AppRoutes.HISTORY)
 
     /**
      * Represents the QR code scanner screen.
@@ -118,7 +124,19 @@ class MainActivity : ComponentActivity() {
                     onNavigateToTreeherder = { localNavController.navigate(NavScreen.TreeherderSearch.route) },
                     onNavigateToProfile = { localNavController.navigate(NavScreen.Profile.route) },
                     onNavigateToQrScanner = { localNavController.navigate(NavScreen.QrScanner.route) },
+                    onNavigateToHistory = { localNavController.navigate(NavScreen.History.route) },
                     homeViewModel = koinViewModel(),
+                )
+            }
+            composable(NavScreen.History.route) {
+                HistoryScreen(
+                    onNavigateUp = { localNavController.popBackStack() },
+                    onNavigateToTreeherderRevision = { project, revision ->
+                        localNavController.navigate(
+                            NavScreen.TreeherderSearchWithArgs.createRoute(project, revision),
+                        )
+                    },
+                    historyViewModel = koinViewModel(),
                 )
             }
             composable(NavScreen.QrScanner.route) {

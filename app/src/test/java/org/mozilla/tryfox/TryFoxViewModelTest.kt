@@ -16,6 +16,9 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.io.TempDir
 import org.mozilla.tryfox.data.Artifact
 import org.mozilla.tryfox.data.ArtifactsResponse
+import org.mozilla.tryfox.data.DownloadState
+import org.mozilla.tryfox.data.FakeDownloadFileRepository
+import org.mozilla.tryfox.data.FakeHistoryRepository
 import org.mozilla.tryfox.data.JobDetails
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.RevisionDetail
@@ -243,17 +246,84 @@ class TryFoxViewModelTest {
         assertFalse(artifacts.single { it.abi.name == "x86_64" }.abi.isSupported)
     }
 
+    @Test
+    fun `installApk records Treeherder history entry for downloaded artifact`() = runTest {
+        val job = signedJob(taskId = "history-task", jobName = "signing-apk-fenix-nightly", appName = "fenix")
+        val repository = FakeTestTreeherderRepository(
+            pages = mapOf(1 to listOf(job)),
+            artifactsByTaskId = mapOf("history-task" to listOf(apkArtifact("public/build/target.arm64-v8a.apk"))),
+        )
+        val historyRepository = FakeHistoryRepository()
+        val intentManager = FakeIntentManager()
+        val viewModel = createViewModel(
+            repository = repository,
+            historyRepository = historyRepository,
+            intentManager = intentManager,
+            currentTimeMillisProvider = { 123L },
+        )
+
+        viewModel.updateRevision("ed209aa2136b241686ff20489c5cb622348e2ecf")
+        viewModel.searchJobsAndArtifacts()
+        advanceUntilIdle()
+        viewModel.downloadArtifact(viewModel.selectedJobs.single().artifacts.single())
+        advanceUntilIdle()
+
+        val downloadedArtifact = viewModel.selectedJobs.single().artifacts.single()
+        val downloadedFile = (downloadedArtifact.downloadState as DownloadState.Downloaded).file
+        viewModel.installApk(downloadedFile)
+        advanceUntilIdle()
+
+        val historyEntry = historyRepository.recordedEntries.single()
+        assertEquals("signing-apk-fenix-nightly", historyEntry.jobName)
+        assertEquals("Bug 2001527: test patch", historyEntry.commitMessage)
+        assertEquals("arm64-v8a", historyEntry.abiName)
+        assertEquals(123L, historyEntry.lastInstallerLaunchTimestamp)
+        assertTrue(intentManager.wasInstallApkCalled)
+    }
+
+    @Test
+    fun `checkCacheStatus demotes downloaded Treeherder artifact when cached apk is missing`() = runTest {
+        val job = signedJob(taskId = "history-task", jobName = "signing-apk-fenix-nightly", appName = "fenix")
+        val repository = FakeTestTreeherderRepository(
+            pages = mapOf(1 to listOf(job)),
+            artifactsByTaskId = mapOf("history-task" to listOf(apkArtifact("public/build/target.arm64-v8a.apk"))),
+        )
+        val viewModel = createViewModel(repository = repository)
+
+        viewModel.updateRevision("ed209aa2136b241686ff20489c5cb622348e2ecf")
+        viewModel.searchJobsAndArtifacts()
+        advanceUntilIdle()
+        viewModel.downloadArtifact(viewModel.selectedJobs.single().artifacts.single())
+        advanceUntilIdle()
+        val downloadedArtifact = viewModel.selectedJobs.single().artifacts.single()
+        val downloadedFile = (downloadedArtifact.downloadState as DownloadState.Downloaded).file
+        assertTrue(downloadedFile.delete())
+
+        viewModel.checkCacheStatus()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.selectedJobs.single().artifacts.single().downloadState is DownloadState.NotDownloaded)
+    }
+
     private fun createViewModel(
         repository: TreeherderRepository,
+        historyRepository: FakeHistoryRepository = FakeHistoryRepository(),
+        intentManager: FakeIntentManager = FakeIntentManager(),
+        downloadFileRepository: FakeDownloadFileRepository = FakeDownloadFileRepository(
+            downloadProgressDelayMillis = 0,
+        ),
+        currentTimeMillisProvider: () -> Long = { 0L },
     ): TryFoxViewModel = TryFoxViewModel(
         fenixRepository = repository,
-        downloadFileRepository = org.mozilla.tryfox.data.FakeDownloadFileRepository(),
+        downloadFileRepository = downloadFileRepository,
         cacheManager = cacheManager,
-        intentManager = FakeIntentManager(),
+        intentManager = intentManager,
+        historyRepository = historyRepository,
         project = "mozilla-central",
         revision = null,
         supportedAbis = listOf("arm64-v8a"),
         elapsedRealtimeProvider = { 0L },
+        currentTimeMillisProvider = currentTimeMillisProvider,
         infoLogger = { _, _ -> 0 },
         ioDispatcher = mainCoroutineRule.testDispatcher,
         mainDispatcher = mainCoroutineRule.testDispatcher,

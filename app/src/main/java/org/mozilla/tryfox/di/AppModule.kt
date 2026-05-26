@@ -20,6 +20,7 @@ import org.mozilla.tryfox.data.managers.DefaultCacheManager
 import org.mozilla.tryfox.data.managers.DefaultIntentManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DefaultDownloadFileRepository
+import org.mozilla.tryfox.data.repositories.DefaultHistoryRepository
 import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.DefaultTreeherderRepository
 import org.mozilla.tryfox.data.repositories.DefaultUserDataRepository
@@ -29,6 +30,7 @@ import org.mozilla.tryfox.data.repositories.FenixReleaseReleaseRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
 import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
+import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.MozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.ReferenceBrowserReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
@@ -39,6 +41,7 @@ import org.mozilla.tryfox.network.DownloadApiService
 import org.mozilla.tryfox.network.GithubApiService
 import org.mozilla.tryfox.network.MozillaArchivesApiService
 import org.mozilla.tryfox.network.TreeherderApiService
+import org.mozilla.tryfox.ui.screens.HistoryViewModel
 import org.mozilla.tryfox.ui.screens.HomeViewModel
 import org.mozilla.tryfox.ui.screens.ProfileViewModel
 import org.mozilla.tryfox.util.FENIX
@@ -50,6 +53,7 @@ import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
 import retrofit2.Retrofit
 import retrofit2.converter.scalars.ScalarsConverterFactory
+import java.io.File
 
 const val TREEHERDER_BASE_URL = "https://treeherder.mozilla.org/api/"
 const val GITHUB_BASE_URL = "https://api.github.com/"
@@ -136,11 +140,13 @@ val repositoryModule = module {
     single<TreeherderRepository> { DefaultTreeherderRepository(get()) }
     single<MozillaArchiveRepository> { DefaultMozillaArchiveRepository(get()) }
     single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
+    single<HistoryRepository> { DefaultHistoryRepository(androidContext(), get(named("IODispatcher"))) }
     single<MozillaPackageManager> { DefaultMozillaPackageManager(androidContext()) }
     single<CacheManager> {
         DefaultCacheManager(
-            androidContext().cacheDir,
+            File(androidContext().filesDir, "download-cache"),
             get(named("IODispatcher")),
+            androidContext().cacheDir,
         )
     }
     single<IntentManager> { DefaultIntentManager(androidContext()) }
@@ -161,10 +167,12 @@ val viewModelModule = module {
             get(),
             get(),
             get(),
+            get(),
             params.getOrNull(),
             params.getOrNull(),
         )
     }
+    viewModel { HistoryViewModel(get(), get(), get(), get(), get(named("IODispatcher"))) }
     viewModel {
         val releaseRepositories = listOf(
             get<ReleaseRepository>(named(FENIX)),
@@ -184,7 +192,7 @@ val viewModelModule = module {
             get(named("IODispatcher")),
         )
     }
-    viewModel { params -> ProfileViewModel(get(), get(), get(), get(), get(), params.getOrNull()) }
+    viewModel { params -> ProfileViewModel(get(), get(), get(), get(), get(), get(), params.getOrNull()) }
 }
 
 val appModules = listOf(dispatchersModule, networkModule, repositoryModule, viewModelModule)

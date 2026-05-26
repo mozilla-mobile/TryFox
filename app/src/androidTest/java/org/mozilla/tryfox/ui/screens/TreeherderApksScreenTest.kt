@@ -17,6 +17,7 @@ import org.mozilla.tryfox.data.Artifact
 import org.mozilla.tryfox.data.ArtifactsResponse
 import org.mozilla.tryfox.data.FakeCacheManager
 import org.mozilla.tryfox.data.FakeDownloadFileRepository
+import org.mozilla.tryfox.data.FakeHistoryRepository
 import org.mozilla.tryfox.data.FakeIntentManager
 import org.mozilla.tryfox.data.JobDetails
 import org.mozilla.tryfox.data.NetworkResult
@@ -42,6 +43,7 @@ class TreeherderApksScreenTest {
             downloadFileRepository = FakeDownloadFileRepository(),
             cacheManager = FakeCacheManager(),
             intentManager = FakeIntentManager(),
+            historyRepository = FakeHistoryRepository(),
             project = "mozilla-central",
             revision = "ed209aa2136b241686ff20489c5cb622348e2ecf",
             supportedAbis = listOf("arm64-v8a"),

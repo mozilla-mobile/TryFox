@@ -21,10 +21,15 @@ import java.io.File
 class DefaultCacheManager(
     private val cacheDir: File,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    legacyCacheDir: File? = null,
 ) : CacheManager {
 
     private val _cacheState = MutableStateFlow<CacheManagementState>(CacheManagementState.IdleEmpty)
     override val cacheState: StateFlow<CacheManagementState> = _cacheState.asStateFlow()
+
+    init {
+        migrateLegacyCache(legacyCacheDir)
+    }
 
     override fun getCacheDir(appName: String): File {
         return File(cacheDir, appName)
@@ -45,7 +50,7 @@ class DefaultCacheManager(
     }
 
     private fun determineCacheState(): CacheManagementState {
-        val cacheIsNotEmpty = listOf(FENIX, FOCUS, FOCUS_RELEASE, REFERENCE_BROWSER, TREEHERDER, TRYFOX).any { isAppCachePopulated(it) }
+        val cacheIsNotEmpty = MANAGED_CACHE_NAMES.any { isAppCachePopulated(it) }
         return if (cacheIsNotEmpty) CacheManagementState.IdleNonEmpty else CacheManagementState.IdleEmpty
     }
 
@@ -61,11 +66,14 @@ class DefaultCacheManager(
             withContext(ioDispatcher) {
                 cacheDir.listFiles()?.forEach {
                     if (it.isDirectory) {
+                        logcat(LogPriority.DEBUG, TAG) {
+                            "Deleting cache directory path=${it.absolutePath}"
+                        }
                         it.deleteRecursively()
                     }
                 }
             }
-            logcat(TAG) { "Cache cleared successfully." }
+            logcat(LogPriority.DEBUG, TAG) { "Cache cleared successfully." }
         } catch (e: Exception) {
             logcat(
                 LogPriority.ERROR,
@@ -76,7 +84,49 @@ class DefaultCacheManager(
         }
     }
 
+    private fun migrateLegacyCache(legacyCacheDir: File?) {
+        if (legacyCacheDir == null || legacyCacheDir == cacheDir || !legacyCacheDir.isDirectory) {
+            return
+        }
+
+        MANAGED_CACHE_NAMES.forEach { cacheName ->
+            val legacyEntry = File(legacyCacheDir, cacheName)
+            val target = File(cacheDir, cacheName)
+            try {
+                if (legacyEntry.isDirectory) {
+                    migrateDirectory(legacyEntry, target)
+                } else if (legacyEntry.isFile && !target.exists()) {
+                    target.parentFile?.mkdirs()
+                    legacyEntry.renameTo(target)
+                }
+            } catch (e: Exception) {
+                logcat(LogPriority.WARN, TAG) {
+                    "Failed to migrate legacy cache path=${legacyEntry.absolutePath}: ${e.message}"
+                }
+            }
+        }
+    }
+
+    private fun migrateDirectory(source: File, target: File) {
+        if (!target.exists() && source.renameTo(target)) {
+            return
+        }
+
+        target.mkdirs()
+        source.listFiles()?.forEach { child ->
+            val childTarget = File(target, child.name)
+            if (child.isDirectory) {
+                migrateDirectory(child, childTarget)
+            } else if (child.isFile && !childTarget.exists()) {
+                childTarget.parentFile?.mkdirs()
+                child.renameTo(childTarget)
+            }
+        }
+        source.delete()
+    }
+
     companion object {
         private const val TAG = "DefaultCacheManager"
+        private val MANAGED_CACHE_NAMES = listOf(FENIX, FOCUS, FOCUS_RELEASE, REFERENCE_BROWSER, TREEHERDER, TRYFOX)
     }
 }
