@@ -12,11 +12,15 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -41,9 +45,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -77,6 +86,7 @@ fun QrCodeScannerScreen(
     }
     var permissionRequestCompleted by rememberSaveable { mutableStateOf(false) }
     var unsupportedQrCodeCount by rememberSaveable { mutableStateOf(0) }
+    var cameraUnavailable by rememberSaveable { mutableStateOf(false) }
     val scannerPaused = remember { AtomicBoolean(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     val unsupportedQrCodeMessage = stringResource(id = R.string.qr_scanner_unsupported_link)
@@ -85,11 +95,20 @@ fun QrCodeScannerScreen(
     ) { granted ->
         hasCameraPermission = granted
         permissionRequestCompleted = true
+        if (granted) {
+            cameraUnavailable = false
+        }
     }
 
     LaunchedEffect(hasCameraPermission, requestPermissionOnStart) {
         if (!hasCameraPermission && requestPermissionOnStart && !permissionRequestCompleted) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    LaunchedEffect(hasCameraPermission) {
+        if (!hasCameraPermission) {
+            cameraUnavailable = false
         }
     }
 
@@ -136,24 +155,116 @@ fun QrCodeScannerScreen(
                 .padding(innerPadding),
         ) {
             if (hasCameraPermission) {
-                CameraPreview(
-                    scannerPaused = scannerPaused,
-                    onQrCodeScanned = { rawValue ->
-                        val handled = onQrCodeScanned(rawValue)
-                        if (!handled) {
-                            unsupportedQrCodeCount += 1
+                Box(modifier = Modifier.fillMaxSize()) {
+                    CameraPreview(
+                        scannerPaused = scannerPaused,
+                        onCameraAvailable = { cameraUnavailable = false },
+                        onCameraUnavailable = { cameraUnavailable = true },
+                        onQrCodeScanned = { rawValue ->
+                            val handled = onQrCodeScanned(rawValue)
+                            if (!handled) {
+                                unsupportedQrCodeCount += 1
+                            }
+                        },
+                    )
+                    if (cameraUnavailable) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(stringResource(id = R.string.qr_scanner_camera_unavailable))
                         }
-                    },
-                )
+                    } else {
+                        ScannerVisorOverlay(modifier = Modifier.fillMaxSize())
+                    }
+                }
             } else {
                 CameraPermissionDeniedState(
                     onRetryClick = {
+                        cameraUnavailable = false
                         permissionRequestCompleted = false
                         permissionLauncher.launch(Manifest.permission.CAMERA)
                     },
                 )
             }
         }
+    }
+}
+
+@Composable
+@Suppress("LongMethod")
+internal fun ScannerVisorOverlay(
+    modifier: Modifier = Modifier,
+) {
+    BoxWithConstraints(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
+    ) {
+        val availableWidth = (maxWidth - VISOR_HORIZONTAL_PADDING * 2)
+            .coerceAtLeast(0.dp)
+        val availableHeight = (maxHeight - VISOR_VERTICAL_PADDING * 2 - VISOR_STATUS_TOP_PADDING)
+            .coerceAtLeast(0.dp)
+        val visorSize = availableWidth
+            .coerceAtMost(availableHeight)
+            .coerceAtMost(VISOR_MAX_SIZE)
+        val primaryColor = MaterialTheme.colorScheme.primary
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val visorSizePx = visorSize.toPx()
+            val left = (size.width - visorSizePx) / 2f
+            val top = (size.height - visorSizePx) / 2f
+            val right = left + visorSizePx
+            val bottom = top + visorSizePx
+            val scrimColor = Color.Black.copy(alpha = VISOR_SCRIM_ALPHA)
+
+            drawRect(
+                color = scrimColor,
+                topLeft = Offset.Zero,
+                size = Size(size.width, top),
+            )
+            drawRect(
+                color = scrimColor,
+                topLeft = Offset(0f, bottom),
+                size = Size(size.width, size.height - bottom),
+            )
+            drawRect(
+                color = scrimColor,
+                topLeft = Offset(0f, top),
+                size = Size(left, visorSizePx),
+            )
+            drawRect(
+                color = scrimColor,
+                topLeft = Offset(right, top),
+                size = Size(size.width - right, visorSizePx),
+            )
+        }
+
+        Canvas(
+            modifier = Modifier
+                .size(visorSize),
+        ) {
+            val cornerLength = VISOR_CORNER_LENGTH.toPx()
+            val strokeWidth = VISOR_CORNER_STROKE.toPx()
+            val maxX = size.width
+            val maxY = size.height
+
+            drawLine(primaryColor, Offset.Zero, Offset(cornerLength, 0f), strokeWidth, StrokeCap.Round)
+            drawLine(primaryColor, Offset.Zero, Offset(0f, cornerLength), strokeWidth, StrokeCap.Round)
+
+            drawLine(primaryColor, Offset(maxX, 0f), Offset(maxX - cornerLength, 0f), strokeWidth, StrokeCap.Round)
+            drawLine(primaryColor, Offset(maxX, 0f), Offset(maxX, cornerLength), strokeWidth, StrokeCap.Round)
+
+            drawLine(primaryColor, Offset(0f, maxY), Offset(cornerLength, maxY), strokeWidth, StrokeCap.Round)
+            drawLine(primaryColor, Offset(0f, maxY), Offset(0f, maxY - cornerLength), strokeWidth, StrokeCap.Round)
+
+            drawLine(primaryColor, Offset(maxX, maxY), Offset(maxX - cornerLength, maxY), strokeWidth, StrokeCap.Round)
+            drawLine(primaryColor, Offset(maxX, maxY), Offset(maxX, maxY - cornerLength), strokeWidth, StrokeCap.Round)
+        }
+
+        Text(
+            modifier = Modifier.offset(y = visorSize / 2 + VISOR_STATUS_TOP_PADDING),
+            text = stringResource(id = R.string.qr_scanner_status_scanning),
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
     }
 }
 
@@ -182,10 +293,20 @@ private fun CameraPermissionDeniedState(
     }
 }
 
+private val VISOR_HORIZONTAL_PADDING = 24.dp
+private val VISOR_VERTICAL_PADDING = 24.dp
+private val VISOR_MAX_SIZE = 280.dp
+private val VISOR_CORNER_LENGTH = 32.dp
+private val VISOR_CORNER_STROKE = 4.dp
+private val VISOR_STATUS_TOP_PADDING = 24.dp
+private const val VISOR_SCRIM_ALPHA = 0.55f
+
 @Composable
 @Suppress("LongMethod")
 private fun CameraPreview(
     scannerPaused: AtomicBoolean,
+    onCameraAvailable: () -> Unit,
+    onCameraUnavailable: () -> Unit,
     onQrCodeScanned: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -201,9 +322,8 @@ private fun CameraPreview(
             BarcodeScannerOptions.Builder()
                 .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
                 .build(),
-        )
+            )
     }
-    var cameraUnavailable by rememberSaveable { mutableStateOf(false) }
 
     DisposableEffect(scanner) {
         onDispose {
@@ -255,9 +375,10 @@ private fun CameraPreview(
                         preview,
                         imageAnalysis,
                     )
+                    onCameraAvailable()
                 }.onFailure {
                     if (!disposed) {
-                        cameraUnavailable = true
+                        onCameraUnavailable()
                     }
                 }
             },
@@ -272,12 +393,6 @@ private fun CameraPreview(
                 }
             }
             cameraExecutor.shutdown()
-        }
-    }
-
-    if (cameraUnavailable) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(stringResource(id = R.string.qr_scanner_camera_unavailable))
         }
     }
 }

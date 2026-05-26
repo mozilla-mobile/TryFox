@@ -73,4 +73,5 @@
     <string name="qr_scanner_retry_permission">Retry</string>
     <string name="qr_scanner_unsupported_link">QR code is not a supported TryFox link.</string>
     <string name="qr_scanner_camera_unavailable">Camera is unavailable.</string>
+    <string name="qr_scanner_status_scanning">Scanning...</string>
 </resources>
