@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
@@ -67,6 +68,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     onNavigateToTreeherder: () -> Unit,
     onNavigateToProfile: () -> Unit,
+    onNavigateToQrScanner: () -> Unit,
     homeViewModel: HomeViewModel = viewModel(),
 ) {
     val screenState by homeViewModel.homeScreenState.collectAsState()
@@ -95,6 +97,14 @@ fun HomeScreen(
                     actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ),
                 actions = {
+                    IconButton(onClick = onNavigateToQrScanner) {
+                        Icon(
+                            imageVector = Icons.Filled.CameraAlt,
+                            contentDescription = stringResource(
+                                id = R.string.home_scan_qr_code_button_description,
+                            ),
+                        )
+                    }
                     IconButton(onClick = onNavigateToProfile) {
                         Icon(
                             imageVector = Icons.Filled.AccountCircle,
