@@ -4,6 +4,7 @@ import java.net.URLEncoder
 
 object AppRoutes {
     const val HOME = "home"
+    const val HISTORY = "history"
     const val QR_SCANNER = "qr_scanner"
     const val TREEHERDER_SEARCH = "treeherder_search"
     const val TREEHERDER_SEARCH_WITH_ARGS = "treeherder_search/{project}/{revision}"

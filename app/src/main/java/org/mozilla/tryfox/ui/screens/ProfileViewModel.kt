@@ -16,9 +16,11 @@ import logcat.LogPriority
 import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DownloadFileRepository
+import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.model.CacheManagementState
@@ -26,6 +28,7 @@ import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import org.mozilla.tryfox.ui.models.PushUiModel
+import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
 
 /**
@@ -43,7 +46,9 @@ class ProfileViewModel(
     private val userDataRepository: UserDataRepository,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
+    private val historyRepository: HistoryRepository,
     authorEmail: String?,
+    private val currentTimeMillisProvider: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
 
     companion object {
@@ -268,9 +273,12 @@ class ProfileViewModel(
         val outputFile = File(taskSpecificDir, artifactName)
         val exists = outputFile.exists()
         logcat(
-            LogPriority.VERBOSE,
+            LogPriority.DEBUG,
             TAG,
-        ) { "getDownloadedFile for $artifactName in $taskId: exists=$exists" }
+        ) {
+            "getDownloadedFile artifactName=$artifactName, taskId=$taskId, " +
+                "path=${outputFile.absolutePath}, exists=$exists"
+        }
         return if (exists) outputFile else null
     }
 
@@ -403,7 +411,20 @@ class ProfileViewModel(
     }
 
     fun installApk(file: File) {
-        intentManager.installApk(file)
+        val downloadedArtifact = findDownloadedArtifact(file)
+        if (downloadedArtifact == null) {
+            intentManager.installApk(file)
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                recordInstallerLaunch(downloadedArtifact)
+            } catch (_: Exception) {
+                // History is best-effort; never block installation.
+            }
+            intentManager.installApk(file)
+        }
     }
 
     private fun updateArtifactDownloadState(
@@ -445,4 +466,49 @@ class ProfileViewModel(
                 }
             },
         )
+
+    private fun findDownloadedArtifact(file: File): DownloadedArtifact? =
+        _pushes.value.firstNotNullOfOrNull { push ->
+            push.jobs.firstNotNullOfOrNull { job ->
+                job.artifacts.firstOrNull { artifact ->
+                    val downloadState = artifact.downloadState
+                    downloadState is DownloadState.Downloaded && downloadState.file.absolutePath == file.absolutePath
+                }?.let { artifact -> DownloadedArtifact(push, job, artifact) }
+            }
+        }
+
+    private suspend fun recordInstallerLaunch(downloadedArtifact: DownloadedArtifact) {
+        val push = downloadedArtifact.push
+        val job = downloadedArtifact.job
+        val artifact = downloadedArtifact.artifact
+        val artifactFileName = artifact.name.substringAfterLast('/')
+
+        historyRepository.recordInstallerLaunch(
+            TreeherderInstallHistoryEntry(
+                project = "try",
+                revision = push.revision ?: "unknown_revision",
+                commitMessage = push.pushComment,
+                author = push.author,
+                pushTimestamp = push.pushTimestamp,
+                appName = job.appName,
+                jobName = job.jobName,
+                jobSymbol = job.jobSymbol,
+                taskId = artifact.taskId,
+                artifactName = artifact.name,
+                artifactFileName = artifactFileName,
+                downloadUrl = artifact.downloadUrl,
+                abiName = artifact.abi.name,
+                abiSupported = artifact.abi.isSupported,
+                expires = artifact.expires,
+                cacheRelativePath = "$TREEHERDER/${artifact.taskId}/$artifactFileName",
+                lastInstallerLaunchTimestamp = currentTimeMillisProvider(),
+            ),
+        )
+    }
+
+    private data class DownloadedArtifact(
+        val push: PushUiModel,
+        val job: JobDetailsUiModel,
+        val artifact: ArtifactUiModel,
+    )
 }

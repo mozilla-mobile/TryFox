@@ -15,6 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.tryfox.data.FakeCacheManager
 import org.mozilla.tryfox.data.FakeDownloadFileRepository
+import org.mozilla.tryfox.data.FakeHistoryRepository
 import org.mozilla.tryfox.data.FakeIntentManager
 import org.mozilla.tryfox.data.FakeTreeherderRepository
 import org.mozilla.tryfox.data.FakeUserDataRepository
@@ -32,6 +33,7 @@ class ProfileScreenTest {
     private val userDataRepository: UserDataRepository = FakeUserDataRepository()
     private val cacheManager: CacheManager = FakeCacheManager()
     private val intentManager = FakeIntentManager()
+    private val historyRepository = FakeHistoryRepository()
     private val emailInputTag = "profile_email_input"
     private val emailClearButtonTag = "profile_email_clear_button"
     private val searchButtonTag = "profile_search_button"
@@ -50,6 +52,7 @@ class ProfileScreenTest {
             userDataRepository = userDataRepository,
             cacheManager = cacheManager,
             intentManager = intentManager,
+            historyRepository = historyRepository,
             authorEmail = null,
         )
 
@@ -109,6 +112,7 @@ class ProfileScreenTest {
             userDataRepository = userDataRepository,
             cacheManager = cacheManager,
             intentManager = intentManager,
+            historyRepository = historyRepository,
             authorEmail = initialEmail,
         )
 

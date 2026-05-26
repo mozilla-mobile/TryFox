@@ -1,0 +1,34 @@
+package org.mozilla.tryfox.data
+
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import org.mozilla.tryfox.data.repositories.HistoryRepository
+
+class FakeHistoryRepository : HistoryRepository {
+    private val _historyEntries = MutableStateFlow<List<TreeherderInstallHistoryEntry>>(emptyList())
+    override val historyEntries: StateFlow<List<TreeherderInstallHistoryEntry>> = _historyEntries.asStateFlow()
+
+    val recordedEntries = mutableListOf<TreeherderInstallHistoryEntry>()
+    var refreshCalled = false
+    var failRecordInstallerLaunch = false
+
+    override suspend fun refresh() {
+        refreshCalled = true
+    }
+
+    override suspend fun recordInstallerLaunch(entry: TreeherderInstallHistoryEntry) {
+        if (failRecordInstallerLaunch) {
+            error("Failed to record history")
+        }
+        recordedEntries.removeAll { it.uniqueKey == entry.uniqueKey }
+        recordedEntries.add(entry)
+        _historyEntries.value = recordedEntries.sortedByDescending { it.lastInstallerLaunchTimestamp }
+    }
+
+    fun setEntries(entries: List<TreeherderInstallHistoryEntry>) {
+        recordedEntries.clear()
+        recordedEntries.addAll(entries)
+        _historyEntries.value = entries
+    }
+}

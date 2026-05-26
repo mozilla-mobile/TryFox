@@ -25,14 +25,17 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DownloadFileRepository
+import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
+import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
 
 /**
@@ -49,11 +52,13 @@ class TryFoxViewModel(
     private val downloadFileRepository: DownloadFileRepository,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
+    private val historyRepository: HistoryRepository,
     project: String?,
     revision: String?,
     private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
     private val elapsedRealtimeProvider: () -> Long = SystemClock::elapsedRealtime,
-    private val infoLogger: (String, String) -> Int = Log::i,
+    private val currentTimeMillisProvider: () -> Long = System::currentTimeMillis,
+    private val infoLogger: (String, String) -> Int = Log::d,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
 ) : ViewModel() {
@@ -128,19 +133,9 @@ class TryFoxViewModel(
             searchJobsAndArtifacts()
         }
         cacheManager.cacheState.onEach { state ->
-            if (state is CacheManagementState.IdleEmpty) {
-                // Reset download states for artifacts in this ViewModel
-                // This logic was moved from clearAppCache
-                val updatedSelectedJobs = selectedJobs.map {
-                    val updatedArtifacts = it.artifacts.map { artifact ->
-                        artifact.copy(downloadState = DownloadState.NotDownloaded)
-                    }
-                    it.copy(artifacts = updatedArtifacts)
-                }
-                selectedJobs = updatedSelectedJobs
-                checkAndUpdateDownloadingStatus() // Downloads are effectively cancelled
+            if (state !is CacheManagementState.Clearing) {
+                refreshArtifactDownloadStatesFromCache()
             }
-            // Potentially update _isDownloadingAnyFile or other states if they depend on cache state changes
         }.launchIn(viewModelScope)
     }
 
@@ -176,11 +171,17 @@ class TryFoxViewModel(
         // The cache directory for Treeherder artifacts is now under a "treeherder" subdirectory
         val taskSpecificDir = File(cacheManager.getCacheDir("treeherder"), taskId)
         val outputFile = File(taskSpecificDir, artifactName)
+        infoLogger(
+            TAG,
+            "getDownloadedFile artifactName=$artifactName, taskId=$taskId, " +
+                "path=${outputFile.absolutePath}, exists=${outputFile.exists()}",
+        )
         return if (outputFile.exists()) outputFile else null
     }
 
     fun checkCacheStatus() {
         cacheManager.checkCacheStatus()
+        refreshArtifactDownloadStatesFromCache()
     }
 
     fun clearAppCache() {
@@ -219,6 +220,9 @@ class TryFoxViewModel(
                                 foundComment = revDetail.comments
                                 break
                             }
+                        }
+                        if (foundComment == null) {
+                            foundComment = firstPushResult.revisions.firstOrNull()?.comments ?: "No comment"
                         }
                         relevantPushAuthor = firstPushResult.author
                         relevantPushTimestamp = firstPushResult.pushTimestamp
@@ -479,7 +483,14 @@ class TryFoxViewModel(
                         expires = artifact.expires,
                         downloadState = downloadState,
                         uniqueKey = "$taskId/${artifact.name.substringAfterLast('/')}",
-                    )
+                    ).also {
+                        infoLogger(
+                            TAG,
+                            "fetchArtifacts resolved artifact taskId=$taskId, artifactName=${artifact.name}, " +
+                                "artifactFileName=$artifactFileName, uniqueKey=${it.uniqueKey}, " +
+                                "downloadState=${downloadState.javaClass.simpleName}",
+                        )
+                    }
                 }
             }
             is NetworkResult.Error -> emptyList()
@@ -512,6 +523,11 @@ class TryFoxViewModel(
                 outputDir.mkdirs()
             }
             val outputFile = File(outputDir, artifactFileName)
+            infoLogger(
+                TAG,
+                "downloadArtifact output taskId=$taskId, artifactName=${artifactUiModel.name}, " +
+                    "artifactFileName=$artifactFileName, outputPath=${outputFile.absolutePath}",
+            )
 
             val result = downloadFileRepository.downloadFile(
                 downloadUrl = downloadUrl,
@@ -530,7 +546,14 @@ class TryFoxViewModel(
                 is NetworkResult.Success -> {
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.Downloaded(result.data))
                     cacheManager.checkCacheStatus() // Update cache status via CacheManager
-                    onInstallApk?.invoke(result.data)
+                    onInstallApk?.let { installCallback ->
+                        try {
+                            recordInstallerLaunch(job = findJob(taskId), artifact = artifactUiModel)
+                        } catch (_: Exception) {
+                            // History is best-effort; never block installation.
+                        }
+                        installCallback(result.data)
+                    }
                 }
                 is NetworkResult.Error -> {
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(result.message))
@@ -559,7 +582,97 @@ class TryFoxViewModel(
         checkAndUpdateDownloadingStatus()
     }
 
-    fun installApk(file: File) {
-        intentManager.installApk(file)
+    private fun refreshArtifactDownloadStatesFromCache() {
+        if (selectedJobs.isEmpty()) {
+            checkAndUpdateDownloadingStatus()
+            return
+        }
+
+        selectedJobs = selectedJobs.map { job ->
+            job.copy(
+                artifacts = job.artifacts.map { artifact ->
+                    when (artifact.downloadState) {
+                        is DownloadState.InProgress,
+                        is DownloadState.DownloadFailed,
+                        -> artifact
+                        else -> {
+                            val artifactFileName = artifact.name.substringAfterLast('/')
+                            val downloadedFile = getDownloadedFile(artifactFileName, artifact.taskId)
+                            val refreshedState = downloadedFile?.let { DownloadState.Downloaded(it) }
+                                ?: DownloadState.NotDownloaded
+                            artifact.copy(downloadState = refreshedState)
+                        }
+                    }
+                },
+            )
+        }
+        checkAndUpdateDownloadingStatus()
     }
+
+    fun installApk(file: File) {
+        val downloadedArtifact = findDownloadedArtifact(file)
+        if (downloadedArtifact == null) {
+            intentManager.installApk(file)
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                recordInstallerLaunch(
+                    job = downloadedArtifact.job,
+                    artifact = downloadedArtifact.artifact,
+                )
+            } catch (_: Exception) {
+                // History is best-effort; never block installation.
+            }
+            intentManager.installApk(file)
+        }
+    }
+
+    private fun findJob(taskId: String): JobDetailsUiModel? =
+        selectedJobs.firstOrNull { it.taskId == taskId }
+
+    private fun findDownloadedArtifact(file: File): DownloadedArtifact? =
+        selectedJobs.firstNotNullOfOrNull { job ->
+            job.artifacts.firstOrNull { artifact ->
+                val downloadState = artifact.downloadState
+                downloadState is DownloadState.Downloaded && downloadState.file.absolutePath == file.absolutePath
+            }?.let { artifact -> DownloadedArtifact(job, artifact) }
+        }
+
+    private suspend fun recordInstallerLaunch(
+        job: JobDetailsUiModel?,
+        artifact: ArtifactUiModel,
+    ) {
+        if (job == null || relevantPushTimestamp == null) {
+            return
+        }
+        val artifactFileName = artifact.name.substringAfterLast('/')
+        historyRepository.recordInstallerLaunch(
+            TreeherderInstallHistoryEntry(
+                project = selectedProject,
+                revision = revision,
+                commitMessage = relevantPushComment ?: "No comment",
+                author = relevantPushAuthor,
+                pushTimestamp = relevantPushTimestamp ?: 0L,
+                appName = job.appName,
+                jobName = job.jobName,
+                jobSymbol = job.jobSymbol,
+                taskId = artifact.taskId,
+                artifactName = artifact.name,
+                artifactFileName = artifactFileName,
+                downloadUrl = artifact.downloadUrl,
+                abiName = artifact.abi.name,
+                abiSupported = artifact.abi.isSupported,
+                expires = artifact.expires,
+                cacheRelativePath = "$TREEHERDER/${artifact.taskId}/$artifactFileName",
+                lastInstallerLaunchTimestamp = currentTimeMillisProvider(),
+            ),
+        )
+    }
+
+    private data class DownloadedArtifact(
+        val job: JobDetailsUiModel,
+        val artifact: ArtifactUiModel,
+    )
 }

@@ -2,6 +2,7 @@
     <string name="app_name">TryFox</string>
     <string name="home_profile_button_description">Profile</string>
     <string name="home_search_treeherder_button_description">Search Treeherder</string>
+    <string name="home_history_button_description">History</string>
     <string name="home_scan_qr_code_button_description">Scan QR code</string>
     <string name="home_fetching_nightly_builds">Fetching latest nightly builds...</string>
     <string name="home_loading_initial_data">Loading initial app data...</string> <!-- Added -->
@@ -54,6 +55,11 @@
     <string name="profile_screen_search_button_description">Search pushes by email</string>
     <string name="profile_screen_no_pushes_enter_email">Enter a user email and tap search to find pushes.</string>
     <string name="profile_screen_clear_email_description">Clear email field</string>
+    <string name="history_screen_title">History</string>
+    <string name="history_screen_empty_title">No installs yet</string>
+    <string name="history_screen_empty_message">Treeherder APKs appear here after TryFox opens the installer.</string>
+    <string name="history_screen_revision_label">Revision: %1$s</string>
+    <string name="history_screen_last_installed_label">Last installed: %1$s</string>
 
     <string name="app_name_fenix">Fenix</string>
     <string name="app_name_fenix_release">Fenix Release</string>
