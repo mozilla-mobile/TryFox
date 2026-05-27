@@ -2,6 +2,7 @@ package org.mozilla.tryfox.ui.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,9 +14,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -61,6 +65,7 @@ import org.mozilla.tryfox.ui.models.HistoryItemUiModel
 
 internal const val HISTORY_EMPTY_STATE_TAG = "history_empty_state"
 internal const val HISTORY_LIST_TAG = "history_list"
+internal const val HISTORY_DELETE_BUTTON_TAG = "history_delete_button"
 private const val HISTORY_SCREEN_LOG_TAG = "HistoryScreen"
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -151,6 +156,7 @@ fun HistoryScreen(
                         onRevisionClick = onNavigateToTreeherderRevision,
                         onDownloadClick = { historyViewModel.download(historyItem) },
                         onInstallClick = { file -> historyViewModel.install(historyItem, file) },
+                        onDeleteClick = { historyViewModel.delete(historyItem) },
                     )
                 }
             }
@@ -164,6 +170,7 @@ private fun HistoryCard(
     onRevisionClick: (project: String, revision: String) -> Unit,
     onDownloadClick: () -> Unit,
     onInstallClick: (java.io.File) -> Unit,
+    onDeleteClick: () -> Unit,
 ) {
     val entry = historyItem.entry
 
@@ -205,6 +212,8 @@ private fun HistoryCard(
                         color = MaterialTheme.colorScheme.primary,
                     )
                 }
+                Spacer(modifier = Modifier.width(8.dp))
+                DeleteHistoryButton(onClick = onDeleteClick)
             }
 
             PushCommentCard(
@@ -240,6 +249,31 @@ private fun HistoryCard(
                     downloadState = historyItem.downloadState,
                     onDownloadClick = onDownloadClick,
                     onInstallClick = onInstallClick,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeleteHistoryButton(onClick: () -> Unit) {
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .size(32.dp)
+            .testTag(HISTORY_DELETE_BUTTON_TAG),
+    ) {
+        Surface(
+            modifier = Modifier.size(24.dp),
+            shape = CircleShape,
+            color = Color(0xFFD32F2F),
+            contentColor = Color.White,
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = stringResource(id = R.string.history_screen_delete_entry_description),
+                    modifier = Modifier.size(16.dp),
                 )
             }
         }

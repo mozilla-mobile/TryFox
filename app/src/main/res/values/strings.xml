@@ -60,6 +60,7 @@
     <string name="history_screen_empty_message">Treeherder APKs appear here after TryFox opens the installer.</string>
     <string name="history_screen_revision_label">Revision: %1$s</string>
     <string name="history_screen_last_installed_label">Last installed: %1$s</string>
+    <string name="history_screen_delete_entry_description">Remove history entry</string>
 
     <string name="app_name_fenix">Fenix</string>
     <string name="app_name_fenix_release">Fenix Release</string>

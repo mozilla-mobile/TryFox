@@ -9,4 +9,6 @@ interface HistoryRepository {
     suspend fun refresh()
 
     suspend fun recordInstallerLaunch(entry: TreeherderInstallHistoryEntry)
+
+    suspend fun delete(uniqueKey: String)
 }
