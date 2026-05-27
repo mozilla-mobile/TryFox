@@ -49,6 +49,18 @@ class DefaultHistoryRepository(
         refresh()
     }
 
+    override suspend fun delete(uniqueKey: String) {
+        logcat(LogPriority.DEBUG, TAG) { "delete uniqueKey=$uniqueKey" }
+        withContext(ioDispatcher) {
+            dbHelper.writableDatabase.delete(
+                TABLE_HISTORY,
+                "$COLUMN_ID = ?",
+                arrayOf(uniqueKey),
+            )
+        }
+        refresh()
+    }
+
     private suspend fun loadEntries(): List<TreeherderInstallHistoryEntry> = withContext(ioDispatcher) {
         dbHelper.readableDatabase.query(
             TABLE_HISTORY,

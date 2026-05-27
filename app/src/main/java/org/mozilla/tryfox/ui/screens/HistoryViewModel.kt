@@ -3,7 +3,9 @@ package org.mozilla.tryfox.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,7 +41,10 @@ class HistoryViewModel(
     }
 
     private val downloadStates = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
+    private val activeDownloads = MutableStateFlow<Map<String, ActiveDownload>>(emptyMap())
+    private val canceledDownloads = MutableStateFlow<Map<DownloadIdentity, TreeherderInstallHistoryEntry>>(emptyMap())
     private val cacheRefreshEvents = MutableStateFlow(0)
+    private var nextDownloadGeneration = 0L
 
     private val _historyItems = MutableStateFlow<List<HistoryItemUiModel>>(emptyList())
     val historyItems: StateFlow<List<HistoryItemUiModel>> = _historyItems.asStateFlow()
@@ -72,6 +77,12 @@ class HistoryViewModel(
             "download requested uniqueKey=${entry.uniqueKey}, currentState=${currentState.javaClass.simpleName}, " +
                 "historyItemState=${historyItem.downloadState.javaClass.simpleName}"
         }
+        if (canceledDownloads.value.keys.any { it.uniqueKey == entry.uniqueKey }) {
+            logcat(LogPriority.DEBUG, TAG) {
+                "download ignored because a canceled download is still finishing uniqueKey=${entry.uniqueKey}"
+            }
+            return
+        }
         when (currentState) {
             is DownloadState.InProgress -> {
                 logcat(LogPriority.DEBUG, TAG) {
@@ -96,8 +107,10 @@ class HistoryViewModel(
             else -> Unit
         }
 
-        viewModelScope.launch(ioDispatcher) {
-            updateDownloadState(entry.uniqueKey, DownloadState.InProgress(0f))
+        val generation = nextDownloadGeneration++
+        lateinit var downloadJob: Job
+        downloadJob = viewModelScope.launch(ioDispatcher, start = CoroutineStart.LAZY) {
+            updateDownloadStateIfActive(entry.uniqueKey, generation, DownloadState.InProgress(0f))
             val outputFile = getCachedFile(entry).selectedFile
             outputFile.parentFile?.mkdirs()
             logcat(LogPriority.DEBUG, TAG) {
@@ -116,7 +129,11 @@ class HistoryViewModel(
                         } else {
                             0f
                         }
-                        updateDownloadState(entry.uniqueKey, DownloadState.InProgress(progress))
+                        updateDownloadStateIfActive(
+                            entry.uniqueKey,
+                            generation,
+                            DownloadState.InProgress(progress),
+                        )
                     },
                 )
             ) {
@@ -133,13 +150,21 @@ class HistoryViewModel(
                             "download success but file is missing uniqueKey=${entry.uniqueKey}, " +
                                 "resultPath=${result.data.absolutePath}, outputPath=${outputFile.absolutePath}"
                         }
-                        updateDownloadState(entry.uniqueKey, DownloadState.DownloadFailed("Downloaded file is missing"))
+                        updateDownloadStateIfActive(
+                            entry.uniqueKey,
+                            generation,
+                            DownloadState.DownloadFailed("Downloaded file is missing"),
+                        )
                     } else {
                         logcat(LogPriority.DEBUG, TAG) {
                             "download marked downloaded uniqueKey=${entry.uniqueKey}, " +
                                 "path=${downloadedFile.absolutePath}, length=${downloadedFile.length()}"
                         }
-                        updateDownloadState(entry.uniqueKey, DownloadState.Downloaded(downloadedFile))
+                        updateDownloadStateIfActive(
+                            entry.uniqueKey,
+                            generation,
+                            DownloadState.Downloaded(downloadedFile),
+                        )
                     }
                     cacheManager.checkCacheStatus()
                     cacheRefreshEvents.update { it + 1 }
@@ -148,12 +173,41 @@ class HistoryViewModel(
                     logcat(LogPriority.ERROR, TAG) {
                         "download repository error uniqueKey=${entry.uniqueKey}, message=${result.message}"
                     }
-                    updateDownloadState(entry.uniqueKey, DownloadState.DownloadFailed(result.message))
+                    updateDownloadStateIfActive(
+                        entry.uniqueKey,
+                        generation,
+                        DownloadState.DownloadFailed(result.message),
+                    )
                     cacheManager.checkCacheStatus()
                     cacheRefreshEvents.update { it + 1 }
                 }
             }
         }
+        val activeDownload = ActiveDownload(
+            job = downloadJob,
+            generation = generation,
+            entry = entry,
+        )
+        val downloadIdentity = DownloadIdentity(entry.uniqueKey, generation)
+        activeDownloads.update { it + (entry.uniqueKey to activeDownload) }
+        downloadJob.invokeOnCompletion {
+            activeDownloads.update { downloads ->
+                if (downloads[entry.uniqueKey]?.generation == generation) {
+                    downloads - entry.uniqueKey
+                } else {
+                    downloads
+                }
+            }
+            canceledDownloads.value[downloadIdentity]?.let { canceledEntry ->
+                if (activeDownloads.value[canceledEntry.uniqueKey] == null) {
+                    deleteDownloadFiles(canceledEntry)
+                    cacheManager.checkCacheStatus()
+                    cacheRefreshEvents.update { it + 1 }
+                }
+                canceledDownloads.update { it - downloadIdentity }
+            }
+        }
+        downloadJob.start()
     }
 
     fun install(historyItem: HistoryItemUiModel, file: File) {
@@ -169,8 +223,52 @@ class HistoryViewModel(
         }
     }
 
+    fun delete(historyItem: HistoryItemUiModel) {
+        val uniqueKey = historyItem.entry.uniqueKey
+        viewModelScope.launch(ioDispatcher) {
+            try {
+                activeDownloads.value[uniqueKey]?.let { activeDownload ->
+                    val downloadIdentity = DownloadIdentity(uniqueKey, activeDownload.generation)
+                    canceledDownloads.update { it + (downloadIdentity to activeDownload.entry) }
+                    activeDownloads.update { downloads ->
+                        if (downloads[uniqueKey]?.generation == activeDownload.generation) {
+                            downloads - uniqueKey
+                        } else {
+                            downloads
+                        }
+                    }
+                    activeDownload.job.cancel()
+                    deleteDownloadFiles(activeDownload.entry)
+                }
+                historyRepository.delete(uniqueKey)
+                downloadStates.update { it - uniqueKey }
+                cacheManager.checkCacheStatus()
+                cacheRefreshEvents.update { it + 1 }
+            } catch (exception: Exception) {
+                logcat(LogPriority.ERROR, TAG) {
+                    "delete failed uniqueKey=$uniqueKey\n${exception.stackTraceToString()}"
+                }
+            }
+        }
+    }
+
     private fun updateDownloadState(uniqueKey: String, downloadState: DownloadState) {
         downloadStates.update { it + (uniqueKey to downloadState) }
+    }
+
+    private fun updateDownloadStateIfActive(
+        uniqueKey: String,
+        generation: Long,
+        downloadState: DownloadState,
+    ) {
+        if (activeDownloads.value[uniqueKey]?.generation == generation) {
+            updateDownloadState(uniqueKey, downloadState)
+        } else {
+            logcat(LogPriority.DEBUG, TAG) {
+                "ignored stale download state uniqueKey=$uniqueKey, generation=$generation, " +
+                    "state=${downloadState.javaClass.simpleName}"
+            }
+        }
     }
 
     private fun List<TreeherderInstallHistoryEntry>.toUiModels(
@@ -179,7 +277,9 @@ class HistoryViewModel(
         map { entry ->
             val cacheResolution = getCachedFile(entry)
             val rememberedState = states[entry.uniqueKey]
+            val isCanceledDownloadFinishing = canceledDownloads.value.keys.any { it.uniqueKey == entry.uniqueKey }
             val downloadState = when {
+                isCanceledDownloadFinishing -> DownloadState.InProgress(0f, isIndeterminate = true)
                 rememberedState is DownloadState.InProgress -> rememberedState
                 rememberedState is DownloadState.DownloadFailed -> rememberedState
 
@@ -227,4 +327,50 @@ class HistoryViewModel(
         val fallbackFile: File,
         val selectedFile: File,
     )
+
+    private data class ActiveDownload(
+        val job: Job,
+        val generation: Long,
+        val entry: TreeherderInstallHistoryEntry,
+    )
+
+    private data class DownloadIdentity(
+        val uniqueKey: String,
+        val generation: Long,
+    )
+
+    private fun deleteDownloadFiles(entry: TreeherderInstallHistoryEntry) {
+        val cacheResolution = getCachedFile(entry)
+        setOf(
+            cacheResolution.relativePathFile,
+            cacheResolution.fallbackFile,
+            cacheResolution.selectedFile,
+        ).forEach(::deleteDownloadFilesForOutput)
+    }
+
+    private fun deleteDownloadFilesForOutput(outputFile: File) {
+        val relatedFiles = buildList {
+            add(outputFile)
+            add(File(outputFile.parentFile, "${outputFile.name}.part"))
+            add(File(outputFile.parentFile, "${outputFile.name}.bak"))
+            outputFile.parentFile?.listFiles { file ->
+                file.isFile && file.isManagedNumberedBackupFile(outputFile)
+            }?.let(::addAll)
+        }
+        relatedFiles.forEach { file ->
+            if (file.exists() && !file.delete()) {
+                logcat(LogPriority.WARN, TAG) {
+                    "failed to delete history download file path=${file.absolutePath}"
+                }
+            }
+        }
+    }
+
+    private fun File.isManagedNumberedBackupFile(outputFile: File): Boolean {
+        val backupPrefix = "${outputFile.name}.bak."
+        if (!name.startsWith(backupPrefix)) {
+            return false
+        }
+        return name.removePrefix(backupPrefix).toIntOrNull() != null
+    }
 }

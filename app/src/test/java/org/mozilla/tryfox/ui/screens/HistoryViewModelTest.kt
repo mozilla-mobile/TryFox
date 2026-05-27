@@ -4,6 +4,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
@@ -181,6 +182,118 @@ class HistoryViewModelTest {
         assertTrue(intentManager.wasInstallApkCalled)
     }
 
+    @Test
+    fun `delete removes history item from repository and rendered state`() = runTest {
+        val firstEntry = historyEntry()
+        val secondEntry = historyEntry(downloadUrl = "https://example.com/second.apk")
+            .copy(taskId = "second-task", artifactFileName = "second.apk", artifactName = "public/build/second.apk")
+        val historyRepository = FakeHistoryRepository().apply {
+            setEntries(listOf(firstEntry, secondEntry))
+        }
+        val viewModel = createViewModel(
+            cacheManager = FakeCacheManager(tempCacheDir),
+            historyRepository = historyRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.delete(viewModel.historyItems.value.first { it.entry.uniqueKey == firstEntry.uniqueKey })
+        advanceUntilIdle()
+
+        assertEquals(listOf(secondEntry.uniqueKey), historyRepository.recordedEntries.map { it.uniqueKey })
+        assertEquals(listOf(secondEntry.uniqueKey), viewModel.historyItems.value.map { it.entry.uniqueKey })
+    }
+
+    @Test
+    fun `delete cancels active download removes files and ignores late download callbacks`() = runTest {
+        val entry = historyEntry()
+        val cacheManager = FakeCacheManager(tempCacheDir)
+        val historyRepository = FakeHistoryRepository().apply { setEntries(listOf(entry)) }
+        val downloadFileRepository = CancellationIgnoringFailingDownloadFileRepository()
+        val viewModel = createViewModel(
+            cacheManager = cacheManager,
+            historyRepository = historyRepository,
+            downloadFileRepository = downloadFileRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.download(viewModel.historyItems.value.single())
+        advanceUntilIdle()
+        assertTrue(viewModel.historyItems.value.single().downloadState is DownloadState.InProgress)
+        val downloadedFile = File(cacheManager.getCacheDir("treeherder"), "${entry.taskId}/${entry.artifactFileName}")
+        val partialFile = File(downloadedFile.parentFile, "${downloadedFile.name}.part")
+        val managedBackupFile = File(downloadedFile.parentFile, "${downloadedFile.name}.bak.1")
+        val unmanagedBackupLikeFile = File(downloadedFile.parentFile, "${downloadedFile.name}.bak.tmp")
+        managedBackupFile.writeText("backup")
+        unmanagedBackupLikeFile.writeText("not managed by downloader")
+
+        viewModel.delete(viewModel.historyItems.value.single())
+        advanceUntilIdle()
+
+        assertTrue(downloadFileRepository.wasCanceled)
+        assertEquals(emptyList<TreeherderInstallHistoryEntry>(), historyRepository.recordedEntries)
+        assertTrue(viewModel.historyItems.value.isEmpty())
+        assertFalse(downloadedFile.exists())
+        assertFalse(partialFile.exists())
+        assertFalse(managedBackupFile.exists())
+        assertTrue(unmanagedBackupLikeFile.exists())
+
+        historyRepository.setEntries(listOf(entry))
+        advanceUntilIdle()
+
+        assertTrue(viewModel.historyItems.value.single().downloadState is DownloadState.NotDownloaded)
+    }
+
+    @Test
+    fun `same key download waits until canceled download finishes`() = runTest {
+        val entry = historyEntry()
+        val cacheManager = FakeCacheManager(tempCacheDir)
+        val historyRepository = FakeHistoryRepository().apply { setEntries(listOf(entry)) }
+        val downloadFileRepository = DelayedCanceledThenBlockingDownloadFileRepository()
+        val viewModel = createViewModel(
+            cacheManager = cacheManager,
+            historyRepository = historyRepository,
+            downloadFileRepository = downloadFileRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.download(viewModel.historyItems.value.single())
+        advanceUntilIdle()
+        viewModel.delete(viewModel.historyItems.value.single())
+        advanceUntilIdle()
+
+        historyRepository.setEntries(listOf(entry))
+        advanceUntilIdle()
+        assertTrue(
+            (viewModel.historyItems.value.single().downloadState as DownloadState.InProgress)
+                .isIndeterminate,
+        )
+
+        viewModel.download(viewModel.historyItems.value.single())
+        advanceUntilIdle()
+
+        val downloadedFile = File(cacheManager.getCacheDir("treeherder"), "${entry.taskId}/${entry.artifactFileName}")
+        val partialFile = File(downloadedFile.parentFile, "${downloadedFile.name}.part")
+        assertEquals(1, downloadFileRepository.startedDownloads)
+        assertFalse(partialFile.exists())
+
+        downloadFileRepository.completeCanceledDownload()
+        advanceUntilIdle()
+        assertTrue(viewModel.historyItems.value.single().downloadState is DownloadState.NotDownloaded)
+
+        viewModel.download(viewModel.historyItems.value.single())
+        advanceUntilIdle()
+
+        assertTrue(partialFile.exists())
+        assertEquals(2, downloadFileRepository.startedDownloads)
+        assertTrue(viewModel.historyItems.value.single().downloadState is DownloadState.InProgress)
+
+        downloadFileRepository.completeSecondDownload()
+        advanceUntilIdle()
+
+        assertTrue(downloadedFile.exists())
+        assertTrue(viewModel.historyItems.value.single().downloadState is DownloadState.Downloaded)
+    }
+
     private fun createViewModel(
         cacheManager: FakeCacheManager,
         historyRepository: FakeHistoryRepository,
@@ -241,6 +354,80 @@ class HistoryViewModelTest {
 
         fun complete() {
             completion.complete(Unit)
+        }
+    }
+
+    private class CancellationIgnoringFailingDownloadFileRepository : org.mozilla.tryfox.data.repositories.DownloadFileRepository {
+        var wasCanceled = false
+            private set
+
+        override suspend fun downloadFile(
+            downloadUrl: String,
+            outputFile: File,
+            onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit,
+        ): org.mozilla.tryfox.data.NetworkResult<File> {
+            outputFile.parentFile?.mkdirs()
+            outputFile.writeText("partial")
+            File(outputFile.parentFile, "${outputFile.name}.part").writeText("partial")
+            onProgress(1L, 10L)
+
+            try {
+                kotlinx.coroutines.awaitCancellation()
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                wasCanceled = true
+            }
+
+            outputFile.writeText("late complete")
+            File(outputFile.parentFile, "${outputFile.name}.part").writeText("late partial")
+            onProgress(10L, 10L)
+            return org.mozilla.tryfox.data.NetworkResult.Error("late failure after cancellation", null)
+        }
+    }
+
+    private class DelayedCanceledThenBlockingDownloadFileRepository : org.mozilla.tryfox.data.repositories.DownloadFileRepository {
+        private val canceledDownloadCanComplete = kotlinx.coroutines.CompletableDeferred<Unit>()
+        private val secondDownloadCanComplete = kotlinx.coroutines.CompletableDeferred<Unit>()
+
+        var startedDownloads = 0
+            private set
+
+        override suspend fun downloadFile(
+            downloadUrl: String,
+            outputFile: File,
+            onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit,
+        ): org.mozilla.tryfox.data.NetworkResult<File> {
+            startedDownloads += 1
+            outputFile.parentFile?.mkdirs()
+            val partialFile = File(outputFile.parentFile, "${outputFile.name}.part")
+
+            return if (startedDownloads == 1) {
+                partialFile.writeText("first partial")
+                onProgress(1L, 10L)
+                try {
+                    kotlinx.coroutines.awaitCancellation()
+                } catch (_: kotlinx.coroutines.CancellationException) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                        canceledDownloadCanComplete.await()
+                    }
+                }
+                org.mozilla.tryfox.data.NetworkResult.Error("first download canceled", null)
+            } else {
+                partialFile.writeText("second partial")
+                onProgress(1L, 10L)
+                secondDownloadCanComplete.await()
+                partialFile.delete()
+                outputFile.writeText("second complete")
+                onProgress(10L, 10L)
+                org.mozilla.tryfox.data.NetworkResult.Success(outputFile)
+            }
+        }
+
+        fun completeCanceledDownload() {
+            canceledDownloadCanComplete.complete(Unit)
+        }
+
+        fun completeSecondDownload() {
+            secondDownloadCanComplete.complete(Unit)
         }
     }
 }

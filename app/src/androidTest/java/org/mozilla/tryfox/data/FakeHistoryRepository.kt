@@ -19,6 +19,11 @@ class FakeHistoryRepository : HistoryRepository {
         _historyEntries.value = recordedEntries.sortedByDescending { it.lastInstallerLaunchTimestamp }
     }
 
+    override suspend fun delete(uniqueKey: String) {
+        recordedEntries.removeAll { it.uniqueKey == uniqueKey }
+        _historyEntries.value = recordedEntries.sortedByDescending { it.lastInstallerLaunchTimestamp }
+    }
+
     fun setEntries(entries: List<TreeherderInstallHistoryEntry>) {
         recordedEntries.clear()
         recordedEntries.addAll(entries)

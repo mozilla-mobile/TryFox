@@ -1,13 +1,18 @@
 package org.mozilla.tryfox.ui.screens
 
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.FakeCacheManager
 import org.mozilla.tryfox.data.FakeDownloadFileRepository
 import org.mozilla.tryfox.data.FakeHistoryRepository
@@ -53,6 +58,41 @@ class HistoryScreenTest {
 
         assertEquals("mozilla-central", selectedProject)
         assertEquals(revision, selectedRevision)
+    }
+
+    @Test
+    fun clickingRemoveHistoryEntryRemovesCard() {
+        val revision = "abcdef1234567890"
+        val historyRepository = FakeHistoryRepository().apply {
+            setEntries(listOf(historyEntry(project = "mozilla-central", revision = revision)))
+        }
+        val historyViewModel = HistoryViewModel(
+            historyRepository = historyRepository,
+            downloadFileRepository = FakeDownloadFileRepository(),
+            cacheManager = FakeCacheManager(),
+            intentManager = FakeIntentManager(),
+        )
+
+        composeTestRule.setContent {
+            TryFoxTheme {
+                HistoryScreen(
+                    onNavigateUp = {},
+                    onNavigateToTreeherderRevision = { _, _ -> },
+                    historyViewModel = historyViewModel,
+                )
+            }
+        }
+
+        composeTestRule
+            .onNodeWithContentDescription(
+                InstrumentationRegistry.getInstrumentation().targetContext.getString(
+                    R.string.history_screen_delete_entry_description,
+                ),
+            )
+            .performClick()
+
+        composeTestRule.onAllNodesWithText("Revision: ${revision.take(12)}").assertCountEquals(0)
+        assertEquals(emptyList<TreeherderInstallHistoryEntry>(), historyRepository.recordedEntries)
     }
 
     private fun historyEntry(
