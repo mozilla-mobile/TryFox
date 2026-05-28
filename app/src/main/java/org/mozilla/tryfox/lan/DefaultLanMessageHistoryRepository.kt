@@ -15,8 +15,9 @@ import kotlinx.coroutines.withContext
 class DefaultLanMessageHistoryRepository(
     context: Context,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    databaseName: String = DATABASE_NAME,
 ) : LanMessageHistoryRepository {
-    private val dbHelper = MessageHistoryDatabaseHelper(context.applicationContext)
+    private val dbHelper = MessageHistoryDatabaseHelper(context.applicationContext, databaseName)
     private val _history = MutableStateFlow<List<LanReceivedMessage>>(emptyList())
     override val history: StateFlow<List<LanReceivedMessage>> = _history.asStateFlow()
 
@@ -29,6 +30,33 @@ class DefaultLanMessageHistoryRepository(
         val storedMessage = message.copy(id = id)
         _history.value = loadEntries()
         storedMessage
+    }
+
+    override suspend fun replaceAll(messages: List<LanReceivedMessage>): List<LanReceivedMessage> = withContext(ioDispatcher) {
+        val database = dbHelper.writableDatabase
+        database.beginTransaction()
+        try {
+            val storedMessages = messages.map { message ->
+                val id = database.insert(TABLE_HISTORY, null, message.toContentValues())
+                message.copy(id = id)
+            }
+            database.setTransactionSuccessful()
+            _history.value = loadEntries()
+            storedMessages
+        } finally {
+            database.endTransaction()
+        }
+    }
+
+    override suspend fun delete(id: Long) {
+        withContext(ioDispatcher) {
+            dbHelper.writableDatabase.delete(
+                TABLE_HISTORY,
+                "$COLUMN_ID = ?",
+                arrayOf(id.toString()),
+            )
+        }
+        _history.value = loadEntries()
     }
 
     private suspend fun loadEntries(): List<LanReceivedMessage> = withContext(ioDispatcher) {
@@ -62,6 +90,9 @@ class DefaultLanMessageHistoryRepository(
             put(COLUMN_REVISION, revision)
             put(COLUMN_AUTHOR, author)
             put(COLUMN_BODY_HASH, bodyHash)
+            put(COLUMN_TITLE, title)
+            put(COLUMN_PUSH_COMMENT, pushComment)
+            put(COLUMN_PUSH_TIMESTAMP, pushTimestamp)
         }
 
     private fun Cursor.toLanReceivedMessage(): LanReceivedMessage =
@@ -78,6 +109,9 @@ class DefaultLanMessageHistoryRepository(
             revision = getNullableString(COLUMN_REVISION),
             author = getNullableString(COLUMN_AUTHOR),
             bodyHash = getNullableString(COLUMN_BODY_HASH),
+            title = getNullableString(COLUMN_TITLE),
+            pushComment = getNullableString(COLUMN_PUSH_COMMENT),
+            pushTimestamp = getNullableLong(COLUMN_PUSH_TIMESTAMP),
         )
 
     private fun Cursor.getNullableString(columnName: String): String? {
@@ -85,9 +119,17 @@ class DefaultLanMessageHistoryRepository(
         return if (isNull(index)) null else getString(index)
     }
 
-    private class MessageHistoryDatabaseHelper(context: Context) : SQLiteOpenHelper(
+    private fun Cursor.getNullableLong(columnName: String): Long? {
+        val index = getColumnIndexOrThrow(columnName)
+        return if (isNull(index)) null else getLong(index)
+    }
+
+    private class MessageHistoryDatabaseHelper(
+        context: Context,
+        databaseName: String,
+    ) : SQLiteOpenHelper(
         context,
-        DATABASE_NAME,
+        databaseName,
         null,
         DATABASE_VERSION,
     ) {
@@ -106,21 +148,27 @@ class DefaultLanMessageHistoryRepository(
                     $COLUMN_REPO TEXT,
                     $COLUMN_REVISION TEXT,
                     $COLUMN_AUTHOR TEXT,
-                    $COLUMN_BODY_HASH TEXT
+                    $COLUMN_BODY_HASH TEXT,
+                    $COLUMN_TITLE TEXT,
+                    $COLUMN_PUSH_COMMENT TEXT,
+                    $COLUMN_PUSH_TIMESTAMP INTEGER
                 )
                 """.trimIndent(),
             )
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_HISTORY")
-            onCreate(db)
+            if (oldVersion < 2) {
+                db.execSQL("ALTER TABLE $TABLE_HISTORY ADD COLUMN $COLUMN_TITLE TEXT")
+                db.execSQL("ALTER TABLE $TABLE_HISTORY ADD COLUMN $COLUMN_PUSH_COMMENT TEXT")
+                db.execSQL("ALTER TABLE $TABLE_HISTORY ADD COLUMN $COLUMN_PUSH_TIMESTAMP INTEGER")
+            }
         }
     }
 
     private companion object {
         const val DATABASE_NAME = "tryfox_lan_history.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
         const val TABLE_HISTORY = "received_messages"
         const val COLUMN_ID = "id"
         const val COLUMN_RECEIVED_AT = "received_at"
@@ -134,5 +182,8 @@ class DefaultLanMessageHistoryRepository(
         const val COLUMN_REVISION = "revision"
         const val COLUMN_AUTHOR = "author"
         const val COLUMN_BODY_HASH = "body_hash"
+        const val COLUMN_TITLE = "title"
+        const val COLUMN_PUSH_COMMENT = "push_comment"
+        const val COLUMN_PUSH_TIMESTAMP = "push_timestamp"
     }
 }

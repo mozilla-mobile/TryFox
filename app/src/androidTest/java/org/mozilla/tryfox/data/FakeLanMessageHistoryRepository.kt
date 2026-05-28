@@ -18,6 +18,18 @@ class FakeLanMessageHistoryRepository : LanMessageHistoryRepository {
         return storedMessage
     }
 
+    override suspend fun replaceAll(messages: List<LanReceivedMessage>): List<LanReceivedMessage> {
+        val storedMessages = messages.mapIndexed { index, message ->
+            message.copy(id = (_history.value.size + index + 1).toLong())
+        }
+        _history.value = storedMessages + _history.value
+        return storedMessages
+    }
+
+    override suspend fun delete(id: Long) {
+        _history.value = _history.value.filterNot { it.id == id }
+    }
+
     fun setHistory(messages: List<LanReceivedMessage>) {
         _history.value = messages
     }

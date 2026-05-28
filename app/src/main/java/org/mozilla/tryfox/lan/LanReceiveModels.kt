@@ -26,6 +26,7 @@ data class LanIncomingMessage(
     val type: String,
     val messageId: String,
     val sentAt: Long,
+    val title: String? = null,
     val sourceUrl: String,
     val tryfoxDeepLink: String,
     val repo: String? = null,
@@ -66,6 +67,9 @@ data class LanReceivedMessage(
     val revision: String? = null,
     val author: String? = null,
     val bodyHash: String? = null,
+    val title: String? = null,
+    val pushComment: String? = null,
+    val pushTimestamp: Long? = null,
 )
 
 data class LanReceiveSessionState(

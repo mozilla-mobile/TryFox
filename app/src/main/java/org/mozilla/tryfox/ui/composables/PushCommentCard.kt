@@ -53,6 +53,7 @@ private data class LinkableSpan(
 @OptIn(FormatStringsInDatetimeFormats::class)
 @Composable
 fun PushCommentCard(
+    title: String? = null,
     comment: String,
     author: String?,
     revision: String,
@@ -139,6 +140,23 @@ fun PushCommentCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
+            title?.takeIf { it.isNotBlank() }?.let { titleText ->
+                Text(
+                    text = titleText,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+                Text(
+                    text = "____",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -223,6 +241,7 @@ private fun PushCommentCardPreview(
 ) {
     TryFoxTheme {
         PushCommentCard(
+            title = null,
             comment = state.comment,
             author = state.author,
             revision = "abc123def456",

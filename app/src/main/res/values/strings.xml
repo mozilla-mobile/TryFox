@@ -98,7 +98,8 @@
     <string name="lan_receive_message_history_button">Message history</string>
     <string name="lan_receive_message_history_title">Message history</string>
     <string name="lan_receive_message_history_empty_title">No messages yet</string>
-    <string name="lan_receive_message_history_empty_message">Received desktop messages appear here.</string>
+    <string name="lan_receive_message_history_empty_message">Received Try pushes appear here.</string>
+    <string name="lan_receive_message_history_missing_comment">No comment</string>
     <string name="lan_receive_message_history_status_accepted">Accepted</string>
     <string name="lan_receive_message_history_status_rejected">Rejected: %1$s</string>
     <string name="lan_receive_message_history_source_url">Source: %1$s</string>
@@ -112,10 +113,12 @@
     <string name="lan_receive_message_group_body">Open to view received desktop messages</string>
     <string name="lan_receive_message_notification_title_revision">Received revision %1$s</string>
     <string name="lan_receive_message_notification_title_author">Received author %1$s</string>
+    <string name="lan_receive_message_notification_title_comment">%1$s</string>
     <string name="lan_receive_message_notification_title_generic">Received desktop message</string>
     <string name="lan_receive_message_notification_title_rejected">Rejected desktop message</string>
     <string name="lan_receive_message_notification_body_source">Source: %1$s</string>
     <string name="lan_receive_message_notification_body_id">Message ID: %1$s</string>
+    <string name="lan_receive_message_notification_body_time">Push timestamp: %1$s</string>
     <string name="lan_receive_message_notification_body_generic">Open TryFox to inspect the received message.</string>
     <string name="lan_receive_message_notification_body_rejected">Reason: %1$s</string>
 </resources>

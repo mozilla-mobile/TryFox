@@ -8,4 +8,8 @@ interface LanMessageHistoryRepository {
     suspend fun refresh()
 
     suspend fun record(message: LanReceivedMessage): LanReceivedMessage
+
+    suspend fun replaceAll(messages: List<LanReceivedMessage>): List<LanReceivedMessage>
+
+    suspend fun delete(id: Long)
 }

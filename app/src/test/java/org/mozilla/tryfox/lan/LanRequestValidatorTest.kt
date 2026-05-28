@@ -90,6 +90,28 @@ class LanRequestValidatorTest {
     }
 
     @Test
+    fun `allows retrying message id after release`() {
+        val validator = validator()
+        val firstRequest = request(messageId = "message-1")
+        val firstBody = LanJson.encodeToString(firstRequest).toByteArray()
+        val secondRequest = request(messageId = "message-1")
+        val secondBody = LanJson.encodeToString(secondRequest).toByteArray()
+
+        val first = validator.validate(
+            headers = signedHeaders(bodyBytes = firstBody, nonce = "nonce-1"),
+            bodyBytes = firstBody,
+        )
+        validator.releaseMessageId("message-1")
+        val second = validator.validate(
+            headers = signedHeaders(bodyBytes = secondBody, nonce = "nonce-2"),
+            bodyBytes = secondBody,
+        )
+
+        assertInstanceOf(LanValidationResult.Success::class.java, first)
+        assertInstanceOf(LanValidationResult.Success::class.java, second)
+    }
+
+    @Test
     fun `rejects request without revision or author`() {
         val request = request(messageId = "message-1", revision = null, author = null)
         val bodyBytes = LanJson.encodeToString(request).toByteArray()

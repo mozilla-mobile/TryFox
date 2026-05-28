@@ -91,6 +91,10 @@ class LanRequestValidator(
         )
     }
 
+    fun releaseMessageId(messageId: String) {
+        messageIdCache.remove(messageId)
+    }
+
     private companion object {
         const val TIMESTAMP_TOLERANCE_MS = 5 * 60 * 1000L
     }
@@ -122,6 +126,11 @@ class ExpiringReplayCache(
         }
         entries[key] = expiresAt
         return true
+    }
+
+    @Synchronized
+    fun remove(key: String) {
+        entries.remove(key)
     }
 
     @Synchronized

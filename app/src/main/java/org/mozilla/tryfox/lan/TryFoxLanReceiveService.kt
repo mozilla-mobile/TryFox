@@ -11,8 +11,9 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.net.toUri
-import io.ktor.http.ContentType
+import io.ktor.http.ContentType.Application
 import io.ktor.http.HttpStatusCode
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.cio.CIO
@@ -23,20 +24,24 @@ import io.ktor.server.request.receiveStream
 import io.ktor.server.response.respond
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
-import io.ktor.serialization.kotlinx.json.json
-import java.io.IOException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import logcat.LogPriority
+import logcat.logcat
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.mozilla.tryfox.EXTRA_NAVIGATION_ROUTE
 import org.mozilla.tryfox.MainActivity
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.data.repositories.TreeherderRepository
+import java.io.IOException
 
 class TryFoxLanReceiveService : Service(), KoinComponent {
     private val identityManager: LanReceiveIdentityManager by inject()
     private val messageHistoryRepository: LanMessageHistoryRepository by inject()
     private val stateRepository: LanReceiveStateRepository by inject()
+    private val treeherderRepository: TreeherderRepository by inject()
+    private val pushResolver by lazy { LanReceivedPushResolver(treeherderRepository) }
 
     private val serviceScope = kotlinx.coroutines.CoroutineScope(
         kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO,
@@ -124,7 +129,7 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
                 }
                 routing {
                     post(MESSAGE_PATH) {
-                        if (call.request.contentType().withoutParameters() != ContentType.Application.Json) {
+                        if (call.request.contentType().withoutParameters() != Application.Json) {
                             val storedMessage = messageHistoryRepository.record(
                                 LanReceivedMessage(
                                     receivedAt = System.currentTimeMillis(),
@@ -156,6 +161,9 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
                             )
                         ) {
                             is LanValidationResult.Failure -> {
+                                logcat(LogPriority.WARN, LOG_TAG) {
+                                    "Rejected LAN message error=${validation.errorCode}"
+                                }
                                 val storedMessage = messageHistoryRepository.record(
                                     LanReceivedMessage(
                                         receivedAt = System.currentTimeMillis(),
@@ -176,27 +184,55 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
 
                             is LanValidationResult.Success -> {
                                 val message = validation.message
-                                val storedMessage = messageHistoryRepository.record(
-                                    LanReceivedMessage(
-                                        receivedAt = System.currentTimeMillis(),
-                                        accepted = true,
-                                        messageId = message.messageId,
-                                        extensionId = validation.extensionId,
-                                        sourceUrl = message.sourceUrl,
-                                        tryfoxDeepLink = message.tryfoxDeepLink,
-                                        repo = message.repo,
-                                        revision = message.revision,
-                                        author = message.author,
-                                        bodyHash = validation.bodyHash,
-                                    ),
+                                logcat(LogPriority.INFO, LOG_TAG) {
+                                    "Accepted LAN message id=${message.messageId}, " +
+                                        "title=${message.title ?: "<none>"}, " +
+                                        "repo=${message.repo ?: "<none>"}, " +
+                                        "revision=${message.revision ?: "<none>"}, " +
+                                        "author=${message.author ?: "<none>"}"
+                                }
+                                val resolvedMessages = pushResolver.resolve(
+                                    message = message,
+                                    extensionId = validation.extensionId,
+                                    bodyHash = validation.bodyHash,
                                 )
+                                if (resolvedMessages.isEmpty()) {
+                                    val storedMessage = messageHistoryRepository.record(
+                                        LanReceivedMessage(
+                                            receivedAt = System.currentTimeMillis(),
+                                            accepted = false,
+                                            error = "push-not-found",
+                                            messageId = message.messageId,
+                                            extensionId = validation.extensionId,
+                                            sourceUrl = message.sourceUrl,
+                                            tryfoxDeepLink = message.tryfoxDeepLink,
+                                            repo = message.repo,
+                                            revision = message.revision,
+                                            author = message.author,
+                                            bodyHash = validation.bodyHash,
+                                            title = message.title,
+                                        ),
+                                    )
+                                    stateRepository.update {
+                                        it.copy(lastReceivedMessage = storedMessage)
+                                    }
+                                    postReceivedMessageNotification(storedMessage)
+                                    validator.releaseMessageId(message.messageId)
+                                    call.respond(
+                                        HttpStatusCode.BadRequest,
+                                        LanReceiveErrorResponse(ok = false, error = "push-not-found"),
+                                    )
+                                    return@post
+                                }
+                                val storedMessages = messageHistoryRepository.replaceAll(resolvedMessages)
+                                val storedMessage = storedMessages.first()
                                 stateRepository.update {
                                     it.copy(lastReceivedMessage = storedMessage)
                                 }
                                 updateNotification(
                                     getString(R.string.lan_receive_notification_last_message, message.messageId),
                                 )
-                                postReceivedMessageNotification(storedMessage)
+                                storedMessages.forEach(::postReceivedMessageNotification)
                                 call.respond(
                                     HttpStatusCode.OK,
                                     LanReceiveSuccessResponse(ok = true, messageId = message.messageId),
@@ -370,6 +406,9 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
     private fun messageNotificationTitle(message: LanReceivedMessage): String =
         if (message.accepted) {
             when {
+                !message.title.isNullOrBlank() -> message.title
+                !message.pushComment.isNullOrBlank() ->
+                    getString(R.string.lan_receive_message_notification_title_comment, message.pushComment)
                 !message.revision.isNullOrBlank() ->
                     getString(R.string.lan_receive_message_notification_title_revision, message.revision)
                 !message.author.isNullOrBlank() ->
@@ -435,5 +474,7 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
             Intent(context, TryFoxLanReceiveService::class.java).apply {
                 action = ACTION_STOP
             }
+
+        private const val LOG_TAG = "TryFoxLanReceive"
     }
 }
