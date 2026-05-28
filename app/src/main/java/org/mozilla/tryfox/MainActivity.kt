@@ -20,6 +20,8 @@ import org.mozilla.tryfox.ui.screens.HistoryScreen
 import org.mozilla.tryfox.ui.screens.HomeScreen
 import org.mozilla.tryfox.ui.screens.ProfileScreen
 import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
+import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopScreen
+import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryScreen
 import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
@@ -37,6 +39,10 @@ sealed class NavScreen(val route: String) {
      * Represents the History screen.
      */
     data object History : NavScreen(AppRoutes.HISTORY)
+
+    data object ReceiveFromDesktop : NavScreen(AppRoutes.RECEIVE_FROM_DESKTOP)
+
+    data object ReceiveMessageHistory : NavScreen(AppRoutes.RECEIVE_MESSAGE_HISTORY)
 
     /**
      * Represents the QR code scanner screen.
@@ -124,6 +130,7 @@ class MainActivity : ComponentActivity() {
                     onNavigateToTreeherder = { localNavController.navigate(NavScreen.TreeherderSearch.route) },
                     onNavigateToProfile = { localNavController.navigate(NavScreen.Profile.route) },
                     onNavigateToQrScanner = { localNavController.navigate(NavScreen.QrScanner.route) },
+                    onNavigateToReceiveFromDesktop = { localNavController.navigate(NavScreen.ReceiveFromDesktop.route) },
                     onNavigateToHistory = { localNavController.navigate(NavScreen.History.route) },
                     homeViewModel = koinViewModel(),
                 )
@@ -145,6 +152,22 @@ class MainActivity : ComponentActivity() {
                     onQrCodeScanned = { rawValue ->
                         routeDeepLink(rawValue, popQrScanner = true)
                     },
+                )
+            }
+            composable(NavScreen.ReceiveFromDesktop.route) {
+                ReceiveFromDesktopScreen(
+                    onNavigateUp = { localNavController.popBackStack() },
+                    onNavigateToMessageHistory = {
+                        localNavController.navigate(NavScreen.ReceiveMessageHistory.route)
+                    },
+                    receiveFromDesktopViewModel = koinViewModel(),
+                )
+            }
+            composable(NavScreen.ReceiveMessageHistory.route) {
+                ReceiveMessageHistoryScreen(
+                    onNavigateUp = { localNavController.popBackStack() },
+                    onOpenDeepLink = { rawValue -> routeDeepLink(rawValue, popQrScanner = false) },
+                    receiveMessageHistoryViewModel = koinViewModel(),
                 )
             }
             composable(NavScreen.TreeherderSearch.route) {
@@ -193,6 +216,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun routeDeepLink(intent: Intent?) {
+        val internalRoute = intent?.getStringExtra(EXTRA_NAVIGATION_ROUTE)
+        if (!internalRoute.isNullOrBlank()) {
+            navController.navigate(internalRoute) {
+                launchSingleTop = true
+            }
+            return
+        }
         routeDeepLink(intent?.data?.toString(), popQrScanner = false)
     }
 

@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.ui.screens
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
@@ -41,6 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.datetime.LocalDate
@@ -71,6 +75,7 @@ fun HomeScreen(
     onNavigateToTreeherder: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToQrScanner: () -> Unit,
+    onNavigateToReceiveFromDesktop: () -> Unit,
     onNavigateToHistory: () -> Unit,
     homeViewModel: HomeViewModel = viewModel(),
 ) {
@@ -106,12 +111,16 @@ fun HomeScreen(
                             contentDescription = stringResource(id = R.string.home_history_button_description),
                         )
                     }
-                    IconButton(onClick = onNavigateToQrScanner) {
+                    TopBarActionIcon(
+                        onClick = onNavigateToQrScanner,
+                        onLongClick = onNavigateToReceiveFromDesktop,
+                        contentDescription = stringResource(
+                            id = R.string.home_scan_qr_code_button_description,
+                        ),
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.CameraAlt,
-                            contentDescription = stringResource(
-                                id = R.string.home_scan_qr_code_button_description,
-                            ),
+                            contentDescription = null,
                         )
                     }
                     IconButton(onClick = onNavigateToProfile) {
@@ -230,6 +239,31 @@ fun HomeScreen(
                 modifier = Modifier.align(Alignment.TopCenter),
             )
         }
+    }
+}
+
+@Composable
+private fun TopBarActionIcon(
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    contentDescription: String,
+    icon: @Composable () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 4.dp)
+            .semantics {
+                this.contentDescription = contentDescription
+            }
+            .combinedClickable(
+                role = Role.Button,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
+            .padding(8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        icon()
     }
 }
 

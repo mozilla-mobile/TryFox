@@ -37,6 +37,10 @@ import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.repositories.TryFoxReleaseRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
+import org.mozilla.tryfox.lan.DefaultLanMessageHistoryRepository
+import org.mozilla.tryfox.lan.LanMessageHistoryRepository
+import org.mozilla.tryfox.lan.LanReceiveIdentityManager
+import org.mozilla.tryfox.lan.LanReceiveStateRepository
 import org.mozilla.tryfox.network.DownloadApiService
 import org.mozilla.tryfox.network.GithubApiService
 import org.mozilla.tryfox.network.MozillaArchivesApiService
@@ -44,6 +48,8 @@ import org.mozilla.tryfox.network.TreeherderApiService
 import org.mozilla.tryfox.ui.screens.HistoryViewModel
 import org.mozilla.tryfox.ui.screens.HomeViewModel
 import org.mozilla.tryfox.ui.screens.ProfileViewModel
+import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopViewModel
+import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryViewModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
@@ -141,6 +147,14 @@ val repositoryModule = module {
     single<MozillaArchiveRepository> { DefaultMozillaArchiveRepository(get()) }
     single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
     single<HistoryRepository> { DefaultHistoryRepository(androidContext(), get(named("IODispatcher"))) }
+    single<LanMessageHistoryRepository> {
+        DefaultLanMessageHistoryRepository(
+            androidContext(),
+            get(named("IODispatcher")),
+        )
+    }
+    single { LanReceiveStateRepository() }
+    single { LanReceiveIdentityManager(get()) }
     single<MozillaPackageManager> { DefaultMozillaPackageManager(androidContext()) }
     single<CacheManager> {
         DefaultCacheManager(
@@ -173,6 +187,8 @@ val viewModelModule = module {
         )
     }
     viewModel { HistoryViewModel(get(), get(), get(), get(), get(named("IODispatcher"))) }
+    viewModel { ReceiveFromDesktopViewModel(get()) }
+    viewModel { ReceiveMessageHistoryViewModel(get(), get(named("IODispatcher"))) }
     viewModel {
         val releaseRepositories = listOf(
             get<ReleaseRepository>(named(FENIX)),
