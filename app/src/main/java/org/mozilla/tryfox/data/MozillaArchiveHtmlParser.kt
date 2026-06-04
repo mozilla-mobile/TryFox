@@ -56,15 +56,15 @@ class MozillaArchiveHtmlParser {
         }
     }
 
-    fun parseFenixReleaseMajorsFromHtml(html: String): List<Int> {
+    fun parseFenixReleaseMajorsFromHtml(html: String): List<String> {
         return parseFenixReleaseVersionsFromHtml(html, ReleaseType.Release)
-            .mapNotNull { version -> version.substringBefore('.').toIntOrNull() }
+            .mapNotNull { version -> version.substringBefore('.').takeIf { it.isNotEmpty() } }
             .distinct()
     }
 
-    fun parseLatestFenixReleaseForMajor(html: String, majorVersion: Int): String {
+    fun parseLatestFenixReleaseForMajor(html: String, majorVersion: String): String {
         return parseFenixReleaseVersionsFromHtml(html, ReleaseType.Release)
-            .firstOrNull { version -> version.substringBefore('.').toIntOrNull() == majorVersion }
+            .firstOrNull { version -> version.substringBefore('.') == majorVersion }
             ?: ""
     }
 

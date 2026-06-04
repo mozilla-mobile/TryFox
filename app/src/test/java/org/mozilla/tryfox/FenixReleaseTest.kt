@@ -87,7 +87,7 @@ class FenixReleaseTest {
     }
 
     @Test
-    fun `test getFenixReleaseMajorVersions returns stable major versions`() = runBlocking {
+    fun `test getFenixReleaseVersions returns stable major versions`() = runBlocking {
         val mockApiService: MozillaArchivesApiService = mock()
         val releasesListHtml = loadHtmlResource("fenix-releases-page.html")
 
@@ -95,16 +95,16 @@ class FenixReleaseTest {
             .thenReturn(releasesListHtml)
 
         val repository = DefaultMozillaArchiveRepository(mockApiService)
-        val result = repository.getFenixReleaseMajorVersions(ReleaseType.Release)
+        val result = repository.getFenixReleaseVersions(ReleaseType.Release)
 
         assertTrue(result is NetworkResult.Success)
         if (result is NetworkResult.Success) {
-            assertEquals(listOf(145, 144, 143, 142), result.data.take(4))
+            assertEquals(listOf("145", "144", "143", "142"), result.data.take(4))
         }
     }
 
     @Test
-    fun `test getFenixReleaseBuildsForMajor resolves latest stable patch`() = runBlocking {
+    fun `test getFenixReleaseBuildsForVersion resolves latest stable patch`() = runBlocking {
         val mockApiService: MozillaArchivesApiService = mock()
         val releasesListHtml = loadHtmlResource("fenix-releases-major-selection.html")
         val releaseDetailsHtml = loadHtmlResource("fenix-releases-145.html")
@@ -115,7 +115,7 @@ class FenixReleaseTest {
             .thenReturn(releaseDetailsHtml)
 
         val repository = DefaultMozillaArchiveRepository(mockApiService)
-        val result = repository.getFenixReleaseBuildsForMajor(146, ReleaseType.Release)
+        val result = repository.getFenixReleaseBuildsForVersion("146", ReleaseType.Release)
 
         assertTrue(result is NetworkResult.Success)
         if (result is NetworkResult.Success) {
@@ -125,7 +125,7 @@ class FenixReleaseTest {
     }
 
     @Test
-    fun `test getFocusReleaseMajorVersions returns stable major versions`() = runBlocking {
+    fun `test getFocusReleaseVersions returns stable major versions`() = runBlocking {
         val mockApiService: MozillaArchivesApiService = mock()
         val releasesListHtml = loadHtmlResource("fenix-releases-page.html")
 
@@ -133,16 +133,16 @@ class FenixReleaseTest {
             .thenReturn(releasesListHtml)
 
         val repository = DefaultMozillaArchiveRepository(mockApiService)
-        val result = repository.getFocusReleaseMajorVersions()
+        val result = repository.getFocusReleaseVersions()
 
         assertTrue(result is NetworkResult.Success)
         if (result is NetworkResult.Success) {
-            assertEquals(listOf(145, 144, 143, 142), result.data.take(4))
+            assertEquals(listOf("145", "144", "143", "142"), result.data.take(4))
         }
     }
 
     @Test
-    fun `test getFocusReleaseBuildsForMajor resolves latest stable patch`() = runBlocking {
+    fun `test getFocusReleaseBuildsForVersion resolves latest stable patch`() = runBlocking {
         val mockApiService: MozillaArchivesApiService = mock()
         val releasesListHtml = loadHtmlResource("fenix-releases-major-selection.html")
         val releaseDetailsHtml = loadHtmlResource("focus-releases-147.html")
@@ -153,7 +153,7 @@ class FenixReleaseTest {
             .thenReturn(releaseDetailsHtml)
 
         val repository = DefaultMozillaArchiveRepository(mockApiService)
-        val result = repository.getFocusReleaseBuildsForMajor(146)
+        val result = repository.getFocusReleaseBuildsForVersion("146")
 
         assertTrue(result is NetworkResult.Success)
         if (result is NetworkResult.Success) {
@@ -186,19 +186,19 @@ class FenixReleaseTest {
 
         val result = parser.parseFenixReleaseMajorsFromHtml(htmlContent)
 
-        assertEquals(listOf(145, 144, 143, 142), result.take(4))
+        assertEquals(listOf("145", "144", "143", "142"), result.take(4))
     }
 
     @Test
     fun `test parseLatestFenixReleaseForMajor prefers latest stable patch and ignores prereleases`() {
         val htmlContent = loadHtmlResource("fenix-releases-major-selection.html")
 
-        val result = parser.parseLatestFenixReleaseForMajor(htmlContent, 146)
+        val result = parser.parseLatestFenixReleaseForMajor(htmlContent, "146")
 
         assertEquals("146.0.1", result)
     }
 
-    // Tests for parseFenixReleaseAbisFromHtml
+// Tests for parseFenixReleaseAbisFromHtml
 
     @Test
     fun `test parseFenixReleaseAbisFromHtml extracts all ABIs from release HTML`() {

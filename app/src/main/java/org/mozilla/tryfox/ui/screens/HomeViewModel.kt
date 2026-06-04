@@ -25,8 +25,8 @@ import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DateAwareReleaseRepository
 import org.mozilla.tryfox.data.repositories.DownloadFileRepository
-import org.mozilla.tryfox.data.repositories.MajorVersionAwareReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
+import org.mozilla.tryfox.data.repositories.VersionAwareReleaseRepository
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.MozillaArchiveApk
@@ -223,26 +223,26 @@ class HomeViewModel(
         repository: ReleaseRepository,
         appState: AppState?,
     ): AppUiModel {
-        val (apksResult, selectedReleaseMajor, availableReleaseMajors) =
-            if (repository is MajorVersionAwareReleaseRepository) {
-                when (val majorResult = repository.getAvailableReleaseMajors()) {
+        val (apksResult, selectedReleaseVersion, availableReleaseVersions) =
+            if (repository is VersionAwareReleaseRepository) {
+                when (val versionsResult = repository.getAvailableReleaseVersions()) {
                     is NetworkResult.Success -> {
-                        val selectedMajor = majorResult.data.firstOrNull()
-                        val releaseResult = if (selectedMajor != null) {
-                            repository.getReleasesForMajor(selectedMajor)
+                        val selectedVersion = versionsResult.data.firstOrNull()
+                        val releaseResult = if (selectedVersion != null) {
+                            repository.getReleasesForVersion(selectedVersion)
                         } else {
                             NetworkResult.Success(emptyList())
                         }
 
                         Triple(
                             releaseResult.toApksResult(repository.appName),
-                            selectedMajor,
-                            majorResult.data,
+                            selectedVersion,
+                            versionsResult.data,
                         )
                     }
 
                     is NetworkResult.Error -> Triple(
-                        ApksResult.Error("Error fetching ${repository.appName} builds: ${majorResult.message}"),
+                        ApksResult.Error("Error fetching ${repository.appName} builds: ${versionsResult.message}"),
                         null,
                         emptyList(),
                     )
@@ -261,8 +261,8 @@ class HomeViewModel(
             installedVersion = appState?.version,
             installedDate = appState?.formattedInstallDate,
             apks = apksResult,
-            selectedReleaseMajor = selectedReleaseMajor,
-            availableReleaseMajors = availableReleaseMajors,
+            selectedReleaseVersion = selectedReleaseVersion,
+            availableReleaseVersions = availableReleaseVersions,
         )
     }
 
@@ -448,9 +448,9 @@ class HomeViewModel(
         }
     }
 
-    fun onReleaseVersionSelected(appName: String, majorVersion: Int) {
+    fun onReleaseVersionSelected(appName: String, version: String) {
         val repository =
-            releaseRepositories.firstOrNull { it.appName == appName } as? MajorVersionAwareReleaseRepository
+            releaseRepositories.firstOrNull { it.appName == appName } as? VersionAwareReleaseRepository
                 ?: return
 
         viewModelScope.launch(ioDispatcher) {
@@ -460,18 +460,18 @@ class HomeViewModel(
             val updatedApps = currentState.apps.toMutableMap()
             updatedApps[appName] = appToUpdate.copy(
                 apks = ApksResult.Loading,
-                selectedReleaseMajor = majorVersion,
+                selectedReleaseVersion = version,
             )
             _homeScreenState.value = currentState.copy(apps = updatedApps)
 
-            val newApksResult = repository.getReleasesForMajor(majorVersion).toApksResult(appName)
+            val newApksResult = repository.getReleasesForVersion(version).toApksResult(appName)
 
             val latestState = _homeScreenState.value as? HomeScreenState.Loaded ?: return@launch
             val latestApp = latestState.apps[appName] ?: return@launch
             val finalUpdatedApps = latestState.apps.toMutableMap()
             finalUpdatedApps[appName] = latestApp.copy(
                 apks = newApksResult,
-                selectedReleaseMajor = majorVersion,
+                selectedReleaseVersion = version,
             )
 
             _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)

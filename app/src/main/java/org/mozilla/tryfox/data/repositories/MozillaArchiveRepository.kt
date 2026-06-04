@@ -23,16 +23,16 @@ interface MozillaArchiveRepository {
      */
     suspend fun getFenixReleaseBuilds(releaseType: ReleaseType = ReleaseType.Beta): NetworkResult<List<MozillaArchiveApk>>
 
-    suspend fun getFenixReleaseMajorVersions(releaseType: ReleaseType = ReleaseType.Release): NetworkResult<List<Int>>
+    suspend fun getFenixReleaseVersions(releaseType: ReleaseType = ReleaseType.Release): NetworkResult<List<String>>
 
-    suspend fun getFenixReleaseBuildsForMajor(
-        majorVersion: Int,
+    suspend fun getFenixReleaseBuildsForVersion(
+        version: String,
         releaseType: ReleaseType = ReleaseType.Release,
     ): NetworkResult<List<MozillaArchiveApk>>
 
     suspend fun getFocusReleaseBuilds(): NetworkResult<List<MozillaArchiveApk>>
 
-    suspend fun getFocusReleaseMajorVersions(): NetworkResult<List<Int>>
+    suspend fun getFocusReleaseVersions(): NetworkResult<List<String>>
 
-    suspend fun getFocusReleaseBuildsForMajor(majorVersion: Int): NetworkResult<List<MozillaArchiveApk>>
+    suspend fun getFocusReleaseBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>>
 }

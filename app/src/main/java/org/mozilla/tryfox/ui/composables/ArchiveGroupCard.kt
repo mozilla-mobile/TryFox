@@ -97,14 +97,14 @@ fun ArchiveGroupCard(
     appState: AppState?,
     onDateSelected: (LocalDate) -> Unit,
     userPickedDate: LocalDate?,
-    selectedReleaseMajor: Int?,
-    availableReleaseMajors: List<Int>,
+    selectedReleaseVersion: String?,
+    availableReleaseVersions: List<String>,
     appName: String,
     errorMessage: String?,
     isLoading: Boolean,
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: () -> Unit,
-    onReleaseVersionSelected: (Int) -> Unit,
+    onReleaseVersionSelected: (String) -> Unit,
 ) {
     ElevatedCard(
         modifier =
@@ -130,8 +130,8 @@ fun ArchiveGroupCard(
                 date = dateFromApk,
                 onDateSelected = onDateSelected,
                 userPickedDate = userPickedDate,
-                selectedReleaseMajor = selectedReleaseMajor,
-                availableReleaseMajors = availableReleaseMajors,
+                selectedReleaseVersion = selectedReleaseVersion,
+                availableReleaseVersions = availableReleaseVersions,
                 hasReleaseVersionPicker = hasReleaseVersionPicker,
                 isDatePickerEnabled = isDatePickerEnabled,
                 dateValidator = dateValidator,
@@ -199,13 +199,13 @@ private fun ArchiveGroupHeader(
     onDateSelected: (LocalDate) -> Unit,
     onOpenAppClick: () -> Unit,
     userPickedDate: LocalDate?,
-    selectedReleaseMajor: Int?,
-    availableReleaseMajors: List<Int>,
+    selectedReleaseVersion: String?,
+    availableReleaseVersions: List<String>,
     hasReleaseVersionPicker: Boolean,
     isDatePickerEnabled: Boolean,
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: () -> Unit,
-    onReleaseVersionSelected: (Int) -> Unit,
+    onReleaseVersionSelected: (String) -> Unit,
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     val displayDate = userPickedDate?.toString() ?: date
@@ -233,8 +233,8 @@ private fun ArchiveGroupHeader(
                 Spacer(modifier = Modifier.size(8.dp))
                 ReleaseVersionSelector(
                     appName = appName,
-                    selectedReleaseMajor = selectedReleaseMajor ?: version.substringBefore('.').toIntOrNull(),
-                    availableReleaseMajors = availableReleaseMajors,
+                    selectedReleaseVersion = selectedReleaseVersion ?: version.substringBefore('.').takeIf { it.isNotEmpty() },
+                    availableReleaseVersions = availableReleaseVersions,
                     onReleaseVersionSelected = onReleaseVersionSelected,
                 )
             } else {
@@ -327,19 +327,19 @@ private fun ArchiveGroupHeader(
 @Composable
 private fun ReleaseVersionSelector(
     appName: String,
-    selectedReleaseMajor: Int?,
-    availableReleaseMajors: List<Int>,
-    onReleaseVersionSelected: (Int) -> Unit,
+    selectedReleaseVersion: String?,
+    availableReleaseVersions: List<String>,
+    onReleaseVersionSelected: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedMajor = selectedReleaseMajor ?: availableReleaseMajors.firstOrNull()
+    val selectedVersion = selectedReleaseVersion ?: availableReleaseVersions.firstOrNull()
 
     Box {
         Surface(
             modifier = Modifier
-                .clickable(enabled = availableReleaseMajors.isNotEmpty()) { expanded = true }
+                .clickable(enabled = availableReleaseVersions.isNotEmpty()) { expanded = true }
                 .semantics {
-                    contentDescription = "Selected Firefox Release major version ${selectedMajor ?: ""}"
+                    contentDescription = "Selected Firefox Release major version ${selectedVersion ?: ""}"
                 }
                 .testTag("release_version_chip_${appName.lowercase()}"),
             shape = MaterialTheme.shapes.medium,
@@ -354,7 +354,7 @@ private fun ReleaseVersionSelector(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
                 Text(
-                    text = selectedMajor?.toString() ?: "--",
+                    text = selectedVersion ?: "--",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -375,12 +375,12 @@ private fun ReleaseVersionSelector(
                     .heightIn(max = 280.dp)
                     .verticalScroll(rememberScrollState()),
             ) {
-                availableReleaseMajors.forEach { majorVersion ->
+                availableReleaseVersions.forEach { version ->
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = majorVersion.toString(),
-                                fontWeight = if (majorVersion == selectedMajor) {
+                                text = version,
+                                fontWeight = if (version == selectedVersion) {
                                     FontWeight.SemiBold
                                 } else {
                                     FontWeight.Normal
@@ -389,7 +389,7 @@ private fun ReleaseVersionSelector(
                         },
                         onClick = {
                             expanded = false
-                            onReleaseVersionSelected(majorVersion)
+                            onReleaseVersionSelected(version)
                         },
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
                     )

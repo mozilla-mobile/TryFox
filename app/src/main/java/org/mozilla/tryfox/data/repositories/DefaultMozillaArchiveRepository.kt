@@ -94,13 +94,13 @@ class DefaultMozillaArchiveRepository(
         }
     }
 
-    override suspend fun getFenixReleaseMajorVersions(releaseType: ReleaseType): NetworkResult<List<Int>> {
+    override suspend fun getFenixReleaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
         return try {
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
             val releaseMajors = when (releaseType) {
                 ReleaseType.Release -> mozillaArchiveHtmlParser.parseFenixReleaseMajorsFromHtml(releasesHtml)
                 ReleaseType.Beta -> mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
-                    .mapNotNull { version -> version.substringBefore('.').toIntOrNull() }
+                    .mapNotNull { version -> version.substringBefore('.').takeIf { it.isNotEmpty() } }
                     .distinct()
             }
 
@@ -114,7 +114,7 @@ class DefaultMozillaArchiveRepository(
         }
     }
 
-    override suspend fun getFocusReleaseMajorVersions(): NetworkResult<List<Int>> {
+    override suspend fun getFocusReleaseVersions(): NetworkResult<List<String>> {
         return try {
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
             val releaseMajors = mozillaArchiveHtmlParser.parseFenixReleaseMajorsFromHtml(releasesHtml)
@@ -129,21 +129,21 @@ class DefaultMozillaArchiveRepository(
         }
     }
 
-    override suspend fun getFenixReleaseBuildsForMajor(
-        majorVersion: Int,
+    override suspend fun getFenixReleaseBuildsForVersion(
+        version: String,
         releaseType: ReleaseType,
     ): NetworkResult<List<MozillaArchiveApk>> {
         return try {
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
             val resolvedVersion = when (releaseType) {
-                ReleaseType.Release -> mozillaArchiveHtmlParser.parseLatestFenixReleaseForMajor(releasesHtml, majorVersion)
+                ReleaseType.Release -> mozillaArchiveHtmlParser.parseLatestFenixReleaseForMajor(releasesHtml, version)
                 ReleaseType.Beta -> mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
-                    .firstOrNull { version -> version.substringBefore('.').toIntOrNull() == majorVersion }
+                    .firstOrNull { it.substringBefore('.') == version }
                     ?: ""
             }
 
             if (resolvedVersion.isEmpty()) {
-                return NetworkResult.Error("No releases found for major version $majorVersion", null)
+                return NetworkResult.Error("No releases found for major version $version", null)
             }
 
             fetchReleaseApksForVersion(
@@ -154,17 +154,17 @@ class DefaultMozillaArchiveRepository(
                 releaseType = releaseType,
             )
         } catch (e: Exception) {
-            NetworkResult.Error("Failed to fetch Fenix release $majorVersion: ${e.message}", e)
+            NetworkResult.Error("Failed to fetch Fenix release $version: ${e.message}", e)
         }
     }
 
-    override suspend fun getFocusReleaseBuildsForMajor(majorVersion: Int): NetworkResult<List<MozillaArchiveApk>> {
+    override suspend fun getFocusReleaseBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> {
         return try {
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
-            val resolvedVersion = mozillaArchiveHtmlParser.parseLatestFenixReleaseForMajor(releasesHtml, majorVersion)
+            val resolvedVersion = mozillaArchiveHtmlParser.parseLatestFenixReleaseForMajor(releasesHtml, version)
 
             if (resolvedVersion.isEmpty()) {
-                return NetworkResult.Error("No Focus release found for major version $majorVersion", null)
+                return NetworkResult.Error("No Focus release found for major version $version", null)
             }
 
             fetchReleaseApksForVersion(
@@ -175,7 +175,7 @@ class DefaultMozillaArchiveRepository(
                 releaseType = ReleaseType.Release,
             )
         } catch (e: Exception) {
-            NetworkResult.Error("Failed to fetch Focus release $majorVersion: ${e.message}", e)
+            NetworkResult.Error("Failed to fetch Focus release $version: ${e.message}", e)
         }
     }
 

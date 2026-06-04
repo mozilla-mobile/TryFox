@@ -23,8 +23,8 @@ interface DateAwareReleaseRepository : ReleaseRepository {
     suspend fun getReleases(date: LocalDate? = null): NetworkResult<List<MozillaArchiveApk>>
 }
 
-interface MajorVersionAwareReleaseRepository : ReleaseRepository {
-    suspend fun getAvailableReleaseMajors(): NetworkResult<List<Int>>
+interface VersionAwareReleaseRepository : ReleaseRepository {
+    suspend fun getAvailableReleaseVersions(): NetworkResult<List<String>>
 
-    suspend fun getReleasesForMajor(majorVersion: Int): NetworkResult<List<MozillaArchiveApk>>
+    suspend fun getReleasesForVersion(version: String): NetworkResult<List<MozillaArchiveApk>>
 }
