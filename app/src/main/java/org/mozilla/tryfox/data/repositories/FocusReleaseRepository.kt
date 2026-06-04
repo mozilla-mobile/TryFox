@@ -9,18 +9,18 @@ import org.mozilla.tryfox.util.FOCUS_RELEASE
  */
 class FocusReleaseRepository(
     private val mozillaArchiveRepository: MozillaArchiveRepository,
-) : MajorVersionAwareReleaseRepository {
+) : VersionAwareReleaseRepository {
     override val appName: String = FOCUS_RELEASE
 
     override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
         return mozillaArchiveRepository.getFocusReleaseBuilds()
     }
 
-    override suspend fun getAvailableReleaseMajors(): NetworkResult<List<Int>> {
-        return mozillaArchiveRepository.getFocusReleaseMajorVersions()
+    override suspend fun getAvailableReleaseVersions(): NetworkResult<List<String>> {
+        return mozillaArchiveRepository.getFocusReleaseVersions()
     }
 
-    override suspend fun getReleasesForMajor(majorVersion: Int): NetworkResult<List<MozillaArchiveApk>> {
-        return mozillaArchiveRepository.getFocusReleaseBuildsForMajor(majorVersion)
+    override suspend fun getReleasesForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> {
+        return mozillaArchiveRepository.getFocusReleaseBuildsForVersion(version)
     }
 }

@@ -11,11 +11,11 @@ class FakeMozillaArchiveRepository(
     private val fenixBuilds: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
     private val focusBuilds: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
     private val fenixReleases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
-    private val fenixReleaseMajors: NetworkResult<List<Int>> = NetworkResult.Success(emptyList()),
-    private val fenixReleasesByMajor: Map<Int, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
+    private val fenixReleaseVersions: NetworkResult<List<String>> = NetworkResult.Success(emptyList()),
+    private val fenixReleasesByVersion: Map<String, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
     private val focusReleases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
-    private val focusReleaseMajors: NetworkResult<List<Int>> = NetworkResult.Success(emptyList()),
-    private val focusReleasesByMajor: Map<Int, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
+    private val focusReleaseVersions: NetworkResult<List<String>> = NetworkResult.Success(emptyList()),
+    private val focusReleasesByVersion: Map<String, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
 ) : MozillaArchiveRepository {
 
     override suspend fun getFenixNightlyBuilds(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> {
@@ -30,26 +30,26 @@ class FakeMozillaArchiveRepository(
         return fenixReleases
     }
 
-    override suspend fun getFenixReleaseMajorVersions(releaseType: ReleaseType): NetworkResult<List<Int>> {
-        return fenixReleaseMajors
+    override suspend fun getFenixReleaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
+        return fenixReleaseVersions
     }
 
-    override suspend fun getFenixReleaseBuildsForMajor(
-        majorVersion: Int,
+    override suspend fun getFenixReleaseBuildsForVersion(
+        version: String,
         releaseType: ReleaseType,
     ): NetworkResult<List<MozillaArchiveApk>> {
-        return fenixReleasesByMajor[majorVersion] ?: fenixReleases
+        return fenixReleasesByVersion[version] ?: fenixReleases
     }
 
     override suspend fun getFocusReleaseBuilds(): NetworkResult<List<MozillaArchiveApk>> {
         return focusReleases
     }
 
-    override suspend fun getFocusReleaseMajorVersions(): NetworkResult<List<Int>> {
-        return focusReleaseMajors
+    override suspend fun getFocusReleaseVersions(): NetworkResult<List<String>> {
+        return focusReleaseVersions
     }
 
-    override suspend fun getFocusReleaseBuildsForMajor(majorVersion: Int): NetworkResult<List<MozillaArchiveApk>> {
-        return focusReleasesByMajor[majorVersion] ?: focusReleases
+    override suspend fun getFocusReleaseBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> {
+        return focusReleasesByVersion[version] ?: focusReleases
     }
 }
