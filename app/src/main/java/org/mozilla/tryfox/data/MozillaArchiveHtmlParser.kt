@@ -56,18 +56,6 @@ class MozillaArchiveHtmlParser {
         }
     }
 
-    fun parseFenixReleaseMajorsFromHtml(html: String): List<String> {
-        return parseFenixReleaseVersionsFromHtml(html, ReleaseType.Release)
-            .mapNotNull { version -> version.substringBefore('.').takeIf { it.isNotEmpty() } }
-            .distinct()
-    }
-
-    fun parseLatestFenixReleaseForMajor(html: String, majorVersion: String): String {
-        return parseFenixReleaseVersionsFromHtml(html, ReleaseType.Release)
-            .firstOrNull { version -> version.substringBefore('.') == majorVersion }
-            ?: ""
-    }
-
     fun parseFenixReleaseAbisFromHtml(html: String, appName: String): List<String> {
         // Pattern: {appName}-D+.D+(.D+)?-android-ABI/ or {appName}-D+.D+(.D+)?-android/
         // Also supports beta/alpha markers: {appName}-D+.D+(.D+)?[ab]D+-android-ABI/

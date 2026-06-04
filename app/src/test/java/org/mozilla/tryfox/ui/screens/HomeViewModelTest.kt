@@ -234,8 +234,8 @@ class HomeViewModelTest {
             FocusNightlyRepository(FakeMozillaArchiveRepository(focusBuilds = NetworkResult.Success(listOf(focusParsed)))),
             FocusReleaseRepository(
                 FakeMozillaArchiveRepository(
-                    focusReleaseVersions = NetworkResult.Success(listOf("126")),
-                    focusReleasesByVersion = mapOf("126" to NetworkResult.Success(listOf(focusReleaseParsed))),
+                    focusReleaseVersions = NetworkResult.Success(listOf("126.0.1")),
+                    focusReleasesByVersion = mapOf("126.0.1" to NetworkResult.Success(listOf(focusReleaseParsed))),
                 ),
             ),
             FakeReferenceBrowserReleaseRepository(releases = NetworkResult.Success(listOf(rbParsed))),
@@ -269,7 +269,7 @@ class HomeViewModelTest {
         assertNotNull(focusReleaseApp)
         assertTrue(focusReleaseApp!!.apks is ApksResult.Success, "Focus Release builds should be Success")
         assertEquals(1, (focusReleaseApp.apks as ApksResult.Success).apks.size)
-        assertEquals("126", focusReleaseApp.selectedReleaseVersion)
+        assertEquals("126.0.1", focusReleaseApp.selectedReleaseVersion)
 
         val rbApp = loadedState.apps[REFERENCE_BROWSER]
         assertNotNull(rbApp)
@@ -318,14 +318,14 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `initialLoad with Fenix Release majors should select latest major and expose picker options`() = runTest {
+    fun `initialLoad with Fenix Release versions should select latest and expose picker options`() = runTest {
         val latestReleaseApk = createTestParsedReleaseApk(version = "145.0.1")
         val releaseRepositories = listOf(
             FenixReleaseReleaseRepository(
                 FakeMozillaArchiveRepository(
-                    fenixReleaseVersions = NetworkResult.Success(listOf("145", "144", "143")),
+                    fenixReleaseVersions = NetworkResult.Success(listOf("145.0.1", "145.0", "144.0.2")),
                     fenixReleasesByVersion = mapOf(
-                        "145" to NetworkResult.Success(listOf(latestReleaseApk)),
+                        "145.0.1" to NetworkResult.Success(listOf(latestReleaseApk)),
                     ),
                 ),
             ),
@@ -341,23 +341,23 @@ class HomeViewModelTest {
         val fenixReleaseApp = state.apps[FENIX_RELEASE]
 
         assertNotNull(fenixReleaseApp)
-        assertEquals("145", fenixReleaseApp!!.selectedReleaseVersion)
-        assertEquals(listOf("145", "144", "143"), fenixReleaseApp.availableReleaseVersions)
+        assertEquals("145.0.1", fenixReleaseApp!!.selectedReleaseVersion)
+        assertEquals(listOf("145.0.1", "145.0", "144.0.2"), fenixReleaseApp.availableReleaseVersions)
         assertTrue(fenixReleaseApp.apks is ApksResult.Success)
         assertEquals("145.0.1", (fenixReleaseApp.apks as ApksResult.Success).apks.first().version)
     }
 
     @Test
-    fun `onReleaseVersionSelected should reload Fenix Release APKs for selected major`() = runTest {
+    fun `onReleaseVersionSelected should reload Fenix Release APKs for selected version`() = runTest {
         val latestReleaseApk = createTestParsedReleaseApk(version = "145.0.1")
         val olderReleaseApk = createTestParsedReleaseApk(version = "144.0.2")
         val releaseRepositories = listOf(
             FenixReleaseReleaseRepository(
                 FakeMozillaArchiveRepository(
-                    fenixReleaseVersions = NetworkResult.Success(listOf("145", "144")),
+                    fenixReleaseVersions = NetworkResult.Success(listOf("145.0.1", "144.0.2")),
                     fenixReleasesByVersion = mapOf(
-                        "145" to NetworkResult.Success(listOf(latestReleaseApk)),
-                        "144" to NetworkResult.Success(listOf(olderReleaseApk)),
+                        "145.0.1" to NetworkResult.Success(listOf(latestReleaseApk)),
+                        "144.0.2" to NetworkResult.Success(listOf(olderReleaseApk)),
                     ),
                 ),
             ),
@@ -368,28 +368,28 @@ class HomeViewModelTest {
 
         viewModel.initialLoad()
         advanceUntilIdle()
-        viewModel.onReleaseVersionSelected(FENIX_RELEASE, "144")
+        viewModel.onReleaseVersionSelected(FENIX_RELEASE, "144.0.2")
         advanceUntilIdle()
 
         val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
         val fenixReleaseApp = state.apps[FENIX_RELEASE]
 
         assertNotNull(fenixReleaseApp)
-        assertEquals("144", fenixReleaseApp!!.selectedReleaseVersion)
+        assertEquals("144.0.2", fenixReleaseApp!!.selectedReleaseVersion)
         assertEquals("144.0.2", (fenixReleaseApp.apks as ApksResult.Success).apks.first().version)
     }
 
     @Test
-    fun `onReleaseVersionSelected should reload Focus APKs for selected major`() = runTest {
+    fun `onReleaseVersionSelected should reload Focus APKs for selected version`() = runTest {
         val latestReleaseApk = createTestParsedReleaseApk(version = "147.0.1", appName = testFocusReleaseAppName)
         val olderReleaseApk = createTestParsedReleaseApk(version = "146.0.1", appName = testFocusReleaseAppName)
         val releaseRepositories = listOf(
             FocusReleaseRepository(
                 FakeMozillaArchiveRepository(
-                    focusReleaseVersions = NetworkResult.Success(listOf("147", "146")),
+                    focusReleaseVersions = NetworkResult.Success(listOf("147.0.1", "146.0.1")),
                     focusReleasesByVersion = mapOf(
-                        "147" to NetworkResult.Success(listOf(latestReleaseApk)),
-                        "146" to NetworkResult.Success(listOf(olderReleaseApk)),
+                        "147.0.1" to NetworkResult.Success(listOf(latestReleaseApk)),
+                        "146.0.1" to NetworkResult.Success(listOf(olderReleaseApk)),
                     ),
                 ),
             ),
@@ -400,14 +400,14 @@ class HomeViewModelTest {
 
         viewModel.initialLoad()
         advanceUntilIdle()
-        viewModel.onReleaseVersionSelected(FOCUS_RELEASE, "146")
+        viewModel.onReleaseVersionSelected(FOCUS_RELEASE, "146.0.1")
         advanceUntilIdle()
 
         val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
         val focusApp = state.apps[FOCUS_RELEASE]
 
         assertNotNull(focusApp)
-        assertEquals("146", focusApp!!.selectedReleaseVersion)
+        assertEquals("146.0.1", focusApp!!.selectedReleaseVersion)
         assertEquals("146.0.1", (focusApp.apks as ApksResult.Success).apks.first().version)
     }
 

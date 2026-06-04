@@ -233,7 +233,7 @@ private fun ArchiveGroupHeader(
                 Spacer(modifier = Modifier.size(8.dp))
                 ReleaseVersionSelector(
                     appName = appName,
-                    selectedReleaseVersion = selectedReleaseVersion ?: version.substringBefore('.').takeIf { it.isNotEmpty() },
+                    selectedReleaseVersion = selectedReleaseVersion ?: version.takeIf { it.isNotEmpty() },
                     availableReleaseVersions = availableReleaseVersions,
                     onReleaseVersionSelected = onReleaseVersionSelected,
                 )
@@ -339,7 +339,7 @@ private fun ReleaseVersionSelector(
             modifier = Modifier
                 .clickable(enabled = availableReleaseVersions.isNotEmpty()) { expanded = true }
                 .semantics {
-                    contentDescription = "Selected Firefox Release major version ${selectedVersion ?: ""}"
+                    contentDescription = "Selected Firefox Release version ${selectedVersion ?: ""}"
                 }
                 .testTag("release_version_chip_${appName.lowercase()}"),
             shape = MaterialTheme.shapes.medium,
