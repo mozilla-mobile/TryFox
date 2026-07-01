@@ -57,9 +57,10 @@
     <string name="profile_screen_no_pushes_enter_email">Enter a user email and tap search to find pushes.</string>
     <string name="profile_screen_clear_email_description">Clear email field</string>
     <string name="history_screen_title">History</string>
-    <string name="history_screen_empty_title">No installs yet</string>
-    <string name="history_screen_empty_message">Treeherder APKs appear here after TryFox opens the installer.</string>
+    <string name="history_screen_empty_title">No history yet</string>
+    <string name="history_screen_empty_message">Treeherder APKs appear here as soon as you tap Download.</string>
     <string name="history_screen_revision_label">Revision: %1$s</string>
+    <string name="history_screen_added_to_history_label">Added to history: %1$s</string>
     <string name="history_screen_last_installed_label">Last installed: %1$s</string>
     <string name="history_screen_delete_entry_description">Remove history entry</string>
 

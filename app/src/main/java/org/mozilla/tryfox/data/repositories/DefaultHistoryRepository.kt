@@ -32,9 +32,9 @@ class DefaultHistoryRepository(
         _historyEntries.value = entries
     }
 
-    override suspend fun recordInstallerLaunch(entry: TreeherderInstallHistoryEntry) {
+    override suspend fun upsertHistoryEntry(entry: TreeherderInstallHistoryEntry) {
         logcat(LogPriority.DEBUG, TAG) {
-            "recordInstallerLaunch uniqueKey=${entry.uniqueKey}, taskId=${entry.taskId}, " +
+            "upsertHistoryEntry uniqueKey=${entry.uniqueKey}, taskId=${entry.taskId}, " +
                 "artifactFileName=${entry.artifactFileName}, jobSymbol=${entry.jobSymbol}, " +
                 "cacheRelativePath=${entry.cacheRelativePath}"
         }
@@ -69,7 +69,7 @@ class DefaultHistoryRepository(
             null,
             null,
             null,
-            "$COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP DESC",
+            "$COLUMN_HISTORY_RECORDED_TIMESTAMP DESC",
         ).use { cursor ->
             buildList {
                 while (cursor.moveToNext()) {
@@ -98,6 +98,7 @@ class DefaultHistoryRepository(
             put(COLUMN_ABI_SUPPORTED, if (abiSupported) 1 else 0)
             put(COLUMN_EXPIRES, expires)
             put(COLUMN_CACHE_RELATIVE_PATH, cacheRelativePath)
+            put(COLUMN_HISTORY_RECORDED_TIMESTAMP, historyRecordedTimestamp)
             put(COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP, lastInstallerLaunchTimestamp)
         }
 
@@ -119,7 +120,8 @@ class DefaultHistoryRepository(
             abiSupported = getIntValue(COLUMN_ABI_SUPPORTED) == 1,
             expires = getStringValue(COLUMN_EXPIRES),
             cacheRelativePath = getStringValue(COLUMN_CACHE_RELATIVE_PATH),
-            lastInstallerLaunchTimestamp = getLongValue(COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP),
+            historyRecordedTimestamp = getLongValue(COLUMN_HISTORY_RECORDED_TIMESTAMP),
+            lastInstallerLaunchTimestamp = getNullableLongValue(COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP),
         )
 
     private fun Cursor.getStringValue(columnName: String): String =
@@ -134,6 +136,15 @@ class DefaultHistoryRepository(
 
     private fun Cursor.getLongValue(columnName: String): Long =
         getLong(getColumnIndexOrThrow(columnName))
+
+    private fun Cursor.getNullableLongValue(columnName: String): Long? {
+        val columnIndex = getColumnIndexOrThrow(columnName)
+        return if (isNull(columnIndex)) {
+            null
+        } else {
+            getLong(columnIndex)
+        }
+    }
 
     private fun Cursor.getIntValue(columnName: String): Int =
         getInt(getColumnIndexOrThrow(columnName))
@@ -165,21 +176,35 @@ class DefaultHistoryRepository(
                     $COLUMN_ABI_SUPPORTED INTEGER NOT NULL,
                     $COLUMN_EXPIRES TEXT NOT NULL,
                     $COLUMN_CACHE_RELATIVE_PATH TEXT NOT NULL,
-                    $COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP INTEGER NOT NULL
+                    $COLUMN_HISTORY_RECORDED_TIMESTAMP INTEGER NOT NULL,
+                    $COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP INTEGER
                 )
                 """.trimIndent(),
             )
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_HISTORY")
-            onCreate(db)
+            if (oldVersion < 2) {
+                db.execSQL(
+                    """
+                    ALTER TABLE $TABLE_HISTORY
+                    ADD COLUMN $COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP INTEGER
+                    """.trimIndent(),
+                )
+                db.execSQL(
+                    """
+                    UPDATE $TABLE_HISTORY
+                    SET $COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP = $COLUMN_HISTORY_RECORDED_TIMESTAMP
+                    WHERE $COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP IS NULL
+                    """.trimIndent(),
+                )
+            }
         }
     }
 
     private companion object {
         const val DATABASE_NAME = "tryfox_history.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
 
         const val TABLE_HISTORY = "treeherder_install_history"
         const val COLUMN_ID = "id"
@@ -199,7 +224,8 @@ class DefaultHistoryRepository(
         const val COLUMN_ABI_SUPPORTED = "abi_supported"
         const val COLUMN_EXPIRES = "expires"
         const val COLUMN_CACHE_RELATIVE_PATH = "cache_relative_path"
-        const val COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP = "last_installer_launch_timestamp"
+        const val COLUMN_HISTORY_RECORDED_TIMESTAMP = "last_installer_launch_timestamp"
+        const val COLUMN_LAST_INSTALLER_LAUNCH_TIMESTAMP = "last_installed_timestamp"
         const val TAG = "DefaultHistoryRepository"
     }
 }

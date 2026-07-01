@@ -17,7 +17,8 @@ data class TreeherderInstallHistoryEntry(
     val abiSupported: Boolean,
     val expires: String,
     val cacheRelativePath: String,
-    val lastInstallerLaunchTimestamp: Long,
+    val historyRecordedTimestamp: Long,
+    val lastInstallerLaunchTimestamp: Long? = null,
 ) {
     val uniqueKey: String
         get() = "$taskId/$artifactFileName"

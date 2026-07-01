@@ -511,6 +511,11 @@ class TryFoxViewModel(
         }
 
         viewModelScope.launch {
+            try {
+                upsertHistoryEntry(job = findJob(taskId), artifact = artifactUiModel)
+            } catch (_: Exception) {
+                // History is best-effort; never block downloads.
+            }
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(0f))
             // cacheManager.checkCacheStatus() will be called after download success/failure
 
@@ -548,7 +553,7 @@ class TryFoxViewModel(
                     cacheManager.checkCacheStatus() // Update cache status via CacheManager
                     onInstallApk?.let { installCallback ->
                         try {
-                            recordInstallerLaunch(job = findJob(taskId), artifact = artifactUiModel)
+                            updateInstallTimestamp(job = findJob(taskId), artifact = artifactUiModel)
                         } catch (_: Exception) {
                             // History is best-effort; never block installation.
                         }
@@ -618,7 +623,7 @@ class TryFoxViewModel(
 
         viewModelScope.launch {
             try {
-                recordInstallerLaunch(
+                updateInstallTimestamp(
                     job = downloadedArtifact.job,
                     artifact = downloadedArtifact.artifact,
                 )
@@ -640,34 +645,56 @@ class TryFoxViewModel(
             }?.let { artifact -> DownloadedArtifact(job, artifact) }
         }
 
-    private suspend fun recordInstallerLaunch(
+    private suspend fun upsertHistoryEntry(
         job: JobDetailsUiModel?,
         artifact: ArtifactUiModel,
     ) {
         if (job == null || relevantPushTimestamp == null) {
             return
         }
+        val existingEntry = historyRepository.historyEntries.value.firstOrNull { it.uniqueKey == artifact.uniqueKey }
+        historyRepository.upsertHistoryEntry(buildHistoryEntry(job, artifact, existingEntry))
+    }
+
+    private suspend fun updateInstallTimestamp(
+        job: JobDetailsUiModel?,
+        artifact: ArtifactUiModel,
+    ) {
+        if (job == null || relevantPushTimestamp == null) {
+            return
+        }
+        val existingEntry = historyRepository.historyEntries.value.firstOrNull { it.uniqueKey == artifact.uniqueKey }
+        val baseEntry = existingEntry ?: buildHistoryEntry(job, artifact, existingEntry)
+        historyRepository.upsertHistoryEntry(
+            baseEntry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
+        )
+    }
+
+    private fun buildHistoryEntry(
+        job: JobDetailsUiModel,
+        artifact: ArtifactUiModel,
+        existingEntry: TreeherderInstallHistoryEntry?,
+    ): TreeherderInstallHistoryEntry {
         val artifactFileName = artifact.name.substringAfterLast('/')
-        historyRepository.recordInstallerLaunch(
-            TreeherderInstallHistoryEntry(
-                project = selectedProject,
-                revision = revision,
-                commitMessage = relevantPushComment ?: "No comment",
-                author = relevantPushAuthor,
-                pushTimestamp = relevantPushTimestamp ?: 0L,
-                appName = job.appName,
-                jobName = job.jobName,
-                jobSymbol = job.jobSymbol,
-                taskId = artifact.taskId,
-                artifactName = artifact.name,
-                artifactFileName = artifactFileName,
-                downloadUrl = artifact.downloadUrl,
-                abiName = artifact.abi.name,
-                abiSupported = artifact.abi.isSupported,
-                expires = artifact.expires,
-                cacheRelativePath = "$TREEHERDER/${artifact.taskId}/$artifactFileName",
-                lastInstallerLaunchTimestamp = currentTimeMillisProvider(),
-            ),
+        return TreeherderInstallHistoryEntry(
+            project = selectedProject,
+            revision = revision,
+            commitMessage = relevantPushComment ?: "No comment",
+            author = relevantPushAuthor,
+            pushTimestamp = relevantPushTimestamp ?: 0L,
+            appName = job.appName,
+            jobName = job.jobName,
+            jobSymbol = job.jobSymbol,
+            taskId = artifact.taskId,
+            artifactName = artifact.name,
+            artifactFileName = artifactFileName,
+            downloadUrl = artifact.downloadUrl,
+            abiName = artifact.abi.name,
+            abiSupported = artifact.abi.isSupported,
+            expires = artifact.expires,
+            cacheRelativePath = "$TREEHERDER/${artifact.taskId}/$artifactFileName",
+            historyRecordedTimestamp = existingEntry?.historyRecordedTimestamp ?: currentTimeMillisProvider(),
+            lastInstallerLaunchTimestamp = existingEntry?.lastInstallerLaunchTimestamp,
         )
     }
 

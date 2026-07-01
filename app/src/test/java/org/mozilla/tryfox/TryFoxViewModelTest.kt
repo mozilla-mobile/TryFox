@@ -277,8 +277,69 @@ class TryFoxViewModelTest {
         assertEquals("signing-apk-fenix-nightly", historyEntry.jobName)
         assertEquals("Bug 2001527: test patch", historyEntry.commitMessage)
         assertEquals("arm64-v8a", historyEntry.abiName)
+        assertEquals(123L, historyEntry.historyRecordedTimestamp)
         assertEquals(123L, historyEntry.lastInstallerLaunchTimestamp)
         assertTrue(intentManager.wasInstallApkCalled)
+    }
+
+    @Test
+    fun `downloadArtifact records Treeherder history entry before download completes`() = runTest {
+        val job = signedJob(taskId = "history-task", jobName = "signing-apk-fenix-nightly", appName = "fenix")
+        val repository = FakeTestTreeherderRepository(
+            pages = mapOf(1 to listOf(job)),
+            artifactsByTaskId = mapOf("history-task" to listOf(apkArtifact("public/build/target.arm64-v8a.apk"))),
+        )
+        val historyRepository = FakeHistoryRepository()
+        val viewModel = createViewModel(
+            repository = repository,
+            historyRepository = historyRepository,
+            currentTimeMillisProvider = { 456L },
+        )
+
+        viewModel.updateRevision("ed209aa2136b241686ff20489c5cb622348e2ecf")
+        viewModel.searchJobsAndArtifacts()
+        advanceUntilIdle()
+
+        viewModel.downloadArtifact(viewModel.selectedJobs.single().artifacts.single())
+        advanceUntilIdle()
+
+        val historyEntry = historyRepository.recordedEntries.single()
+        assertEquals(456L, historyEntry.historyRecordedTimestamp)
+        assertNull(historyEntry.lastInstallerLaunchTimestamp)
+        assertEquals("public/build/target.arm64-v8a.apk", historyEntry.artifactName)
+    }
+
+    @Test
+    fun `downloadArtifact keeps history entry when download fails`() = runTest {
+        val job = signedJob(taskId = "history-task", jobName = "signing-apk-fenix-nightly", appName = "fenix")
+        val repository = FakeTestTreeherderRepository(
+            pages = mapOf(1 to listOf(job)),
+            artifactsByTaskId = mapOf("history-task" to listOf(apkArtifact("public/build/target.arm64-v8a.apk"))),
+        )
+        val historyRepository = FakeHistoryRepository()
+        val viewModel = createViewModel(
+            repository = repository,
+            historyRepository = historyRepository,
+            downloadFileRepository = FakeDownloadFileRepository(
+                simulateNetworkError = true,
+                downloadProgressDelayMillis = 0,
+            ),
+            currentTimeMillisProvider = { 789L },
+        )
+
+        viewModel.updateRevision("ed209aa2136b241686ff20489c5cb622348e2ecf")
+        viewModel.searchJobsAndArtifacts()
+        advanceUntilIdle()
+
+        viewModel.downloadArtifact(viewModel.selectedJobs.single().artifacts.single())
+        advanceUntilIdle()
+
+        val historyEntry = historyRepository.recordedEntries.single()
+        assertEquals(789L, historyEntry.historyRecordedTimestamp)
+        assertNull(historyEntry.lastInstallerLaunchTimestamp)
+        assertTrue(
+            viewModel.selectedJobs.single().artifacts.single().downloadState is DownloadState.DownloadFailed,
+        )
     }
 
     @Test

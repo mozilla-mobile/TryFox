@@ -116,6 +116,7 @@ class HistoryScreenTest {
             abiSupported = true,
             expires = "2026-01-01T00:00:00.000Z",
             cacheRelativePath = "treeherder/task-id/target.arm64-v8a.apk",
+            historyRecordedTimestamp = 123L,
             lastInstallerLaunchTimestamp = 123L,
         )
 }

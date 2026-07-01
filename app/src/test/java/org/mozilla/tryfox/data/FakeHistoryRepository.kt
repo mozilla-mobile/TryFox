@@ -11,24 +11,24 @@ class FakeHistoryRepository : HistoryRepository {
 
     val recordedEntries = mutableListOf<TreeherderInstallHistoryEntry>()
     var refreshCalled = false
-    var failRecordInstallerLaunch = false
+    var failUpsertHistoryEntry = false
 
     override suspend fun refresh() {
         refreshCalled = true
     }
 
-    override suspend fun recordInstallerLaunch(entry: TreeherderInstallHistoryEntry) {
-        if (failRecordInstallerLaunch) {
+    override suspend fun upsertHistoryEntry(entry: TreeherderInstallHistoryEntry) {
+        if (failUpsertHistoryEntry) {
             error("Failed to record history")
         }
         recordedEntries.removeAll { it.uniqueKey == entry.uniqueKey }
         recordedEntries.add(entry)
-        _historyEntries.value = recordedEntries.sortedByDescending { it.lastInstallerLaunchTimestamp }
+        _historyEntries.value = recordedEntries.sortedByDescending { it.historyRecordedTimestamp }
     }
 
     override suspend fun delete(uniqueKey: String) {
         recordedEntries.removeAll { it.uniqueKey == uniqueKey }
-        _historyEntries.value = recordedEntries.sortedByDescending { it.lastInstallerLaunchTimestamp }
+        _historyEntries.value = recordedEntries.sortedByDescending { it.historyRecordedTimestamp }
     }
 
     fun setEntries(entries: List<TreeherderInstallHistoryEntry>) {

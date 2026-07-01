@@ -213,7 +213,7 @@ class HistoryViewModel(
     fun install(historyItem: HistoryItemUiModel, file: File) {
         viewModelScope.launch {
             try {
-                historyRepository.recordInstallerLaunch(
+                historyRepository.upsertHistoryEntry(
                     historyItem.entry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
                 )
             } catch (_: Exception) {

@@ -13,15 +13,15 @@ class FakeHistoryRepository : HistoryRepository {
 
     override suspend fun refresh() = Unit
 
-    override suspend fun recordInstallerLaunch(entry: TreeherderInstallHistoryEntry) {
+    override suspend fun upsertHistoryEntry(entry: TreeherderInstallHistoryEntry) {
         recordedEntries.removeAll { it.uniqueKey == entry.uniqueKey }
         recordedEntries.add(entry)
-        _historyEntries.value = recordedEntries.sortedByDescending { it.lastInstallerLaunchTimestamp }
+        _historyEntries.value = recordedEntries.sortedByDescending { it.historyRecordedTimestamp }
     }
 
     override suspend fun delete(uniqueKey: String) {
         recordedEntries.removeAll { it.uniqueKey == uniqueKey }
-        _historyEntries.value = recordedEntries.sortedByDescending { it.lastInstallerLaunchTimestamp }
+        _historyEntries.value = recordedEntries.sortedByDescending { it.historyRecordedTimestamp }
     }
 
     fun setEntries(entries: List<TreeherderInstallHistoryEntry>) {

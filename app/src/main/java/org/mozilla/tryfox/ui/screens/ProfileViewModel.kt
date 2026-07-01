@@ -321,6 +321,14 @@ class ProfileViewModel(
                 LogPriority.DEBUG,
                 TAG,
             ) { "Starting download coroutine for ${artifactUiModel.name}" }
+            val downloadedArtifact = findArtifact(artifactUiModel.uniqueKey)
+            if (downloadedArtifact != null) {
+                try {
+                    upsertHistoryEntry(downloadedArtifact)
+                } catch (_: Exception) {
+                    // History is best-effort; never block downloads.
+                }
+            }
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(0f))
 
             val downloadUrl = artifactUiModel.downloadUrl
@@ -419,7 +427,7 @@ class ProfileViewModel(
 
         viewModelScope.launch {
             try {
-                recordInstallerLaunch(downloadedArtifact)
+                updateInstallTimestamp(downloadedArtifact)
             } catch (_: Exception) {
                 // History is best-effort; never block installation.
             }
@@ -477,32 +485,64 @@ class ProfileViewModel(
             }
         }
 
-    private suspend fun recordInstallerLaunch(downloadedArtifact: DownloadedArtifact) {
+    private fun findArtifact(uniqueKey: String): DownloadedArtifact? =
+        _pushes.value.firstNotNullOfOrNull { push ->
+            push.jobs.firstNotNullOfOrNull { job ->
+                job.artifacts.firstOrNull { artifact ->
+                    artifact.uniqueKey == uniqueKey
+                }?.let { artifact -> DownloadedArtifact(push, job, artifact) }
+            }
+        }
+
+    private suspend fun upsertHistoryEntry(downloadedArtifact: DownloadedArtifact) {
         val push = downloadedArtifact.push
         val job = downloadedArtifact.job
         val artifact = downloadedArtifact.artifact
-        val artifactFileName = artifact.name.substringAfterLast('/')
+        val existingEntry = historyRepository.historyEntries.value.firstOrNull { it.uniqueKey == artifact.uniqueKey }
+        historyRepository.upsertHistoryEntry(buildHistoryEntry(push, job, artifact, existingEntry))
+    }
 
-        historyRepository.recordInstallerLaunch(
-            TreeherderInstallHistoryEntry(
-                project = "try",
-                revision = push.revision ?: "unknown_revision",
-                commitMessage = push.pushComment,
-                author = push.author,
-                pushTimestamp = push.pushTimestamp,
-                appName = job.appName,
-                jobName = job.jobName,
-                jobSymbol = job.jobSymbol,
-                taskId = artifact.taskId,
-                artifactName = artifact.name,
-                artifactFileName = artifactFileName,
-                downloadUrl = artifact.downloadUrl,
-                abiName = artifact.abi.name,
-                abiSupported = artifact.abi.isSupported,
-                expires = artifact.expires,
-                cacheRelativePath = "$TREEHERDER/${artifact.taskId}/$artifactFileName",
-                lastInstallerLaunchTimestamp = currentTimeMillisProvider(),
-            ),
+    private suspend fun updateInstallTimestamp(downloadedArtifact: DownloadedArtifact) {
+        val existingEntry = historyRepository.historyEntries.value.firstOrNull {
+            it.uniqueKey == downloadedArtifact.artifact.uniqueKey
+        }
+        val baseEntry = existingEntry ?: buildHistoryEntry(
+            downloadedArtifact.push,
+            downloadedArtifact.job,
+            downloadedArtifact.artifact,
+            existingEntry,
+        )
+        historyRepository.upsertHistoryEntry(
+            baseEntry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
+        )
+    }
+
+    private fun buildHistoryEntry(
+        push: PushUiModel,
+        job: JobDetailsUiModel,
+        artifact: ArtifactUiModel,
+        existingEntry: TreeherderInstallHistoryEntry?,
+    ): TreeherderInstallHistoryEntry {
+        val artifactFileName = artifact.name.substringAfterLast('/')
+        return TreeherderInstallHistoryEntry(
+            project = "try",
+            revision = push.revision ?: "unknown_revision",
+            commitMessage = push.pushComment,
+            author = push.author,
+            pushTimestamp = push.pushTimestamp,
+            appName = job.appName,
+            jobName = job.jobName,
+            jobSymbol = job.jobSymbol,
+            taskId = artifact.taskId,
+            artifactName = artifact.name,
+            artifactFileName = artifactFileName,
+            downloadUrl = artifact.downloadUrl,
+            abiName = artifact.abi.name,
+            abiSupported = artifact.abi.isSupported,
+            expires = artifact.expires,
+            cacheRelativePath = "$TREEHERDER/${artifact.taskId}/$artifactFileName",
+            historyRecordedTimestamp = existingEntry?.historyRecordedTimestamp ?: currentTimeMillisProvider(),
+            lastInstallerLaunchTimestamp = existingEntry?.lastInstallerLaunchTimestamp,
         )
     }
 

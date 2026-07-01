@@ -162,7 +162,7 @@ class HistoryViewModelTest {
         val entry = historyEntry()
         val historyRepository = FakeHistoryRepository().apply {
             setEntries(listOf(entry))
-            failRecordInstallerLaunch = true
+            failUpsertHistoryEntry = true
         }
         val intentManager = FakeIntentManager()
         val cacheManager = FakeCacheManager(tempCacheDir)
@@ -313,7 +313,8 @@ class HistoryViewModelTest {
 
     private fun historyEntry(
         downloadUrl: String = "https://example.com/task/artifact",
-        lastInstallerLaunchTimestamp: Long = 10L,
+        historyRecordedTimestamp: Long = 10L,
+        lastInstallerLaunchTimestamp: Long? = 10L,
     ): TreeherderInstallHistoryEntry =
         TreeherderInstallHistoryEntry(
             project = "try",
@@ -332,6 +333,7 @@ class HistoryViewModelTest {
             abiSupported = true,
             expires = "2026-01-01T00:00:00.000Z",
             cacheRelativePath = "treeherder/task-id/target.arm64-v8a.apk",
+            historyRecordedTimestamp = historyRecordedTimestamp,
             lastInstallerLaunchTimestamp = lastInstallerLaunchTimestamp,
         )
 

@@ -234,12 +234,23 @@ private fun HistoryCard(
 
             Text(
                 text = stringResource(
-                    id = R.string.history_screen_last_installed_label,
-                    formatInstallTimestamp(entry.lastInstallerLaunchTimestamp),
+                    id = R.string.history_screen_added_to_history_label,
+                    formatHistoryTimestamp(entry.historyRecordedTimestamp),
                 ),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+
+            entry.lastInstallerLaunchTimestamp?.let { lastInstalledTimestamp ->
+                Text(
+                    text = stringResource(
+                        id = R.string.history_screen_last_installed_label,
+                        formatHistoryTimestamp(lastInstalledTimestamp),
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -298,7 +309,7 @@ private fun JobSymbolChip(symbol: String) {
 
 @OptIn(FormatStringsInDatetimeFormats::class)
 @Composable
-private fun formatInstallTimestamp(timestampMillis: Long): String {
+private fun formatHistoryTimestamp(timestampMillis: Long): String {
     val format = remember {
         LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd HH:mm") }
     }
