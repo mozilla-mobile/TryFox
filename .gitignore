@@ -16,6 +16,12 @@
 .cxx
 local.properties
 /temp-doc
+AI-notes
+/tryfox-history-logcat.txt
+/tryfox-history-download-debug.txt
+/telemetry-api/build/
+/telemetry-consent/build/
+/telemetry-firebase/build/
 
 # Compiled python code
 *.pyc

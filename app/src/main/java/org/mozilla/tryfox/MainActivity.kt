@@ -8,6 +8,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -16,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
 import org.mozilla.tryfox.ui.screens.HistoryScreen
 import org.mozilla.tryfox.ui.screens.HomeScreen
 import org.mozilla.tryfox.ui.screens.ProfileScreen
@@ -89,6 +93,7 @@ sealed class NavScreen(val route: String) {
  */
 class MainActivity : ComponentActivity() {
     private lateinit var navController: NavHostController
+    private var receiveFromDesktopStartRequested by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -161,6 +166,10 @@ class MainActivity : ComponentActivity() {
                         localNavController.navigate(NavScreen.ReceiveMessageHistory.route)
                     },
                     receiveFromDesktopViewModel = koinViewModel(),
+                    startReceiverOnEnter = receiveFromDesktopStartRequested,
+                    onStartReceiverOnEnterConsumed = {
+                        receiveFromDesktopStartRequested = false
+                    },
                 )
             }
             composable(NavScreen.ReceiveMessageHistory.route) {
@@ -217,6 +226,11 @@ class MainActivity : ComponentActivity() {
 
     private fun routeDeepLink(intent: Intent?) {
         val internalRoute = intent?.getStringExtra(EXTRA_NAVIGATION_ROUTE)
+        val startReceiverOnEnter = intent?.getBooleanExtra(EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED, false) == true
+        if (startReceiverOnEnter && internalRoute == AppRoutes.RECEIVE_FROM_DESKTOP) {
+            receiveFromDesktopStartRequested = true
+        }
+        intent?.removeExtra(EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED)
         if (!internalRoute.isNullOrBlank()) {
             navController.navigate(internalRoute) {
                 launchSingleTop = true

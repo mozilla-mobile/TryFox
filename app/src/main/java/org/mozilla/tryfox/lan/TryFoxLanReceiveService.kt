@@ -31,6 +31,7 @@ import logcat.logcat
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.mozilla.tryfox.EXTRA_NAVIGATION_ROUTE
+import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
 import org.mozilla.tryfox.MainActivity
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
@@ -51,10 +52,11 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val showStoppedNotification = intent?.getBooleanExtra(EXTRA_SHOW_STOPPED_NOTIFICATION, false) == true
         when (intent?.action) {
             ACTION_STOP -> {
                 serviceScope.launch {
-                    stopReceiver()
+                    stopReceiver(showStoppedNotification = showStoppedNotification)
                     stopSelf(startId)
                 }
             }
@@ -78,7 +80,9 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
         if (stateRepository.state.value.status != LanReceiveStatus.ERROR) {
             stateRepository.set(LanReceiveSessionState(status = LanReceiveStatus.STOPPED))
         }
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (stateRepository.state.value.status != LanReceiveStatus.STOPPED) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        }
         serviceScope.cancel()
         super.onDestroy()
     }
@@ -270,13 +274,16 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
         updateNotification(getString(R.string.lan_receive_notification_listening, boundServer.endpoint))
     }
 
-    private suspend fun stopReceiver() {
+    private suspend fun stopReceiver(showStoppedNotification: Boolean) {
         val currentServer = server ?: run {
             val currentStatus = stateRepository.state.value.status
             if (currentStatus != LanReceiveStatus.ERROR) {
                 stateRepository.set(LanReceiveSessionState(status = LanReceiveStatus.STOPPED))
             }
             stopForeground(STOP_FOREGROUND_REMOVE)
+            if (showStoppedNotification) {
+                postStoppedNotification()
+            }
             return
         }
 
@@ -287,6 +294,9 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
         server = null
         stateRepository.set(LanReceiveSessionState(status = LanReceiveStatus.STOPPED))
         stopForeground(STOP_FOREGROUND_REMOVE)
+        if (showStoppedNotification) {
+            postStoppedNotification()
+        }
     }
 
     private fun failStartup(errorCode: String) {
@@ -325,6 +335,14 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val deleteIntent = PendingIntent.getBroadcast(
+            this,
+            2,
+            Intent(this, TryFoxLanReceiveNotificationReceiver::class.java).apply {
+                action = TryFoxLanReceiveNotificationReceiver.ACTION_NOTIFICATION_DISMISSED
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle(getString(R.string.lan_receive_notification_title))
@@ -334,12 +352,48 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setAutoCancel(false)
+            .setDeleteIntent(deleteIntent)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .addAction(
                 0,
                 getString(R.string.lan_receive_stop_button),
                 stopIntent,
+            )
+            .build()
+    }
+
+    private fun postStoppedNotification() {
+        createNotificationChannelIfNeeded()
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.notify(NOTIFICATION_ID, buildStoppedNotification())
+    }
+
+    private fun buildStoppedNotification(): Notification {
+        val restartIntent = PendingIntent.getActivity(
+            this,
+            3,
+            Intent(this, MainActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                putExtra(EXTRA_NAVIGATION_ROUTE, org.mozilla.tryfox.AppRoutes.RECEIVE_FROM_DESKTOP)
+                putExtra(EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED, true)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setContentTitle(getString(R.string.lan_receive_notification_stopped_title))
+            .setContentText(getString(R.string.lan_receive_notification_stopped_body))
+            .setContentIntent(restartIntent)
+            .setOnlyAlertOnce(true)
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .addAction(
+                0,
+                getString(R.string.lan_receive_notification_restart),
+                restartIntent,
             )
             .build()
     }
@@ -466,13 +520,16 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
         private const val MESSAGE_PATH = "/tryfox/v1/messages"
         private const val QR_MODE = "tryfox-lan-receive"
         private const val ACTION_STOP = "org.mozilla.tryfox.lan.action.STOP"
+        private const val EXTRA_SHOW_STOPPED_NOTIFICATION =
+            "org.mozilla.tryfox.lan.extra.SHOW_STOPPED_NOTIFICATION"
 
         fun startIntent(context: Context): Intent =
             Intent(context, TryFoxLanReceiveService::class.java)
 
-        fun stopIntent(context: Context): Intent =
+        fun stopIntent(context: Context, showStoppedNotification: Boolean = false): Intent =
             Intent(context, TryFoxLanReceiveService::class.java).apply {
                 action = ACTION_STOP
+                putExtra(EXTRA_SHOW_STOPPED_NOTIFICATION, showStoppedNotification)
             }
 
         private const val LOG_TAG = "TryFoxLanReceive"

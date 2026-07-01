@@ -95,6 +95,10 @@
     <string name="lan_receive_last_message_author">Author: %1$s</string>
     <string name="lan_receive_start_button">Start receiver</string>
     <string name="lan_receive_stop_button">Stop receiver</string>
+    <string name="lan_receive_permission_card_title">Notifications are required</string>
+    <string name="lan_receive_permission_card_body">Allow notifications so TryFox can start and keep the desktop receiver running.</string>
+    <string name="lan_receive_permission_card_blocked_title">Notifications are blocked</string>
+    <string name="lan_receive_permission_card_blocked_body">TryFox can’t show the permission prompt anymore. Open app settings to enable notifications.</string>
     <string name="lan_receive_message_history_button">Message history</string>
     <string name="lan_receive_message_history_title">Message history</string>
     <string name="lan_receive_message_history_empty_title">No messages yet</string>
@@ -109,6 +113,9 @@
     <string name="lan_receive_notification_starting">Starting receiver…</string>
     <string name="lan_receive_notification_listening">Listening on %1$s</string>
     <string name="lan_receive_notification_last_message">Last message: %1$s</string>
+    <string name="lan_receive_notification_stopped_title">Desktop receiver stopped</string>
+    <string name="lan_receive_notification_stopped_body">The desktop receiver was stopped. Tap to start it again.</string>
+    <string name="lan_receive_notification_restart">Restart receiver</string>
     <string name="lan_receive_message_group_title">TryFox desktop messages</string>
     <string name="lan_receive_message_group_body">Open to view received desktop messages</string>
     <string name="lan_receive_message_notification_title_revision">Received revision %1$s</string>

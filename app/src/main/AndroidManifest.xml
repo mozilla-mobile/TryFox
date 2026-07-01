@@ -80,6 +80,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".lan.TryFoxLanReceiveNotificationReceiver"
+            android:exported="false" />
+
         <service
             android:name=".lan.TryFoxLanReceiveService"
             android:enabled="true"
