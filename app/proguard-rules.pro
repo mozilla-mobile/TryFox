@@ -19,3 +19,9 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Ktor's JVM debugger detector probes java.lang.management and already falls
+# back to false when those desktop-only classes are unavailable. Suppress the
+# warning so R8 doesn't fail Android release builds on that optional path.
+-dontwarn java.lang.management.ManagementFactory
+-dontwarn java.lang.management.RuntimeMXBean
