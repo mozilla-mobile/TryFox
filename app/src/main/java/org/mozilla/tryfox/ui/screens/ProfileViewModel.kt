@@ -17,9 +17,12 @@ import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
+import org.mozilla.tryfox.download.ApkDownloadCoordinator
+import org.mozilla.tryfox.download.ApkDownloadRequest
+import org.mozilla.tryfox.download.model.DownloadStatus
+import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
-import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
@@ -42,11 +45,11 @@ import java.io.File
  */
 class ProfileViewModel(
     private val fenixRepository: TreeherderRepository,
-    private val downloadFileRepository: DownloadFileRepository,
     private val userDataRepository: UserDataRepository,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
     private val historyRepository: HistoryRepository,
+    private val downloadCoordinator: ApkDownloadCoordinator,
     authorEmail: String?,
     private val currentTimeMillisProvider: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
@@ -66,6 +69,8 @@ class ProfileViewModel(
 
     private val _pushes = MutableStateFlow<List<PushUiModel>>(emptyList())
     val pushes: StateFlow<List<PushUiModel>> = _pushes.asStateFlow()
+    private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
+    private val pendingAutoInstallDownloads = mutableSetOf<String>()
 
     val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
 
@@ -73,6 +78,13 @@ class ProfileViewModel(
 
     init {
         logcat(LogPriority.DEBUG, TAG) { "Initializing ProfileViewModel for email: $authorEmail" }
+        downloadCoordinator.downloads
+            .onEach { persistedDownloads ->
+                downloadStates.value = persistedDownloads
+                syncLoadedStateDownloadStates()
+            }
+            .launchIn(viewModelScope)
+
         cacheManager.cacheState.onEach { state ->
             if (state is CacheManagementState.IdleEmpty) {
                 val updatedPushes = _pushes.value.map {
@@ -87,6 +99,7 @@ class ProfileViewModel(
                     )
                 }
                 _pushes.value = updatedPushes
+                syncLoadedStateDownloadStates()
             }
         }.launchIn(viewModelScope)
 
@@ -204,6 +217,7 @@ class ProfileViewModel(
                     }.awaitAll().filterNotNull()
 
                     _pushes.value = pushesWithJobsAndArtifacts
+                    syncLoadedStateDownloadStates()
                     logcat(TAG) { "Search finished, ${_pushes.value.size} pushes with artifacts found." }
                     if (pushesWithJobsAndArtifacts.isEmpty()) {
                         _errorMessage.value = "No signed builds found for this author."
@@ -233,12 +247,12 @@ class ProfileViewModel(
                 ) { "Found ${filteredApks.size} APKs for taskId: $taskId" }
                 filteredApks.map { artifact ->
                     val artifactFileName = artifact.name.substringAfterLast('/')
-                    val downloadedFile = getDownloadedFile(artifactFileName, taskId)
-                    val downloadState = if (downloadedFile != null) {
-                        DownloadState.Downloaded(downloadedFile)
-                    } else {
-                        DownloadState.NotDownloaded
-                    }
+                    val uniqueKey = "$taskId/$artifactFileName"
+                    val downloadState = resolveDownloadState(
+                        artifactName = artifactFileName,
+                        taskId = taskId,
+                        uniqueKey = uniqueKey,
+                    )
                     val isCompatible =
                         artifact.abi != null && deviceSupportedAbis.any { deviceAbi ->
                             deviceAbi.equals(artifact.abi, ignoreCase = true)
@@ -269,7 +283,7 @@ class ProfileViewModel(
 
     fun getDownloadedFile(artifactName: String, taskId: String): File? {
         if (taskId.isBlank()) return null
-        val taskSpecificDir = File(cacheManager.getCacheDir("treeherder"), taskId)
+        val taskSpecificDir = File(cacheManager.getCacheDir(TREEHERDER), taskId)
         val outputFile = File(taskSpecificDir, artifactName)
         val exists = outputFile.exists()
         logcat(
@@ -320,7 +334,7 @@ class ProfileViewModel(
             logcat(
                 LogPriority.DEBUG,
                 TAG,
-            ) { "Starting download coroutine for ${artifactUiModel.name}" }
+            ) { "Enqueuing WorkManager download for ${artifactUiModel.name}" }
             val downloadedArtifact = findArtifact(artifactUiModel.uniqueKey)
             if (downloadedArtifact != null) {
                 try {
@@ -331,10 +345,7 @@ class ProfileViewModel(
             }
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(0f))
 
-            val downloadUrl = artifactUiModel.downloadUrl
-            logcat(LogPriority.DEBUG, TAG) { "Download URL: $downloadUrl" }
-
-            val outputDir = File(cacheManager.getCacheDir("treeherder"), taskId)
+            val outputDir = File(cacheManager.getCacheDir(TREEHERDER), taskId)
             if (!outputDir.exists()) {
                 outputDir.mkdirs()
                 logcat(
@@ -345,75 +356,31 @@ class ProfileViewModel(
             val outputFile = File(outputDir, artifactFileName)
             logcat(LogPriority.DEBUG, TAG) { "Output file: ${outputFile.absolutePath}" }
 
-            var lastLoggedNumericProgress = 0f
-
-            logcat(TAG) { "Calling fenixRepository.downloadArtifact for ${artifactUiModel.name}" }
-            val result = downloadFileRepository.downloadFile(
-                downloadUrl = downloadUrl,
+            val request = ApkDownloadRequest(
+                uniqueKey = artifactUiModel.uniqueKey,
+                downloadUrl = artifactUiModel.downloadUrl,
                 outputFile = outputFile,
-                onProgress = { bytesDownloaded, totalBytes ->
-                    val currentProgressFloat = if (totalBytes > 0) {
-                        bytesDownloaded.toFloat() / totalBytes.toFloat()
-                    } else {
-                        0f
-                    }
-
-                    var shouldLog = false
-                    if (bytesDownloaded == 0L) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = 0f
-                    } else if (bytesDownloaded == totalBytes) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = currentProgressFloat
-                    } else if (currentProgressFloat - lastLoggedNumericProgress >= 0.02f) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = currentProgressFloat
-                    }
-
-                    if (shouldLog) {
-                         logcat(LogPriority.VERBOSE, TAG) {
-                            "Download progress for ${artifactUiModel.name}: $bytesDownloaded / $totalBytes " +
-                            "($currentProgressFloat)"
-                        }
-                    }
-                    updateArtifactDownloadState(
-                        taskId,
-                        artifactUiModel.name,
-                        DownloadState.InProgress(currentProgressFloat),
-                    )
-                },
+                appName = TREEHERDER,
+                fileName = artifactFileName,
+                cacheRelativePath = "$TREEHERDER/$taskId/$artifactFileName",
             )
 
-            logcat(TAG) { "fenixRepository.downloadArtifact result for ${artifactUiModel.name}: $result" }
-            when (result) {
-                is NetworkResult.Success -> {
-                    updateArtifactDownloadState(
-                        taskId,
-                        artifactUiModel.name,
-                        DownloadState.Downloaded(result.data),
-                    )
-                    cacheManager.checkCacheStatus()
-                    logcat(TAG) { "Download success for ${artifactUiModel.name}. APK is ready to be installed." }
-                    installApk(result.data)
+            pendingAutoInstallDownloads += artifactUiModel.uniqueKey
+            try {
+                downloadCoordinator.enqueue(request)
+                downloadStates.value = downloadCoordinator.downloads.value
+                syncLoadedStateDownloadStates()
+            } catch (e: Exception) {
+                pendingAutoInstallDownloads.remove(artifactUiModel.uniqueKey)
+                logcat(LogPriority.ERROR, TAG) {
+                    "Failed to enqueue download for ${artifactUiModel.name}: ${e.message}"
                 }
-
-                is NetworkResult.Error -> {
-                    val failureMessage = "Download failed for $artifactFileName: ${result.message}"
-                    if (result.cause != null) {
-                        logcat(
-                            LogPriority.ERROR,
-                            TAG,
-                        ) { "$failureMessage\n${result.cause.stackTraceToString()}" }
-                    } else {
-                        logcat(LogPriority.ERROR, TAG) { "$failureMessage (No cause available)" }
-                    }
-                    updateArtifactDownloadState(
-                        taskId,
-                        artifactUiModel.name,
-                        DownloadState.DownloadFailed(result.message),
-                    )
-                    cacheManager.checkCacheStatus()
-                }
+                updateArtifactDownloadState(
+                    taskId,
+                    artifactUiModel.name,
+                    DownloadState.DownloadFailed(e.message),
+                )
+                cacheManager.checkCacheStatus()
             }
         }
     }
@@ -474,6 +441,85 @@ class ProfileViewModel(
                 }
             },
         )
+
+    private fun syncLoadedStateDownloadStates() {
+        val persistedDownloads = downloadStates.value
+        _pushes.value = _pushes.value.map { push ->
+            push.copy(
+                jobs = push.jobs.map { job ->
+                    job.copy(
+                        artifacts = job.artifacts.map { artifact ->
+                            artifact.copy(
+                                downloadState = resolveDownloadState(
+                                    artifactName = artifact.name.substringAfterLast('/'),
+                                    taskId = artifact.taskId,
+                                    uniqueKey = artifact.uniqueKey,
+                                ),
+                            )
+                        },
+                    )
+                },
+            )
+        }
+        maybeAutoInstallCompletedDownloads(persistedDownloads)
+    }
+
+    private fun resolveDownloadState(
+        artifactName: String,
+        taskId: String,
+        uniqueKey: String,
+    ): DownloadState {
+        val downloadedFile = getDownloadedFile(artifactName, taskId)
+        return downloadStates.value[uniqueKey]?.toDownloadState(downloadedFile)
+            ?: if (downloadedFile != null) {
+                DownloadState.Downloaded(downloadedFile)
+            } else {
+                DownloadState.NotDownloaded
+            }
+    }
+
+    private fun PersistedDownloadState.toDownloadState(file: File?): DownloadState =
+        when (status) {
+            DownloadStatus.QUEUED,
+            DownloadStatus.RUNNING,
+                -> DownloadState.InProgress(
+                progress = progress ?: 0f,
+                isIndeterminate = totalBytes <= 0L,
+            )
+
+            DownloadStatus.SUCCEEDED -> if (file != null && file.exists()) {
+                DownloadState.Downloaded(file)
+            } else {
+                DownloadState.NotDownloaded
+            }
+
+            DownloadStatus.FAILED -> DownloadState.DownloadFailed(errorMessage)
+            DownloadStatus.CANCELED -> DownloadState.NotDownloaded
+        }
+
+    private fun maybeAutoInstallCompletedDownloads(persistedDownloads: Map<String, PersistedDownloadState>) {
+        val completedKeys = pendingAutoInstallDownloads.filter { uniqueKey ->
+            persistedDownloads[uniqueKey]?.status == DownloadStatus.SUCCEEDED
+        }
+
+        completedKeys.forEach { uniqueKey ->
+            val persistedDownload = persistedDownloads[uniqueKey] ?: return@forEach
+            val file = File(persistedDownload.outputPath)
+            if (file.exists()) {
+                logcat(TAG) { "Auto-installing completed download for uniqueKey=$uniqueKey" }
+                installApk(file)
+            } else {
+                logcat(LogPriority.WARN, TAG) {
+                    "Download completed for uniqueKey=$uniqueKey but file is missing at ${file.absolutePath}"
+                }
+            }
+        }
+
+        pendingAutoInstallDownloads.removeAll(completedKeys.toSet())
+        pendingAutoInstallDownloads.removeAll(
+            persistedDownloads.filterValues { it.isTerminal }.keys,
+        )
+    }
 
     private fun findDownloadedArtifact(file: File): DownloadedArtifact? =
         _pushes.value.firstNotNullOfOrNull { push ->

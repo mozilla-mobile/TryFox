@@ -1,5 +1,6 @@
 package org.mozilla.tryfox.data.repositories
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,7 +18,11 @@ class DefaultDownloadFileRepository(
     private val downloadApiService: DownloadApiService,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : DownloadFileRepository {
-    override suspend fun downloadFile(downloadUrl: String, outputFile: File, onProgress: (Long, Long) -> Unit): NetworkResult<File> {
+    override suspend fun downloadFile(
+        downloadUrl: String,
+        outputFile: File,
+        onProgress: suspend (Long, Long) -> Unit,
+    ): NetworkResult<File> {
         return withContext(ioDispatcher) {
             val partialFile = File(outputFile.parentFile, "${outputFile.name}.part")
             var backupFile = File(outputFile.parentFile, "${outputFile.name}.bak")
@@ -118,6 +123,12 @@ class DefaultDownloadFileRepository(
                         "totalBytes=$totalBytes, exists=${outputFile.exists()}, length=${outputFile.length()}"
                 }
                 NetworkResult.Success(outputFile)
+            } catch (e: CancellationException) {
+                partialFile.delete()
+                if (backupFile.exists() && !outputFile.exists()) {
+                    backupFile.renameTo(outputFile)
+                }
+                throw e
             } catch (e: Exception) {
                 partialFile.delete()
                 if (backupFile.exists() && !outputFile.exists()) {

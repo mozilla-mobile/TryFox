@@ -2,6 +2,9 @@ package org.mozilla.tryfox.ui.composables
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -31,6 +34,16 @@ fun DownloadButton(
             }
         }
         is DownloadState.InProgress -> {
+            val animatedProgress =
+                if (downloadState.isIndeterminate) {
+                    0f
+                } else {
+                    animateFloatAsState(
+                        targetValue = downloadState.progress,
+                        animationSpec = tween(durationMillis = 250, easing = LinearEasing),
+                        label = "downloadProgress",
+                    ).value
+                }
             Button(
                 onClick = {},
                 enabled = false,
@@ -45,7 +58,7 @@ fun DownloadButton(
                     )
                 } else {
                     CircularProgressIndicator(
-                        progress = { downloadState.progress },
+                        progress = { animatedProgress },
                         modifier = Modifier
                             .size(ButtonDefaults.IconSize)
                             .testTag("progress_indicator_determinate"), // Tag for determinate progress

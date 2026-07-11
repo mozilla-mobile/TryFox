@@ -15,5 +15,9 @@ interface DownloadFileRepository {
      * @param onProgress A callback function to report download progress (bytesDownloaded, totalBytes).
      * @return A [org.mozilla.tryfox.data.NetworkResult] indicating success with the downloaded [File] or an [org.mozilla.tryfox.data.NetworkResult.Error] on failure.
      */
-    suspend fun downloadFile(downloadUrl: String, outputFile: File, onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit): NetworkResult<File>
+    suspend fun downloadFile(
+        downloadUrl: String,
+        outputFile: File,
+        onProgress: suspend (bytesDownloaded: Long, totalBytes: Long) -> Unit,
+    ): NetworkResult<File>
 }

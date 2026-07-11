@@ -140,4 +140,9 @@
     <string name="lan_receive_message_notification_body_time">Push timestamp: %1$s</string>
     <string name="lan_receive_message_notification_body_generic">Open TryFox to inspect the received message.</string>
     <string name="lan_receive_message_notification_body_rejected">Reason: %1$s</string>
+    <string name="download_notification_channel_name">TryFox downloads</string>
+    <string name="download_notification_channel_description">Keeps APK downloads running in the background.</string>
+    <string name="download_notification_title">%1$s download</string>
+    <string name="download_notification_in_progress">Downloading in the background</string>
+    <string name="download_notification_progress">%1$d%% complete</string>
 </resources>

@@ -3,9 +3,7 @@ package org.mozilla.tryfox.ui.screens
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,19 +15,21 @@ import kotlinx.coroutines.launch
 import logcat.LogPriority
 import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
-import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
-import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.repositories.HistoryRepository
+import org.mozilla.tryfox.download.ApkDownloadCoordinator
+import org.mozilla.tryfox.download.ApkDownloadRequest
+import org.mozilla.tryfox.download.model.DownloadStatus
+import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.ui.models.HistoryItemUiModel
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
 
 class HistoryViewModel(
     private val historyRepository: HistoryRepository,
-    private val downloadFileRepository: DownloadFileRepository,
+    private val downloadCoordinator: ApkDownloadCoordinator,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -41,10 +41,7 @@ class HistoryViewModel(
     }
 
     private val downloadStates = MutableStateFlow<Map<String, DownloadState>>(emptyMap())
-    private val activeDownloads = MutableStateFlow<Map<String, ActiveDownload>>(emptyMap())
-    private val canceledDownloads = MutableStateFlow<Map<DownloadIdentity, TreeherderInstallHistoryEntry>>(emptyMap())
     private val cacheRefreshEvents = MutableStateFlow(0)
-    private var nextDownloadGeneration = 0L
 
     private val _historyItems = MutableStateFlow<List<HistoryItemUiModel>>(emptyList())
     val historyItems: StateFlow<List<HistoryItemUiModel>> = _historyItems.asStateFlow()
@@ -55,6 +52,12 @@ class HistoryViewModel(
             historyRepository.refresh()
             cacheManager.checkCacheStatus()
         }
+
+        downloadCoordinator.downloads
+            .onEach { persistedDownloads ->
+                downloadStates.value = persistedDownloads.toDownloadStates()
+            }
+            .launchIn(viewModelScope)
 
         historyRepository.historyEntries
             .combine(cacheManager.cacheState) { entries, _ -> entries }
@@ -76,12 +79,6 @@ class HistoryViewModel(
         logcat(LogPriority.DEBUG, TAG) {
             "download requested uniqueKey=${entry.uniqueKey}, currentState=${currentState.javaClass.simpleName}, " +
                 "historyItemState=${historyItem.downloadState.javaClass.simpleName}"
-        }
-        if (canceledDownloads.value.keys.any { it.uniqueKey == entry.uniqueKey }) {
-            logcat(LogPriority.DEBUG, TAG) {
-                "download ignored because a canceled download is still finishing uniqueKey=${entry.uniqueKey}"
-            }
-            return
         }
         when (currentState) {
             is DownloadState.InProgress -> {
@@ -107,107 +104,23 @@ class HistoryViewModel(
             else -> Unit
         }
 
-        val generation = nextDownloadGeneration++
-        lateinit var downloadJob: Job
-        downloadJob = viewModelScope.launch(ioDispatcher, start = CoroutineStart.LAZY) {
-            updateDownloadStateIfActive(entry.uniqueKey, generation, DownloadState.InProgress(0f))
-            val outputFile = getCachedFile(entry).selectedFile
-            outputFile.parentFile?.mkdirs()
-            logcat(LogPriority.DEBUG, TAG) {
-                "download started uniqueKey=${entry.uniqueKey}, url=${entry.downloadUrl}, " +
-                    "outputPath=${outputFile.absolutePath}, parentExists=${outputFile.parentFile?.exists()}, " +
-                    "preExisting=${outputFile.exists()}, preExistingLength=${outputFile.length()}"
-            }
-
-            when (
-                val result = downloadFileRepository.downloadFile(
-                    downloadUrl = entry.downloadUrl,
-                    outputFile = outputFile,
-                    onProgress = { bytesDownloaded, totalBytes ->
-                        val progress = if (totalBytes > 0) {
-                            bytesDownloaded.toFloat() / totalBytes.toFloat()
-                        } else {
-                            0f
-                        }
-                        updateDownloadStateIfActive(
-                            entry.uniqueKey,
-                            generation,
-                            DownloadState.InProgress(progress),
-                        )
-                    },
-                )
-            ) {
-                is NetworkResult.Success -> {
-                    logcat(LogPriority.DEBUG, TAG) {
-                        "download repository success uniqueKey=${entry.uniqueKey}, " +
-                            "resultPath=${result.data.absolutePath}, resultExists=${result.data.exists()}, " +
-                            "resultLength=${result.data.length()}, outputExists=${outputFile.exists()}, " +
-                            "outputLength=${outputFile.length()}, parentExists=${outputFile.parentFile?.exists()}"
-                    }
-                    val downloadedFile = result.data.takeIf { it.exists() } ?: outputFile.takeIf { it.exists() }
-                    if (downloadedFile == null) {
-                        logcat(LogPriority.ERROR, TAG) {
-                            "download success but file is missing uniqueKey=${entry.uniqueKey}, " +
-                                "resultPath=${result.data.absolutePath}, outputPath=${outputFile.absolutePath}"
-                        }
-                        updateDownloadStateIfActive(
-                            entry.uniqueKey,
-                            generation,
-                            DownloadState.DownloadFailed("Downloaded file is missing"),
-                        )
-                    } else {
-                        logcat(LogPriority.DEBUG, TAG) {
-                            "download marked downloaded uniqueKey=${entry.uniqueKey}, " +
-                                "path=${downloadedFile.absolutePath}, length=${downloadedFile.length()}"
-                        }
-                        updateDownloadStateIfActive(
-                            entry.uniqueKey,
-                            generation,
-                            DownloadState.Downloaded(downloadedFile),
-                        )
-                    }
-                    cacheManager.checkCacheStatus()
-                    cacheRefreshEvents.update { it + 1 }
-                }
-                is NetworkResult.Error -> {
-                    logcat(LogPriority.ERROR, TAG) {
-                        "download repository error uniqueKey=${entry.uniqueKey}, message=${result.message}"
-                    }
-                    updateDownloadStateIfActive(
-                        entry.uniqueKey,
-                        generation,
-                        DownloadState.DownloadFailed(result.message),
-                    )
-                    cacheManager.checkCacheStatus()
-                    cacheRefreshEvents.update { it + 1 }
-                }
-            }
+        val outputFile = getCachedFile(entry).selectedFile
+        outputFile.parentFile?.mkdirs()
+        logcat(LogPriority.DEBUG, TAG) {
+            "download enqueued uniqueKey=${entry.uniqueKey}, url=${entry.downloadUrl}, " +
+                "outputPath=${outputFile.absolutePath}, parentExists=${outputFile.parentFile?.exists()}, " +
+                "preExisting=${outputFile.exists()}, preExistingLength=${outputFile.length()}"
         }
-        val activeDownload = ActiveDownload(
-            job = downloadJob,
-            generation = generation,
-            entry = entry,
+        downloadCoordinator.enqueue(
+            ApkDownloadRequest(
+                uniqueKey = entry.uniqueKey,
+                downloadUrl = entry.downloadUrl,
+                outputFile = outputFile,
+                appName = entry.appName,
+                fileName = entry.artifactFileName,
+                cacheRelativePath = entry.cacheRelativePath,
+            ),
         )
-        val downloadIdentity = DownloadIdentity(entry.uniqueKey, generation)
-        activeDownloads.update { it + (entry.uniqueKey to activeDownload) }
-        downloadJob.invokeOnCompletion {
-            activeDownloads.update { downloads ->
-                if (downloads[entry.uniqueKey]?.generation == generation) {
-                    downloads - entry.uniqueKey
-                } else {
-                    downloads
-                }
-            }
-            canceledDownloads.value[downloadIdentity]?.let { canceledEntry ->
-                if (activeDownloads.value[canceledEntry.uniqueKey] == null) {
-                    deleteDownloadFiles(canceledEntry)
-                    cacheManager.checkCacheStatus()
-                    cacheRefreshEvents.update { it + 1 }
-                }
-                canceledDownloads.update { it - downloadIdentity }
-            }
-        }
-        downloadJob.start()
     }
 
     fun install(historyItem: HistoryItemUiModel, file: File) {
@@ -227,19 +140,10 @@ class HistoryViewModel(
         val uniqueKey = historyItem.entry.uniqueKey
         viewModelScope.launch(ioDispatcher) {
             try {
-                activeDownloads.value[uniqueKey]?.let { activeDownload ->
-                    val downloadIdentity = DownloadIdentity(uniqueKey, activeDownload.generation)
-                    canceledDownloads.update { it + (downloadIdentity to activeDownload.entry) }
-                    activeDownloads.update { downloads ->
-                        if (downloads[uniqueKey]?.generation == activeDownload.generation) {
-                            downloads - uniqueKey
-                        } else {
-                            downloads
-                        }
-                    }
-                    activeDownload.job.cancel()
-                    deleteDownloadFiles(activeDownload.entry)
+                if (downloadStates.value[uniqueKey] is DownloadState.InProgress) {
+                    downloadCoordinator.cancel(uniqueKey)
                 }
+                deleteDownloadFiles(historyItem.entry)
                 historyRepository.delete(uniqueKey)
                 downloadStates.update { it - uniqueKey }
                 cacheManager.checkCacheStatus()
@@ -256,20 +160,28 @@ class HistoryViewModel(
         downloadStates.update { it + (uniqueKey to downloadState) }
     }
 
-    private fun updateDownloadStateIfActive(
-        uniqueKey: String,
-        generation: Long,
-        downloadState: DownloadState,
-    ) {
-        if (activeDownloads.value[uniqueKey]?.generation == generation) {
-            updateDownloadState(uniqueKey, downloadState)
-        } else {
-            logcat(LogPriority.DEBUG, TAG) {
-                "ignored stale download state uniqueKey=$uniqueKey, generation=$generation, " +
-                    "state=${downloadState.javaClass.simpleName}"
+    private fun Map<String, PersistedDownloadState>.toDownloadStates(): Map<String, DownloadState> =
+        mapValues { (_, persistedState) -> persistedState.toDownloadState() }
+
+    private fun PersistedDownloadState.toDownloadState(): DownloadState =
+        when (status) {
+            DownloadStatus.QUEUED,
+            DownloadStatus.RUNNING,
+                -> DownloadState.InProgress(
+                progress = progress ?: 0f,
+                isIndeterminate = totalBytes <= 0L,
+            )
+            DownloadStatus.SUCCEEDED -> {
+                val file = File(outputPath)
+                if (file.exists()) {
+                    DownloadState.Downloaded(file)
+                } else {
+                    DownloadState.NotDownloaded
+                }
             }
+            DownloadStatus.FAILED -> DownloadState.DownloadFailed(errorMessage)
+            DownloadStatus.CANCELED -> DownloadState.NotDownloaded
         }
-    }
 
     private fun List<TreeherderInstallHistoryEntry>.toUiModels(
         states: Map<String, DownloadState>,
@@ -277,9 +189,7 @@ class HistoryViewModel(
         map { entry ->
             val cacheResolution = getCachedFile(entry)
             val rememberedState = states[entry.uniqueKey]
-            val isCanceledDownloadFinishing = canceledDownloads.value.keys.any { it.uniqueKey == entry.uniqueKey }
             val downloadState = when {
-                isCanceledDownloadFinishing -> DownloadState.InProgress(0f, isIndeterminate = true)
                 rememberedState is DownloadState.InProgress -> rememberedState
                 rememberedState is DownloadState.DownloadFailed -> rememberedState
 
@@ -326,17 +236,6 @@ class HistoryViewModel(
         val relativePathFile: File,
         val fallbackFile: File,
         val selectedFile: File,
-    )
-
-    private data class ActiveDownload(
-        val job: Job,
-        val generation: Long,
-        val entry: TreeherderInstallHistoryEntry,
-    )
-
-    private data class DownloadIdentity(
-        val uniqueKey: String,
-        val generation: Long,
     )
 
     private fun deleteDownloadFiles(entry: TreeherderInstallHistoryEntry) {
