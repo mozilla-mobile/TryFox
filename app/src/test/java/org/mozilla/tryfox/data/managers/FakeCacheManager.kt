@@ -22,6 +22,11 @@ class FakeCacheManager(private val cacheDir: File) : CacheManager {
 
     override suspend fun clearCache() {
         clearCacheCalled = true
+        cacheDir.listFiles()?.forEach { child ->
+            if (child.isDirectory) {
+                child.deleteRecursively()
+            }
+        }
         // Simulate the behavior of DefaultCacheManager: set to Clearing then to IdleEmpty
         _cacheState.value = CacheManagementState.Clearing
         _cacheState.value = CacheManagementState.IdleEmpty

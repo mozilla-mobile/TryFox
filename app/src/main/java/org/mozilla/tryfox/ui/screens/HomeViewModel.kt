@@ -21,12 +21,15 @@ import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DateAwareReleaseRepository
-import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.data.repositories.VersionAwareReleaseRepository
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.MozillaArchiveApk
+import org.mozilla.tryfox.download.ApkDownloadCoordinator
+import org.mozilla.tryfox.download.ApkDownloadRequest
+import org.mozilla.tryfox.download.model.DownloadStatus
+import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
@@ -46,7 +49,7 @@ import java.io.File
  * ViewModel for the Home screen, responsible for fetching and displaying nightly builds of different Mozilla apps.
  *
  * @param releaseRepositories A list of release repositories.
- * @param downloadFileRepository Repository for downloading files.
+ * @param downloadCoordinator Coordinator for WorkManager-backed APK downloads.
  * @param mozillaPackageManager Manager for interacting with installed Mozilla apps.
  * @param cacheManager Manager for handling application cache.
  * @param intentManager Manager for handling intents, such as APK installation.
@@ -54,7 +57,7 @@ import java.io.File
  */
 class HomeViewModel(
     private val releaseRepositories: List<ReleaseRepository>,
-    private val downloadFileRepository: DownloadFileRepository,
+    private val downloadCoordinator: ApkDownloadCoordinator,
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
@@ -67,48 +70,23 @@ class HomeViewModel(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+    private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
 
     init {
+        downloadCoordinator.downloads
+            .onEach { persistedDownloads ->
+                downloadStates.value = persistedDownloads
+                syncLoadedStateDownloadStates()
+            }
+            .launchIn(viewModelScope)
+
         cacheManager.cacheState
             .onEach { newCacheState ->
                 _homeScreenState.update { currentState ->
                     if (currentState !is HomeScreenState.Loaded) return@update currentState
-
-                    val updatedApps = if (newCacheState is CacheManagementState.IdleEmpty) {
-                        currentState.apps.mapValues { (_, app) ->
-                            val apksResult = app.apks as? ApksResult.Success ?: return@mapValues app
-                            val updatedApks = apksResult.apks.map {
-                                it.copy(downloadState = DownloadState.NotDownloaded)
-                            }
-                            app.copy(apks = ApksResult.Success(updatedApks))
-                        }
-                    } else {
-                        currentState.apps
-                    }
-
-                    val updatedTryFoxApp = if (newCacheState is CacheManagementState.IdleEmpty) {
-                        currentState.tryfoxApp?.let { app ->
-                            val apksResult = app.apks as? ApksResult.Success ?: return@let app
-                            val updatedApks = apksResult.apks.map {
-                                it.copy(downloadState = DownloadState.NotDownloaded)
-                            }
-                            app.copy(apks = ApksResult.Success(updatedApks))
-                        }
-                    } else {
-                        currentState.tryfoxApp
-                    }
-
-                    currentState.copy(
-                        apps = updatedApps,
-                        tryfoxApp = updatedTryFoxApp,
-                        cacheManagementState = newCacheState,
-                        isDownloadingAnyFile = if (newCacheState is CacheManagementState.IdleEmpty) {
-                            false
-                        } else {
-                            currentState.isDownloadingAnyFile
-                        },
-                    )
+                    currentState.copy(cacheManagementState = newCacheState)
                 }
+                syncLoadedStateDownloadStates()
             }
             .launchIn(viewModelScope)
 
@@ -193,19 +171,15 @@ class HomeViewModel(
             repository.appName to buildAppUiModel(repository, appInfoMap[repository.appName])
         }
 
-        val isDownloading = newApps.values.any { app ->
-            (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
-        }
-
         val tryFoxApp = newApps[TRYFOX]?.takeIf { it.newVersionAvailable }
 
         _homeScreenState.update {
             if (it is HomeScreenState.Loaded) {
-                it.copy(
+                val loadedState = it.copy(
                     apps = newApps.filterNot { (key, _) -> key == TRYFOX },
                     tryfoxApp = tryFoxApp,
-                    isDownloadingAnyFile = isDownloading,
                 )
+                loadedState.applyDownloadStates(downloadStates.value)
             } else {
                 it
             }
@@ -329,101 +303,23 @@ class HomeViewModel(
         }
     }
 
-    private fun updateApkDownloadStateInScreenState(
-        appName: String,
-        uniqueKey: String,
-        newDownloadState: DownloadState,
-    ) {
-        _homeScreenState.update { currentState ->
-            if (currentState !is HomeScreenState.Loaded) return@update currentState
-
-            val updatedApps = currentState.apps.toMutableMap()
-            var updatedTryFoxApp = currentState.tryfoxApp
-
-            if (appName == TRYFOX) {
-                updatedTryFoxApp = updatedTryFoxApp?.let { appToUpdate ->
-                    val apksResult =
-                        appToUpdate.apks as? ApksResult.Success ?: return@let appToUpdate
-                    val updatedApks = apksResult.apks.map {
-                        if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
-                    }
-                    appToUpdate.copy(apks = ApksResult.Success(updatedApks))
-                }
-            } else {
-                val appToUpdate = updatedApps[appName] ?: return@update currentState
-                val apksResult =
-                    appToUpdate.apks as? ApksResult.Success ?: return@update currentState
-
-                val updatedApks = apksResult.apks.map {
-                    if (it.uniqueKey == uniqueKey) it.copy(downloadState = newDownloadState) else it
-                }
-                updatedApps[appName] = appToUpdate.copy(apks = ApksResult.Success(updatedApks))
-            }
-
-            val isDownloading = updatedApps.values.any { app ->
-                (app.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
-            } || (updatedTryFoxApp?.apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
-
-            currentState.copy(
-                apps = updatedApps,
-                tryfoxApp = updatedTryFoxApp,
-                isDownloadingAnyFile = isDownloading,
-            )
-        }
-    }
-
     fun downloadNightlyApk(apkInfo: ApkUiModel) {
         if (apkInfo.downloadState is DownloadState.InProgress || apkInfo.downloadState is DownloadState.Downloaded) {
             return
         }
 
-        viewModelScope.launch(ioDispatcher) {
-            updateApkDownloadStateInScreenState(
-                apkInfo.appName,
-                apkInfo.uniqueKey,
-                DownloadState.InProgress(0f, isIndeterminate = true),
-            )
-
-            val outputDir = apkInfo.apkDir
-            if (!outputDir.exists()) outputDir.mkdirs()
-            val outputFile = File(outputDir, apkInfo.fileName)
-
-            val result = downloadFileRepository.downloadFile(
+        val outputFile = File(apkInfo.apkDir, apkInfo.fileName)
+        outputFile.parentFile?.mkdirs()
+        downloadCoordinator.enqueue(
+            ApkDownloadRequest(
+                uniqueKey = apkInfo.uniqueKey,
                 downloadUrl = apkInfo.url,
                 outputFile = outputFile,
-                onProgress = { bytesDownloaded, totalBytes ->
-                    val isIndeterminate = totalBytes <= 0
-                    val progress =
-                        if (isIndeterminate) 0f else bytesDownloaded.toFloat() / totalBytes.toFloat()
-                    updateApkDownloadStateInScreenState(
-                        apkInfo.appName,
-                        apkInfo.uniqueKey,
-                        DownloadState.InProgress(progress, isIndeterminate),
-                    )
-                },
-            )
-
-            when (result) {
-                is NetworkResult.Success -> {
-                    updateApkDownloadStateInScreenState(
-                        apkInfo.appName,
-                        apkInfo.uniqueKey,
-                        DownloadState.Downloaded(result.data),
-                    )
-                    cacheManager.checkCacheStatus() // Notify cache manager about new file
-                    installApk(result.data)
-                }
-
-                is NetworkResult.Error -> {
-                    updateApkDownloadStateInScreenState(
-                        apkInfo.appName,
-                        apkInfo.uniqueKey,
-                        DownloadState.DownloadFailed(result.message),
-                    )
-                    cacheManager.checkCacheStatus() // Check cache even on error
-                }
-            }
-        }
+                appName = apkInfo.appName,
+                fileName = apkInfo.fileName,
+                cacheRelativePath = cacheRelativePathFor(apkInfo),
+            ),
+        )
     }
 
     fun installApk(file: File) {
@@ -530,6 +426,7 @@ class HomeViewModel(
             )
 
             _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
+            syncLoadedStateDownloadStates()
         }
     }
 
@@ -582,6 +479,7 @@ class HomeViewModel(
             val finalUpdatedApps = latestState.apps.toMutableMap()
             finalUpdatedApps[appName] = finalUpdatedApp
             _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
+            syncLoadedStateDownloadStates()
         }
     }
 
@@ -625,6 +523,77 @@ class HomeViewModel(
                 "Error fetching $appName builds: $message",
             )
         }
+    }
+
+    private fun syncLoadedStateDownloadStates() {
+        val persistedDownloads = downloadStates.value
+        _homeScreenState.update { currentState ->
+            if (currentState !is HomeScreenState.Loaded) return@update currentState
+            currentState.applyDownloadStates(persistedDownloads)
+        }
+    }
+
+    private fun HomeScreenState.Loaded.applyDownloadStates(
+        persistedDownloads: Map<String, PersistedDownloadState>,
+    ): HomeScreenState.Loaded {
+        val updatedApps = apps.mapValues { (_, app) -> app.withDownloadStates(persistedDownloads) }
+        val updatedTryFoxApp = tryfoxApp?.withDownloadStates(persistedDownloads)
+        val isDownloading = updatedApps.values.any { app -> app.containsActiveDownload() } ||
+            updatedTryFoxApp?.containsActiveDownload() == true
+
+        return copy(
+            apps = updatedApps,
+            tryfoxApp = updatedTryFoxApp,
+            isDownloadingAnyFile = isDownloading,
+        )
+    }
+
+    private fun AppUiModel.withDownloadStates(
+        persistedDownloads: Map<String, PersistedDownloadState>,
+    ): AppUiModel {
+        val apksResult = apks as? ApksResult.Success ?: return this
+        val updatedApks = apksResult.apks.map { apk ->
+            apk.copy(downloadState = resolveDownloadState(apk, persistedDownloads))
+        }
+        return copy(apks = ApksResult.Success(updatedApks))
+    }
+
+    private fun AppUiModel.containsActiveDownload(): Boolean =
+        (apks as? ApksResult.Success)?.apks?.any { it.downloadState is DownloadState.InProgress } == true
+
+    private fun resolveDownloadState(
+        apk: ApkUiModel,
+        persistedDownloads: Map<String, PersistedDownloadState>,
+    ): DownloadState {
+        val resolvedFile = File(apk.apkDir, apk.fileName)
+        return persistedDownloads[apk.uniqueKey]?.toDownloadState(resolvedFile)
+            ?: if (resolvedFile.exists()) {
+                DownloadState.Downloaded(resolvedFile)
+            } else {
+                DownloadState.NotDownloaded
+            }
+    }
+
+    private fun PersistedDownloadState.toDownloadState(file: File): DownloadState =
+        when (status) {
+            DownloadStatus.QUEUED,
+            DownloadStatus.RUNNING,
+                -> DownloadState.InProgress(
+                progress = progress ?: 0f,
+                isIndeterminate = totalBytes <= 0L,
+            )
+            DownloadStatus.SUCCEEDED -> if (file.exists()) {
+                DownloadState.Downloaded(file)
+            } else {
+                DownloadState.NotDownloaded
+            }
+            DownloadStatus.FAILED -> DownloadState.DownloadFailed(errorMessage)
+            DownloadStatus.CANCELED -> DownloadState.NotDownloaded
+        }
+
+    private fun cacheRelativePathFor(apkInfo: ApkUiModel): String? {
+        val cacheRoot = cacheManager.getCacheDir(apkInfo.appName).parentFile ?: return null
+        return apkInfo.apkDir.relativeToOrNull(cacheRoot)?.path
     }
 
     companion object {

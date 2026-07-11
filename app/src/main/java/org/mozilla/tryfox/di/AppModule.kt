@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
+import androidx.work.WorkManager
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
@@ -37,6 +38,11 @@ import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.repositories.TryFoxReleaseRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
+import org.mozilla.tryfox.download.ApkDownloadCoordinator
+import org.mozilla.tryfox.download.ApkDownloadStore
+import org.mozilla.tryfox.download.DefaultApkDownloadCoordinator
+import org.mozilla.tryfox.download.DefaultApkDownloadStore
+import org.mozilla.tryfox.download.DownloadNotificationFactory
 import org.mozilla.tryfox.lan.DefaultLanMessageHistoryRepository
 import org.mozilla.tryfox.lan.LanMessageHistoryRepository
 import org.mozilla.tryfox.lan.LanReceiveIdentityManager
@@ -164,6 +170,10 @@ val repositoryModule = module {
         )
     }
     single<IntentManager> { DefaultIntentManager(androidContext()) }
+    single<ApkDownloadStore> { DefaultApkDownloadStore(androidContext(), get(named("IODispatcher"))) }
+    single { DownloadNotificationFactory(androidContext()) }
+    single { WorkManager.getInstance(androidContext()) }
+    single<ApkDownloadCoordinator> { DefaultApkDownloadCoordinator(androidContext(), get(), get()) }
 
     single<ReleaseRepository>(named(FENIX)) { FenixReleaseRepository(get()) }
     single<ReleaseRepository>(named(FENIX_RELEASE)) { FenixReleaseReleaseRepository(get()) }
