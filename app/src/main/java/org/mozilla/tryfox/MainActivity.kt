@@ -165,6 +165,11 @@ class MainActivity : ComponentActivity() {
                     onNavigateToMessageHistory = {
                         localNavController.navigate(NavScreen.ReceiveMessageHistory.route)
                     },
+                    onNavigateToTreeherderRevision = { project, revision ->
+                        localNavController.navigate(
+                            NavScreen.TreeherderSearchWithArgs.createRoute(project, revision),
+                        )
+                    },
                     receiveFromDesktopViewModel = koinViewModel(),
                     startReceiverOnEnter = receiveFromDesktopStartRequested,
                     onStartReceiverOnEnterConsumed = {
