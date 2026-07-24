@@ -10,10 +10,18 @@ import org.mozilla.tryfox.util.FENIX_BETA
  */
 class FenixBetaReleaseRepository(
     private val mozillaArchiveRepository: MozillaArchiveRepository,
-) : ReleaseRepository {
+) : VersionAwareReleaseRepository {
     override val appName: String = FENIX_BETA
 
     override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
         return mozillaArchiveRepository.getFenixReleaseBuilds(ReleaseType.Beta)
+    }
+
+    override suspend fun getAvailableReleaseVersions(): NetworkResult<List<String>> {
+        return mozillaArchiveRepository.getFenixReleaseVersions(ReleaseType.Beta)
+    }
+
+    override suspend fun getReleasesForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> {
+        return mozillaArchiveRepository.getFenixReleaseBuildsForVersion(version, ReleaseType.Beta)
     }
 }

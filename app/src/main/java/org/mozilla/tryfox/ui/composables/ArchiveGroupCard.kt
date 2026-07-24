@@ -116,7 +116,9 @@ fun ArchiveGroupCard(
         val firstApk = apks.firstOrNull()
         val version = firstApk?.version ?: ""
         val dateFromApk = firstApk?.date ?: ""
-        val hasReleaseVersionPicker = appName == FENIX_RELEASE || appName == FOCUS_RELEASE
+        // Release, beta and Focus release all pick a specific version from a dropdown.
+        val hasReleaseVersionPicker =
+            appName == FENIX_RELEASE || appName == FOCUS_RELEASE || appName == FENIX_BETA
         val isDatePickerEnabled = appName != REFERENCE_BROWSER && !hasReleaseVersionPicker
 
         Column(modifier = Modifier.padding(ArchiveGroupCardTokens.ColumnPadding)) {
@@ -230,7 +232,8 @@ private fun ArchiveGroupHeader(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
                 )
-                Spacer(modifier = Modifier.size(8.dp))
+                // Push the version selector to the right edge of the row.
+                Spacer(modifier = Modifier.weight(1f))
                 ReleaseVersionSelector(
                     appName = appName,
                     selectedReleaseVersion = selectedReleaseVersion ?: version.takeIf { it.isNotEmpty() },
@@ -244,8 +247,8 @@ private fun ArchiveGroupHeader(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
                 )
+                Spacer(modifier = Modifier.weight(1f))
             }
-            Spacer(modifier = Modifier.weight(1f))
         }
 
         if (!showsReleaseVersionPicker && displayDate.isNotBlank()) {
