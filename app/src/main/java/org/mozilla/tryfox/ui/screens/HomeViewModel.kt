@@ -125,6 +125,7 @@ class HomeViewModel(
                                     app.copy(
                                         installedVersion = appState.version,
                                         installedDate = appState.formattedInstallDate,
+                                        installingPackageName = appState.installingPackageName,
                                     )
                                 } else {
                                     app
@@ -175,6 +176,7 @@ class HomeViewModel(
                     packageName = appState.packageName,
                     installedVersion = appState.version,
                     installedDate = appState.formattedInstallDate,
+                    installingPackageName = appState.installingPackageName,
                     apks = ApksResult.Loading,
                 )
             }
@@ -260,6 +262,7 @@ class HomeViewModel(
             packageName = appState?.packageName ?: "",
             installedVersion = appState?.version,
             installedDate = appState?.formattedInstallDate,
+            installingPackageName = appState?.installingPackageName,
             apks = apksResult,
             selectedReleaseVersion = selectedReleaseVersion,
             availableReleaseVersions = availableReleaseVersions,

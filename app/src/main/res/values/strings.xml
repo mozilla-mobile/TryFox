@@ -76,6 +76,7 @@
     <string name="uninstall_button_label">Uninstall</string>
     <string name="installed_chip_label">Installed</string>
     <string name="not_installed_chip_label">Not installed</string>
+    <string name="play_store_chip_label">Play Store</string>
     <string name="tryfox_card_title">TryFox %1$s is available</string>
     <string name="qr_scanner_title">Scan QR code</string>
     <string name="qr_scanner_permission_message">Camera permission is required to scan QR codes.</string>

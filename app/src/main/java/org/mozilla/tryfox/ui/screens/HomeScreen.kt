@@ -298,6 +298,7 @@ fun AppComponent(
             packageName = app.packageName,
             version = app.installedVersion,
             installDateMillis = app.installedDate?.let { parseDateToMillis(it) },
+            installingPackageName = app.installingPackageName,
         )
     } else {
         null
