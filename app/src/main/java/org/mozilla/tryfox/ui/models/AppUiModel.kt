@@ -14,6 +14,7 @@ data class AppUiModel(
     val packageName: String,
     val installedVersion: String?,
     val installedDate: String?,
+    val installingPackageName: String? = null,
     val apks: ApksResult,
     val userPickedDate: LocalDate? = null,
     val selectedReleaseVersion: String? = null,

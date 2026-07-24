@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.channels.awaitClose
@@ -51,7 +52,24 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
             packageName = packageName,
             version = packageInfo?.versionName,
             installDateMillis = packageInfo?.lastUpdateTime,
+            installingPackageName = if (packageInfo != null) getInstallingPackageName(packageName) else null,
         )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun getInstallingPackageName(packageName: String): String? {
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                packageManager.getInstallSourceInfo(packageName).installingPackageName
+            } else {
+                packageManager.getInstallerPackageName(packageName)
+            }
+        } catch (_: PackageManager.NameNotFoundException) {
+            null
+        } catch (e: Exception) {
+            Log.e(TAG, "Error getting install source for $packageName", e)
+            null
+        }
     }
 
     private val apps = mapOf(
