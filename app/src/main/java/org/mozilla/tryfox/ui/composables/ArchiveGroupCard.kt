@@ -136,6 +136,7 @@ fun ArchiveGroupCard(
         Column(modifier = Modifier.padding(ArchiveGroupCardTokens.ColumnPadding)) {
             CurrentInstallState(
                 appState = appState,
+                appDisplayName = getFriendlyAppName(appName),
             )
 
             ArchiveGroupHeader(

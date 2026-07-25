@@ -10,6 +10,8 @@ data class AppState(
     val version: String?,
     val installDateMillis: Long?,
     val installingPackageName: String? = null,
+    val versionCode: Long? = null,
+    val splitNames: List<String> = emptyList(),
 ) {
     val isInstalled: Boolean
         get() = installDateMillis != null
