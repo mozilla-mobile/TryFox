@@ -64,7 +64,7 @@
     <string name="history_screen_last_installed_label">Last installed: %1$s</string>
     <string name="history_screen_delete_entry_description">Remove history entry</string>
 
-    <string name="app_name_fenix">Fenix</string>
+    <string name="app_name_fenix">Fenix Nightly</string>
     <string name="app_name_fenix_release">Fenix Release</string>
     <string name="app_name_fenix_beta">Fenix Beta</string>
     <string name="app_name_focus">Focus Nightly</string>
@@ -73,6 +73,7 @@
     <string name="unsupported_abi">Unsupported ABI</string>
     <string name="clear_date_selection">Clear date selection</string>
     <string name="release_version_chip_description">Select Firefox Release version</string>
+    <string name="nightly_build_picker_title">Select build</string>
     <string name="uninstall_button_label">Uninstall</string>
     <string name="installed_chip_label">Installed</string>
     <string name="not_installed_chip_label">Not installed</string>

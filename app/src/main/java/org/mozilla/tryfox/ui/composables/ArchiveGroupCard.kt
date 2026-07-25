@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Button
@@ -66,6 +67,7 @@ import kotlinx.datetime.toLocalDateTime
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.ui.models.ApkUiModel
+import org.mozilla.tryfox.ui.models.NightlyBuildOption
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
@@ -105,7 +107,17 @@ fun ArchiveGroupCard(
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: () -> Unit,
     onReleaseVersionSelected: (String) -> Unit,
+    pendingBuildOptions: List<NightlyBuildOption> = emptyList(),
+    onBuildSelected: (String) -> Unit = {},
+    onDismissBuildPicker: () -> Unit = {},
 ) {
+    if (pendingBuildOptions.isNotEmpty()) {
+        NightlyBuildPickerDialog(
+            options = pendingBuildOptions,
+            onSelect = onBuildSelected,
+            onDismiss = onDismissBuildPicker,
+        )
+    }
     ElevatedCard(
         modifier =
             modifier
@@ -210,7 +222,8 @@ private fun ArchiveGroupHeader(
     onReleaseVersionSelected: (String) -> Unit,
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
-    val displayDate = userPickedDate?.toString() ?: date
+    // Prefer the loaded build's full timestamp; fall back to the picked date while it loads.
+    val displayDate = date.ifBlank { userPickedDate?.toString() ?: "" }
     val friendlyAppName = getFriendlyAppName(appName)
     val showsReleaseVersionPicker = hasReleaseVersionPicker
 
@@ -241,8 +254,15 @@ private fun ArchiveGroupHeader(
                     onReleaseVersionSelected = onReleaseVersionSelected,
                 )
             } else {
+                // Fenix/Focus nightlies are identified by name + the timestamp chip below, so the
+                // build version is redundant on the title. Other cards still show it.
+                val title = if (appName == FENIX || appName == FOCUS) {
+                    friendlyAppName
+                } else {
+                    "$friendlyAppName $version"
+                }
                 Text(
-                    text = "$friendlyAppName $version",
+                    text = title,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.testTag("app_title_text_${appName.lowercase()}"),
@@ -260,28 +280,32 @@ private fun ArchiveGroupHeader(
                 AssistChipDefaults.assistChipColors()
             }
 
-            AssistChip(
-                onClick = { if (isDatePickerEnabled) showDatePicker = true },
-                label = { Text(displayDate) },
-                colors = chipColors,
-                trailingIcon = {
-                    if (userPickedDate != null) {
-                        IconButton(
-                            onClick = onClearDate,
-                            modifier = Modifier.size(AssistChipDefaults.IconSize),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Clear,
-                                contentDescription = stringResource(R.string.clear_date_selection),
-                            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                AssistChip(
+                    onClick = { if (isDatePickerEnabled) showDatePicker = true },
+                    label = { Text(displayDate) },
+                    colors = chipColors,
+                    trailingIcon = {
+                        if (userPickedDate != null) {
+                            IconButton(
+                                onClick = onClearDate,
+                                modifier = Modifier.size(AssistChipDefaults.IconSize),
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = stringResource(R.string.clear_date_selection),
+                                )
+                            }
                         }
-                    }
-                },
-                modifier = Modifier.padding(
-                    start = ArchiveGroupCardTokens.AppIconSize + 8.dp,
-                    top = 8.dp,
-                ).testTag("app_date_chip_${appName.lowercase()}"),
-            )
+                    },
+                    modifier = Modifier.testTag("app_date_chip_${appName.lowercase()}"),
+                )
+            }
         }
     }
 
@@ -482,6 +506,43 @@ private fun ArchiveGroupAbiSelector(
             )
         }
     }
+}
+
+/**
+ * One-shot prompt shown right after picking a Nightly date that has more than one build. Choosing a
+ * build applies it; dismissing keeps the latest build (already shown). To change later, the user
+ * re-opens the date picker, which re-triggers this prompt.
+ */
+@Composable
+private fun NightlyBuildPickerDialog(
+    options: List<NightlyBuildOption>,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(id = R.string.nightly_build_picker_title)) },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                options.forEach { option ->
+                    Text(
+                        text = option.label,
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(option.id) }
+                            .padding(vertical = 12.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(id = android.R.string.cancel))
+            }
+        },
+    )
 }
 
 @Composable
