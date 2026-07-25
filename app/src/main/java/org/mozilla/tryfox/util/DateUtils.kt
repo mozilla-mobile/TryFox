@@ -14,7 +14,7 @@ import kotlinx.datetime.toLocalDateTime
 fun parseDateToMillis(dateString: String): Long {
     if (dateString.isBlank()) return 0L
 
-    val patterns = listOf("yyyy-MM-dd HH:mm", "yyyy-MM-dd-HH-mm-ss")
+    val patterns = listOf("yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd HH:mm", "yyyy-MM-dd-HH-mm-ss")
     for (pattern in patterns) {
         try {
             val format = LocalDateTime.Format { byUnicodePattern(pattern) }

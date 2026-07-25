@@ -216,6 +216,12 @@ fun HomeScreen(
                                 onReleaseVersionSelected = { appName, version ->
                                     homeViewModel.onReleaseVersionSelected(appName, version)
                                 },
+                                onBuildSelected = { appName, buildId ->
+                                    homeViewModel.onNightlyBuildSelected(appName, buildId)
+                                },
+                                onDismissBuildPicker = { appName ->
+                                    homeViewModel.onDismissBuildPicker(appName)
+                                },
                             )
                         }
                     }
@@ -289,6 +295,8 @@ fun AppComponent(
     dateValidator: (LocalDate) -> Boolean,
     onClearDate: (String) -> Unit,
     onReleaseVersionSelected: (String, String) -> Unit,
+    onBuildSelected: (String, String) -> Unit,
+    onDismissBuildPicker: (String) -> Unit,
 ) {
     val apksResult = app.apks
 
@@ -330,6 +338,9 @@ fun AppComponent(
         isLoading = apksResult is ApksResult.Loading,
         dateValidator = dateValidator,
         onClearDate = { onClearDate(app.name) },
+        pendingBuildOptions = app.pendingBuildOptions,
+        onBuildSelected = { buildId -> onBuildSelected(app.name, buildId) },
+        onDismissBuildPicker = { onDismissBuildPicker(app.name) },
     )
     Spacer(modifier = Modifier.height(16.dp))
 }

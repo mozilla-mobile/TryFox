@@ -122,19 +122,21 @@ class HomeViewModelTest {
         downloadState: DownloadState = DownloadState.NotDownloaded,
     ): ApkUiModel {
         val dateFormatted = parsed.rawDateString?.formatApkDateForTest() ?: ""
-        val datePart = if (dateFormatted.length >= 10) dateFormatted.substring(0, 10) else ""
+        // Mirrors production: cache paths are keyed by the full build timestamp so same-day builds
+        // don't collide; releases have a blank timestamp and fall back to the app name.
+        val buildKey = parsed.rawDateString?.takeIf { it.isNotBlank() }
 
-        val dirPath = if (datePart.isBlank()) {
+        val dirPath = if (buildKey == null) {
             parsed.appName
         } else {
-            "${parsed.appName}${File.separator}$datePart"
+            "${parsed.appName}${File.separator}$buildKey"
         }
         val apkDir = File(tempCacheDir, dirPath)
 
-        val uniqueKeyPath = if (datePart.isBlank()) {
+        val uniqueKeyPath = if (buildKey == null) {
             parsed.appName
         } else {
-            "${parsed.appName}/$datePart"
+            "${parsed.appName}/$buildKey"
         }
         val uniqueKey = "$uniqueKeyPath/${parsed.fileName}"
 
@@ -191,7 +193,7 @@ class HomeViewModelTest {
     private fun String.formatApkDateForTest(): String {
         return try {
             val inputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd-HH-mm-ss") }
-            val outputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd HH:mm") }
+            val outputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd HH:mm:ss") }
             LocalDateTime.parse(this, inputFormat).format(outputFormat)
         } catch (e: Exception) {
             this
@@ -436,10 +438,8 @@ class HomeViewModelTest {
             val fenixParsed =
                 createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
             val fenixApkUi = createTestApkUiModel(fenixParsed)
-            val fenixCacheSubDir =
-                File(tempCacheDir, "${fenixApkUi.appName}/${fenixApkUi.date.take(10)}")
-            fenixCacheSubDir.mkdirs()
-            File(fenixCacheSubDir, fenixApkUi.fileName).createNewFile()
+            fenixApkUi.apkDir.mkdirs()
+            File(fenixApkUi.apkDir, fenixApkUi.fileName).createNewFile()
 
             val releaseRepositories = listOf(
                 FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(fenixParsed)))),
@@ -470,10 +470,8 @@ class HomeViewModelTest {
             createTestParsedNightlyApk(testReferenceBrowserAppName, "", "latest", testAbi)
 
         val fenixApkUiForCache = createTestApkUiModel(fenixParsed)
-        val fenixCacheActualDir =
-            File(tempCacheDir, "${fenixApkUiForCache.appName}/${fenixApkUiForCache.date.take(10)}")
-        fenixCacheActualDir.mkdirs()
-        val cachedFenixFile = File(fenixCacheActualDir, fenixApkUiForCache.fileName)
+        fenixApkUiForCache.apkDir.mkdirs()
+        val cachedFenixFile = File(fenixApkUiForCache.apkDir, fenixApkUiForCache.fileName)
         cachedFenixFile.createNewFile()
         assertTrue(cachedFenixFile.exists(), "Cache file for Fenix should exist before test action")
 
@@ -549,9 +547,7 @@ class HomeViewModelTest {
         val fenixParsed =
             createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
         val apkToDownload = createTestApkUiModel(fenixParsed, DownloadState.NotDownloaded)
-        val expectedApkDir =
-            File(tempCacheDir, "${apkToDownload.appName}/${apkToDownload.date.take(10)}")
-        val expectedApkFile = File(expectedApkDir, apkToDownload.fileName)
+        val expectedApkFile = File(apkToDownload.apkDir, apkToDownload.fileName)
 
         val releaseRepositories = listOf(
             FenixReleaseRepository(FakeMozillaArchiveRepository(fenixBuilds = NetworkResult.Success(listOf(fenixParsed)))),
@@ -608,9 +604,7 @@ class HomeViewModelTest {
         val fenixParsed =
             createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
         val apkToDownload = createTestApkUiModel(fenixParsed, DownloadState.NotDownloaded)
-        val expectedApkDir =
-            File(tempCacheDir, "${apkToDownload.appName}/${apkToDownload.date.substring(0, 10)}")
-        val expectedApkFile = File(expectedApkDir, apkToDownload.fileName)
+        val expectedApkFile = File(apkToDownload.apkDir, apkToDownload.fileName)
         val downloadErrorMessage = "Download Canceled"
 
         val releaseRepositories = listOf(
