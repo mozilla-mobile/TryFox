@@ -305,8 +305,10 @@ fun AppComponent(
             name = app.name,
             packageName = app.packageName,
             version = app.installedVersion,
+            versionCode = app.installedVersionCode,
             installDateMillis = app.installedDate?.let { parseDateToMillis(it) },
             installingPackageName = app.installingPackageName,
+            splitNames = app.splitNames,
         )
     } else {
         null

@@ -78,6 +78,15 @@
     <string name="installed_chip_label">Installed</string>
     <string name="not_installed_chip_label">Not installed</string>
     <string name="play_store_chip_label">Play Store</string>
+    <string name="install_metadata_package_name_label">Package</string>
+    <string name="install_metadata_version_label">Version</string>
+    <string name="install_metadata_version_code_label">Version code</string>
+    <string name="install_metadata_install_date_label">Installed</string>
+    <string name="install_metadata_source_label">Source</string>
+    <string name="install_metadata_source_play_store">Google Play Store</string>
+    <string name="install_metadata_source_sideloaded">Sideloaded</string>
+    <string name="install_metadata_splits_label">Splits</string>
+    <string name="install_metadata_value_unknown">Unknown</string>
     <string name="tryfox_card_title">TryFox %1$s is available</string>
     <string name="qr_scanner_title">Scan QR code</string>
     <string name="qr_scanner_permission_message">Camera permission is required to scan QR codes.</string>

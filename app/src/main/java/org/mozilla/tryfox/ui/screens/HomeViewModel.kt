@@ -121,8 +121,10 @@ class HomeViewModel(
                                 if (app.packageName == appState.packageName) {
                                     app.copy(
                                         installedVersion = appState.version,
+                                        installedVersionCode = appState.versionCode,
                                         installedDate = appState.formattedInstallDate,
                                         installingPackageName = appState.installingPackageName,
+                                        splitNames = appState.splitNames,
                                     )
                                 } else {
                                     app
@@ -172,8 +174,10 @@ class HomeViewModel(
                     name = appName,
                     packageName = appState.packageName,
                     installedVersion = appState.version,
+                    installedVersionCode = appState.versionCode,
                     installedDate = appState.formattedInstallDate,
                     installingPackageName = appState.installingPackageName,
+                    splitNames = appState.splitNames,
                     apks = ApksResult.Loading,
                 )
             }
@@ -258,8 +262,10 @@ class HomeViewModel(
             name = repository.appName,
             packageName = appState?.packageName ?: "",
             installedVersion = appState?.version,
+            installedVersionCode = appState?.versionCode,
             installedDate = appState?.formattedInstallDate,
             installingPackageName = appState?.installingPackageName,
+            splitNames = appState?.splitNames ?: emptyList(),
             apks = apksResult,
             selectedReleaseVersion = selectedReleaseVersion,
             availableReleaseVersions = availableReleaseVersions,

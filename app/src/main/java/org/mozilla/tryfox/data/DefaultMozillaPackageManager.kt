@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -51,8 +52,10 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
             name = apps[packageName] ?: "",
             packageName = packageName,
             version = packageInfo?.versionName,
+            versionCode = packageInfo?.let { PackageInfoCompat.getLongVersionCode(it) },
             installDateMillis = packageInfo?.lastUpdateTime,
             installingPackageName = if (packageInfo != null) getInstallingPackageName(packageName) else null,
+            splitNames = packageInfo?.applicationInfo?.splitNames?.toList() ?: emptyList(),
         )
     }
 
