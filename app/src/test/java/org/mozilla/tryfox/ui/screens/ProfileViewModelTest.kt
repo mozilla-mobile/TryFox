@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.io.TempDir
 import org.mozilla.tryfox.data.Artifact
 import org.mozilla.tryfox.data.ArtifactsResponse
+import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.FakeHistoryRepository
 import org.mozilla.tryfox.data.JobDetails
 import org.mozilla.tryfox.data.NetworkResult
@@ -33,7 +34,6 @@ import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
-import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
 
@@ -92,6 +92,20 @@ class ProfileViewModelTest {
 
             assertEquals(newEmail, awaitItem())
         }
+    }
+
+    @Test
+    fun `author search forwards selected project and rejects malformed emails`() = runTest {
+        val projectViewModel = createViewModel(authorEmail = null, project = "mozilla-central")
+        fenixRepository.lastAuthorProject = null
+        projectViewModel.updateAuthorEmail("not-an-email@")
+        projectViewModel.searchByAuthor()
+        assertEquals(null, fenixRepository.lastAuthorProject)
+
+        projectViewModel.updateAuthorEmail("test@example.com")
+        projectViewModel.searchByAuthor()
+        advanceUntilIdle()
+        assertEquals("mozilla-central", fenixRepository.lastAuthorProject)
     }
 
     @Test
@@ -188,7 +202,7 @@ class ProfileViewModelTest {
         assertEquals(failureMessage, failedState.message)
     }
 
-    private fun createViewModel(authorEmail: String?): ProfileViewModel =
+    private fun createViewModel(authorEmail: String?, project: String = "try"): ProfileViewModel =
         ProfileViewModel(
             fenixRepository = fenixRepository,
             userDataRepository = userDataRepository,
@@ -197,6 +211,7 @@ class ProfileViewModelTest {
             historyRepository = historyRepository,
             downloadCoordinator = downloadCoordinator,
             authorEmail = authorEmail,
+            project = project,
         )
 
     private fun stubProfileSearch() {
@@ -232,7 +247,7 @@ class ProfileViewModelTest {
                     results = listOf(
                         JobDetails(
                             appName = "Fenix Nightly",
-                            jobName = "Android ARM64",
+                            jobName = "Fenix Android APK",
                             jobSymbol = "Bs",
                             taskId = "task-123",
                         ),
@@ -250,11 +265,12 @@ class ProfileViewModelTest {
                             contentType = "application/vnd.android.package-archive",
                         ),
                     ),
-                )
+                ),
             )
     }
 
     private class FakeTreeherderRepository : TreeherderRepository {
+        var lastAuthorProject: String? = null
         var pushesByAuthorResult: NetworkResult<TreeherderRevisionResponse> =
             NetworkResult.Error("Not stubbed")
         var jobsForPushResult: NetworkResult<TreeherderJobsResponse> =
@@ -269,6 +285,14 @@ class ProfileViewModelTest {
 
         override suspend fun getPushesByAuthor(author: String): NetworkResult<TreeherderRevisionResponse> =
             pushesByAuthorResult
+
+        override suspend fun getPushesByAuthor(
+            project: String,
+            author: String,
+        ): NetworkResult<TreeherderRevisionResponse> {
+            lastAuthorProject = project
+            return pushesByAuthorResult
+        }
 
         override suspend fun getJobsForPush(pushId: Int): NetworkResult<TreeherderJobsResponse> =
             jobsForPushResult

@@ -17,15 +17,15 @@ import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
-import org.mozilla.tryfox.download.ApkDownloadCoordinator
-import org.mozilla.tryfox.download.ApkDownloadRequest
-import org.mozilla.tryfox.download.model.DownloadStatus
-import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
+import org.mozilla.tryfox.download.ApkDownloadCoordinator
+import org.mozilla.tryfox.download.ApkDownloadRequest
+import org.mozilla.tryfox.download.model.DownloadStatus
+import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
@@ -33,6 +33,7 @@ import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import org.mozilla.tryfox.ui.models.PushUiModel
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * ViewModel for the Profile screen, responsible for fetching pushes and artifacts by author, managing downloads, and handling user interactions.
@@ -52,14 +53,26 @@ class ProfileViewModel(
     private val downloadCoordinator: ApkDownloadCoordinator,
     authorEmail: String?,
     private val currentTimeMillisProvider: () -> Long = System::currentTimeMillis,
+    project: String = "try",
 ) : ViewModel() {
+
+    private data class ArtifactLoadResult(
+        val artifacts: List<ArtifactUiModel>,
+        val failed: Boolean,
+    )
 
     companion object {
         private const val TAG = "ProfileViewModel"
+        private val apkJobNameHints = listOf("signing-apk", "android-apk", "apk-focus", "apk-fenix", "apk-reference-browser", "apk-geckoview")
+        private val nonAndroidPlatformHints = listOf("ios", "mac", "macos", "macosx", "win", "windows", "linux", "desktop")
+        private val androidProductHints = listOf("focus", "fenix", "reference-browser", "geckoview", "android")
     }
 
     private val _authorEmail = MutableStateFlow(authorEmail ?: "")
     val authorEmail: StateFlow<String> = _authorEmail.asStateFlow()
+
+    private val _selectedProject = MutableStateFlow(project)
+    val selectedProject: StateFlow<String> = _selectedProject.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -74,7 +87,9 @@ class ProfileViewModel(
 
     val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
 
-    private val deviceSupportedAbis: List<String> by lazy { Build.SUPPORTED_ABIS.toList() }
+    private val deviceSupportedAbis: List<String> by lazy {
+        runCatching { Build.SUPPORTED_ABIS.toList() }.getOrDefault(emptyList())
+    }
 
     init {
         logcat(LogPriority.DEBUG, TAG) { "Initializing ProfileViewModel for email: $authorEmail" }
@@ -126,6 +141,21 @@ class ProfileViewModel(
     fun updateAuthorEmail(email: String) {
         logcat(LogPriority.DEBUG, TAG) { "Updating author email to: $email" }
         _authorEmail.value = email
+        _errorMessage.value = null
+    }
+
+    fun updateSelectedProject(project: String) {
+        _selectedProject.value = project
+    }
+
+    fun setEmailFromDeepLinkAndSearch(project: String?, email: String) {
+        _selectedProject.value = project ?: "try"
+        _authorEmail.value = email
+        searchByAuthor()
+    }
+
+    fun showInvalidQueryError() {
+        _errorMessage.value = "Enter a valid email address or a revision without @."
     }
 
     fun searchByAuthor() {
@@ -136,6 +166,10 @@ class ProfileViewModel(
             logcat(LogPriority.WARN, TAG) { "Search attempt with blank email" }
             return
         }
+        if (SearchQueryClassifier.classify(emailToSearch).getOrNull() !is SearchQuery.Email) {
+            _errorMessage.value = "Enter a valid email address."
+            return
+        }
         viewModelScope.launch {
             userDataRepository.saveLastSearchedEmail(emailToSearch)
             _isLoading.value = true
@@ -143,22 +177,28 @@ class ProfileViewModel(
             _pushes.value = emptyList()
             logcat(LogPriority.DEBUG, TAG) { "Starting search..." }
 
-            when (val result = fenixRepository.getPushesByAuthor(emailToSearch)) {
+            when (val result = fenixRepository.getPushesByAuthor(_selectedProject.value, emailToSearch)) {
                 is NetworkResult.Success -> {
                     logcat(
                         LogPriority.DEBUG,
                         TAG,
                     ) { "getPushesByAuthor success, processing ${result.data.results.size} pushes" }
+                    val failedPushCount = AtomicInteger(0)
                     val pushesWithJobsAndArtifacts = result.data.results.map { pushResult ->
                         async {
                             val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
                             if (jobsResult is NetworkResult.Success) {
-                                val filteredJobs =
-                                    jobsResult.data.results.filter { it.isSignedBuild && !it.isTest }
+                                val candidates = jobsResult.data.results.filter(::isAndroidApkCandidate)
+                                val filteredJobs = candidates.filter { it.jobName.contains("signing-apk", ignoreCase = true) }
+                                    .ifEmpty { candidates }
                                 if (filteredJobs.isNotEmpty()) {
                                     val jobsWithArtifacts = filteredJobs.map { jobDetails ->
                                         async {
-                                            val artifacts = fetchArtifacts(jobDetails.taskId)
+                                            val artifactResult = fetchArtifacts(jobDetails.taskId)
+                                            if (artifactResult.failed) {
+                                                failedPushCount.incrementAndGet()
+                                            }
+                                            val artifacts = artifactResult.artifacts
                                             if (artifacts.isNotEmpty()) {
                                                 JobDetailsUiModel(
                                                     appName = jobDetails.appName,
@@ -207,6 +247,7 @@ class ProfileViewModel(
                                     null
                                 }
                             } else {
+                                failedPushCount.incrementAndGet()
                                 logcat(LogPriority.WARN, TAG) {
                                     "getJobsForPush failed for push ID: ${pushResult.id}: " +
                                     (jobsResult as NetworkResult.Error).message
@@ -219,7 +260,9 @@ class ProfileViewModel(
                     _pushes.value = pushesWithJobsAndArtifacts
                     syncLoadedStateDownloadStates()
                     logcat(TAG) { "Search finished, ${_pushes.value.size} pushes with artifacts found." }
-                    if (pushesWithJobsAndArtifacts.isEmpty()) {
+                    if (failedPushCount.get() > 0) {
+                        _errorMessage.value = "Some pushes could not be loaded."
+                    } else if (pushesWithJobsAndArtifacts.isEmpty()) {
                         _errorMessage.value = "No signed builds found for this author."
                         logcat(TAG) { "No signed builds found for author." }
                     }
@@ -234,7 +277,7 @@ class ProfileViewModel(
         }
     }
 
-    private suspend fun fetchArtifacts(taskId: String): List<ArtifactUiModel> {
+    private suspend fun fetchArtifacts(taskId: String): ArtifactLoadResult {
         logcat(LogPriority.DEBUG, TAG) { "fetchArtifacts called for taskId: $taskId" }
         return when (val artifactsResult = fenixRepository.getArtifactsForTask(taskId)) {
             is NetworkResult.Success -> {
@@ -245,7 +288,16 @@ class ProfileViewModel(
                     LogPriority.VERBOSE,
                     TAG,
                 ) { "Found ${filteredApks.size} APKs for taskId: $taskId" }
-                filteredApks.map { artifact ->
+                // A task can expose several ABI variants.  Surface only the first variant
+                // matching Android's device ABI preference order.
+                val selectedArtifact = deviceSupportedAbis.asSequence().mapNotNull { preferredAbi ->
+                    filteredApks.firstOrNull { artifact ->
+                        artifact.abi.equals(preferredAbi, ignoreCase = true)
+                    }
+                }.firstOrNull() ?: deviceSupportedAbis
+                    .takeIf { it.isEmpty() }
+                    ?.let { filteredApks.firstOrNull() }
+                val artifacts = selectedArtifact?.let { artifact -> listOf(artifact) }.orEmpty().map { artifact ->
                     val artifactFileName = artifact.name.substringAfterLast('/')
                     val uniqueKey = "$taskId/$artifactFileName"
                     val downloadState = resolveDownloadState(
@@ -253,16 +305,12 @@ class ProfileViewModel(
                         taskId = taskId,
                         uniqueKey = uniqueKey,
                     )
-                    val isCompatible =
-                        artifact.abi != null && deviceSupportedAbis.any { deviceAbi ->
-                            deviceAbi.equals(artifact.abi, ignoreCase = true)
-                        }
                     ArtifactUiModel(
                         name = artifact.name,
                         taskId = taskId,
                         abi = AbiUiModel(
                             name = artifact.abi,
-                            isSupported = isCompatible,
+                            isSupported = true,
                         ),
                         downloadUrl = artifact.getDownloadUrl(taskId),
                         expires = artifact.expires,
@@ -270,15 +318,26 @@ class ProfileViewModel(
                         uniqueKey = "$taskId/${artifact.name.substringAfterLast('/')}",
                     )
                 }
+                ArtifactLoadResult(artifacts = artifacts, failed = false)
             }
 
             is NetworkResult.Error -> {
                 logcat(LogPriority.WARN, TAG) {
                     "fetchArtifacts error for taskId $taskId: ${artifactsResult.message}"
                 }
-                emptyList()
+                ArtifactLoadResult(artifacts = emptyList(), failed = true)
             }
         }
+    }
+
+    private fun isAndroidApkCandidate(job: org.mozilla.tryfox.data.JobDetails): Boolean {
+        if (job.isTest || !job.isSignedBuild) return false
+        val appName = job.appName.lowercase()
+        val jobName = job.jobName.lowercase()
+        val hasAndroidSource = jobName.contains("build-android") ||
+            androidProductHints.any { hint -> jobName.contains(hint) || appName == hint }
+        if (!hasAndroidSource || nonAndroidPlatformHints.any(jobName::contains)) return false
+        return apkJobNameHints.any(jobName::contains) || jobName.contains("apk")
     }
 
     fun getDownloadedFile(artifactName: String, taskId: String): File? {

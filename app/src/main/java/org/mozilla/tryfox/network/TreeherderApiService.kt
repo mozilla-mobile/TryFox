@@ -16,8 +16,9 @@ interface TreeherderApiService {
         @Query("revision") revision: String,
     ): TreeherderRevisionResponse
 
-    @GET("project/try/push/")
+    @GET("project/{project}/push/")
     suspend fun getPushByAuthor(
+        @Path("project") project: String,
         @Query("full") full: Boolean = true,
         @Query("count") count: Int = 10,
         @Query("author") author: String,

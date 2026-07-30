@@ -30,7 +30,11 @@ class DefaultTreeherderRepository(
     }
 
     override suspend fun getPushesByAuthor(author: String): NetworkResult<TreeherderRevisionResponse> {
-        return safeApiCall { treeherderApiService.getPushByAuthor(author = author) }
+        return getPushesByAuthor(project = "try", author = author)
+    }
+
+    override suspend fun getPushesByAuthor(project: String, author: String): NetworkResult<TreeherderRevisionResponse> {
+        return safeApiCall { treeherderApiService.getPushByAuthor(project = project, author = author) }
     }
 
     override suspend fun getJobsForPush(pushId: Int): NetworkResult<TreeherderJobsResponse> {

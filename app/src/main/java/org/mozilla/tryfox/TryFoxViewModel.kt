@@ -129,7 +129,7 @@ class TryFoxViewModel(
     private val deviceSupportedAbis: List<String> by lazy { supportedAbis }
 
     init {
-        if (revision != null) {
+        if (!revision.isNullOrBlank() && '@' !in revision) {
             searchJobsAndArtifacts()
         }
         cacheManager.cacheState.onEach { state ->

@@ -13,8 +13,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mozilla.tryfox.data.FakeApkDownloadCoordinator
 import org.mozilla.tryfox.data.FakeCacheManager
-import org.mozilla.tryfox.data.FakeDownloadFileRepository
 import org.mozilla.tryfox.data.FakeHistoryRepository
 import org.mozilla.tryfox.data.FakeIntentManager
 import org.mozilla.tryfox.data.FakeTreeherderRepository
@@ -29,7 +29,6 @@ class ProfileScreenTest {
     val composeTestRule = createComposeRule()
 
     private val fenixRepository = FakeTreeherderRepository()
-    private val downloadFileRepository = FakeDownloadFileRepository()
     private val userDataRepository: UserDataRepository = FakeUserDataRepository()
     private val cacheManager: CacheManager = FakeCacheManager()
     private val intentManager = FakeIntentManager()
@@ -48,7 +47,7 @@ class ProfileScreenTest {
     fun searchPushesAndCheckDownloadAndInstallStates() {
         val profileViewModel = ProfileViewModel(
             fenixRepository = fenixRepository,
-            downloadFileRepository = downloadFileRepository,
+            downloadCoordinator = FakeApkDownloadCoordinator(),
             userDataRepository = userDataRepository,
             cacheManager = cacheManager,
             intentManager = intentManager,
@@ -108,7 +107,7 @@ class ProfileScreenTest {
         val initialEmail = "initial@example.com"
         val profileViewModelWithEmail = ProfileViewModel(
             fenixRepository = fenixRepository,
-            downloadFileRepository = downloadFileRepository,
+            downloadCoordinator = FakeApkDownloadCoordinator(),
             userDataRepository = userDataRepository,
             cacheManager = cacheManager,
             intentManager = intentManager,

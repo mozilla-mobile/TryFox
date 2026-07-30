@@ -13,8 +13,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.data.FakeApkDownloadCoordinator
 import org.mozilla.tryfox.data.FakeCacheManager
-import org.mozilla.tryfox.data.FakeDownloadFileRepository
 import org.mozilla.tryfox.data.FakeHistoryRepository
 import org.mozilla.tryfox.data.FakeIntentManager
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
@@ -34,7 +34,7 @@ class HistoryScreenTest {
         }
         val historyViewModel = HistoryViewModel(
             historyRepository = historyRepository,
-            downloadFileRepository = FakeDownloadFileRepository(),
+            downloadCoordinator = FakeApkDownloadCoordinator(),
             cacheManager = FakeCacheManager(),
             intentManager = FakeIntentManager(),
         )
@@ -68,7 +68,7 @@ class HistoryScreenTest {
         }
         val historyViewModel = HistoryViewModel(
             historyRepository = historyRepository,
-            downloadFileRepository = FakeDownloadFileRepository(),
+            downloadCoordinator = FakeApkDownloadCoordinator(),
             cacheManager = FakeCacheManager(),
             intentManager = FakeIntentManager(),
         )

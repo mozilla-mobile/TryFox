@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">TryFox</string>
-    <string name="home_profile_button_description">Profile</string>
-    <string name="home_search_treeherder_button_description">Search Treeherder</string>
+    <string name="home_search_treeherder_button_description">Search builds</string>
     <string name="home_history_button_description">History</string>
     <string name="home_scan_qr_code_button_description">Scan QR code</string>
     <string name="home_receive_from_desktop_button_description">Receive from desktop</string>
@@ -9,10 +8,10 @@
     <string name="home_loading_initial_data">Loading initial app data...</string> <!-- Added -->
     <string name="common_unknown_error">An unknown error occurred.</string>
     <string name="common_back_button_description">Back</string>
-    <string name="treeherder_apks_search_artifacts_title">Search Fenix Artifacts</string>
+    <string name="treeherder_apks_search_artifacts_title">Search builds</string>
     <string name="treeherder_apks_project_label">Project</string>
-    <string name="treeherder_apks_revision_label">Revision</string>
-    <string name="treeherder_apks_revision_placeholder">Revision hash...</string>
+    <string name="treeherder_apks_revision_label">Email or revision</string>
+    <string name="treeherder_apks_revision_placeholder">Email address or revision...</string>
     <string name="treeherder_apks_jobs_found_message">Found %1$d job(s) matching criteria:</string>
     <string name="treeherder_apks_no_jobs_found">No jobs found matching the specified criteria for this push.</string>
     <string name="treeherder_apks_search_button_description">Search</string>
@@ -44,17 +43,17 @@
     <string name="archive_group_card_unsupported_apks">Not supported by your device (%1$d)</string>
     <string name="archive_group_card_no_apks_for_date">No APKs found for this date.</string>
     <string name="archive_group_card_no_apks_for_release_version">No APKs found for this release.</string>
-    <string name="profile_screen_title">Profile</string>
+    <string name="profile_screen_title">Search builds</string>
     <string name="profile_screen_loading_pushes">Loading pushes…</string>
     <string name="profile_screen_no_pushes_found">No pushes found for this author.</string>
     <string name="job_card_job_name_label">Job: </string>
     <string name="job_card_task_id_label">Task ID: </string>
     <string name="job_card_compatible_apks_title">Compatible APKs</string>
     <string name="job_card_no_compatible_apks">No compatible APKs found for this job.</string>
-    <string name="profile_screen_search_card_title">Try pushes</string>
-    <string name="profile_screen_user_email_label">User email</string>
-    <string name="profile_screen_search_button_description">Search pushes by email</string>
-    <string name="profile_screen_no_pushes_enter_email">Enter a user email and tap search to find pushes.</string>
+    <string name="profile_screen_search_card_title">Search builds</string>
+    <string name="profile_screen_user_email_label">Email or revision</string>
+    <string name="profile_screen_search_button_description">Search builds</string>
+    <string name="profile_screen_no_pushes_enter_email">Enter an email or revision and tap search.</string>
     <string name="profile_screen_clear_email_description">Clear email field</string>
     <string name="history_screen_title">History</string>
     <string name="history_screen_empty_title">No history yet</string>

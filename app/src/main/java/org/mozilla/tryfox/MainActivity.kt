@@ -26,6 +26,8 @@ import org.mozilla.tryfox.ui.screens.ProfileScreen
 import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
 import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopScreen
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryScreen
+import org.mozilla.tryfox.ui.screens.SearchQuery
+import org.mozilla.tryfox.ui.screens.SearchQueryClassifier
 import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
@@ -59,7 +61,7 @@ sealed class NavScreen(val route: String) {
     data object TreeherderSearch : NavScreen(AppRoutes.TREEHERDER_SEARCH)
 
     /**
-     * Represents the Treeherder search screen with project and revision arguments.
+     * Represents the Treeherder search screen with project and query arguments.
      */
     data object TreeherderSearchWithArgs : NavScreen(AppRoutes.TREEHERDER_SEARCH_WITH_ARGS) {
         /**
@@ -70,14 +72,9 @@ sealed class NavScreen(val route: String) {
          */
         fun createRoute(project: String, revision: String) = AppRoutes.createTreeherderSearchRoute(
             project = project,
-            revision = revision,
+            query = revision,
         )
     }
-
-    /**
-     * Represents the Profile screen.
-     */
-    data object Profile : NavScreen(AppRoutes.PROFILE)
 
     /**
      * Represents the Profile screen filtered by email.
@@ -132,8 +129,7 @@ class MainActivity : ComponentActivity() {
             composable(NavScreen.Home.route) {
                 // Inject HomeViewModel using Koin in Composable
                 HomeScreen(
-                    onNavigateToTreeherder = { localNavController.navigate(NavScreen.TreeherderSearch.route) },
-                    onNavigateToProfile = { localNavController.navigate(NavScreen.Profile.route) },
+                    onNavigateToSearch = { localNavController.navigate(NavScreen.TreeherderSearch.route) },
                     onNavigateToQrScanner = { localNavController.navigate(NavScreen.QrScanner.route) },
                     onNavigateToReceiveFromDesktop = { localNavController.navigate(NavScreen.ReceiveFromDesktop.route) },
                     onNavigateToHistory = { localNavController.navigate(NavScreen.History.route) },
@@ -191,29 +187,43 @@ class MainActivity : ComponentActivity() {
                     deepLinkProject = null,
                     deepLinkRevision = null,
                     onNavigateUp = { localNavController.popBackStack() },
+                    onSearchEmail = { project, email ->
+                        localNavController.navigate(AppRoutes.createTreeherderSearchRoute(project, email))
+                    },
                 )
             }
             composable(
                 route = NavScreen.TreeherderSearchWithArgs.route,
                 arguments = listOf(
                     navArgument("project") { type = NavType.StringType },
-                    navArgument("revision") { type = NavType.StringType },
+                    navArgument("query") { type = NavType.StringType },
                 ),
             ) { backStackEntry ->
                 val project = backStackEntry.arguments?.getString("project")
-                val revision = backStackEntry.arguments?.getString("revision")
-                TryFoxMainScreen(
-                    tryFoxViewModel = koinViewModel { parametersOf(project, revision) },
-                    deepLinkProject = project,
-                    deepLinkRevision = revision,
-                    onNavigateUp = { localNavController.popBackStack() },
-                )
-            }
-            composable(NavScreen.Profile.route) {
-                ProfileScreen(
-                    onNavigateUp = { localNavController.popBackStack() },
-                    profileViewModel = koinViewModel(),
-                )
+                val query = backStackEntry.arguments?.getString("query")?.let(Uri::decode).orEmpty()
+                when (SearchQueryClassifier.classify(query).getOrNull()) {
+                    is SearchQuery.Email -> ProfileScreen(
+                        onNavigateUp = { localNavController.popBackStack() },
+                        profileViewModel = koinViewModel { parametersOf(query, project) },
+                        onSearchRevision = { selectedProject, revision ->
+                            localNavController.navigate(
+                                AppRoutes.createTreeherderSearchRoute(selectedProject, revision),
+                            )
+                        },
+                    )
+                    is SearchQuery.Revision -> TryFoxMainScreen(
+                        tryFoxViewModel = koinViewModel { parametersOf(project, query) },
+                        deepLinkProject = project,
+                        deepLinkRevision = query,
+                        onNavigateUp = { localNavController.popBackStack() },
+                    )
+                    null -> TryFoxMainScreen(
+                        tryFoxViewModel = koinViewModel { parametersOf(project, query) },
+                        deepLinkProject = project,
+                        deepLinkRevision = query,
+                        onNavigateUp = { localNavController.popBackStack() },
+                    )
+                }
             }
             composable(
                 route = NavScreen.ProfileByEmail.route,
@@ -223,7 +233,10 @@ class MainActivity : ComponentActivity() {
 
                 ProfileScreen(
                     onNavigateUp = { localNavController.popBackStack() },
-                    profileViewModel = koinViewModel { parametersOf(email) },
+                    profileViewModel = koinViewModel { parametersOf(email, "try") },
+                    onSearchRevision = { project, revision ->
+                        localNavController.navigate(AppRoutes.createTreeherderSearchRoute(project, revision))
+                    },
                 )
             }
         }
