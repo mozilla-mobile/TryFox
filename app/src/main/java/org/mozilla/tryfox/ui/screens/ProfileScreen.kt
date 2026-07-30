@@ -95,6 +95,23 @@ private fun formatAppNameForDisplay(appName: String): String {
     }
 }
 
+private val signingApkJobNamePattern = Regex(
+    pattern = "signing-apk-(fenix|focus)-(debug|nightly|beta|release)(-firebase)?",
+    option = RegexOption.IGNORE_CASE,
+)
+
+internal fun formatJobNameForDisplay(jobName: String): String {
+    val match = signingApkJobNamePattern.matchEntire(jobName.trim()) ?: return jobName
+    val appName = when (match.groupValues[1].lowercase(Locale.ROOT)) {
+        FENIX -> "Fenix"
+        FOCUS -> "Focus"
+        else -> return jobName
+    }
+    val channel = match.groupValues[2].lowercase(Locale.ROOT)
+    val firebaseSuffix = if (match.groupValues[3].isNotEmpty()) " (firebase)" else ""
+    return "$appName $channel$firebaseSuffix"
+}
+
 internal fun appIconNameForJob(jobName: String, fallbackAppName: String): String {
     val normalizedJobName = jobName.lowercase(Locale.ROOT)
     return when {
@@ -437,7 +454,7 @@ private fun CompactApkRow(job: JobDetailsUiModel, profileViewModel: ProfileViewM
             useSearchResultVariant = true,
         )
         Text(
-            text = job.jobName.ifBlank { formatAppNameForDisplay(job.appName) },
+            text = job.jobName.ifBlank { formatAppNameForDisplay(job.appName) }.let(::formatJobNameForDisplay),
             style = MaterialTheme.typography.bodyMedium.copy(hyphens = Hyphens.Auto),
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.weight(1f),
