@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag // Added import
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -50,6 +51,57 @@ private data class LinkableSpan(
     val url: String,
 )
 
+@Composable
+fun rememberLinkedPushComment(comment: String): AnnotatedString {
+    val linkColor = MaterialTheme.colorScheme.primary
+    return remember(comment, linkColor) {
+        val urlPattern = Pattern.compile(
+            "(https?://|www\\.)" +
+                "([\\da-zA-Z.-]+)" +
+                "(\\.[a-zA-Z.]{2,6})" +
+                "([/\\w .-]*)*/?",
+        )
+        val bugPattern = Pattern.compile("Bug\\s*(\\d+)", Pattern.CASE_INSENSITIVE)
+        val spans = mutableListOf<LinkableSpan>()
+        val urlMatcher = urlPattern.matcher(comment)
+        while (urlMatcher.find()) {
+            spans += LinkableSpan(urlMatcher.start(), urlMatcher.end(), urlMatcher.group(0) ?: "", urlMatcher.group(0) ?: "")
+        }
+        val bugMatcher = bugPattern.matcher(comment)
+        while (bugMatcher.find()) {
+            bugMatcher.group(1)?.let { bugNumber ->
+                spans += LinkableSpan(
+                    bugMatcher.start(),
+                    bugMatcher.end(),
+                    bugMatcher.group(0) ?: "",
+                    "https://bugzilla.mozilla.org/show_bug.cgi?id=$bugNumber",
+                )
+            }
+        }
+        spans.sortBy { it.start }
+        buildAnnotatedString {
+            var lastMatchEnd = 0
+            spans.forEach { span ->
+                if (span.start > lastMatchEnd) append(comment.substring(lastMatchEnd, span.start))
+                withLink(
+                    LinkAnnotation.Url(
+                        span.url,
+                        TextLinkStyles(
+                            style = SpanStyle(
+                                color = linkColor,
+                                fontWeight = FontWeight.Bold,
+                                textDecoration = TextDecoration.Underline,
+                            ),
+                        ),
+                    ),
+                ) { append(span.displayText) }
+                lastMatchEnd = span.end
+            }
+            if (lastMatchEnd < comment.length) append(comment.substring(lastMatchEnd))
+        }
+    }
+}
+
 @OptIn(FormatStringsInDatetimeFormats::class)
 @Composable
 fun PushCommentCard(
@@ -59,78 +111,7 @@ fun PushCommentCard(
     revision: String,
     pushTimestamp: Long,
 ) {
-    val urlPattern = remember {
-        Pattern.compile(
-            "(https?://|www\\.)" + // Scheme or www.
-            "([\\da-zA-Z.-]+)" + // Domain name
-            "(\\.[a-zA-Z.]{2,6})" + // TLD
-            "([/\\w .-]*)*/?", // Path and query
-        )
-    }
-    val bugPattern = remember {
-        Pattern.compile("Bug\\s*(\\d+)", Pattern.CASE_INSENSITIVE)
-    }
-
-    val linkSpans = remember(comment) {
-        // Recalculate if comment changes
-        val spans = mutableListOf<LinkableSpan>()
-
-        val urlMatcher = urlPattern.matcher(comment)
-        while (urlMatcher.find()) {
-            spans.add(
-                LinkableSpan(
-                    start = urlMatcher.start(),
-                    end = urlMatcher.end(),
-                    displayText = urlMatcher.group(0) ?: "",
-                    url = urlMatcher.group(0) ?: "",
-                ),
-            )
-        }
-
-        val bugMatcher = bugPattern.matcher(comment)
-        while (bugMatcher.find()) {
-            val bugNumber = bugMatcher.group(1)
-            if (bugNumber != null) {
-                spans.add(
-                    LinkableSpan(
-                        start = bugMatcher.start(),
-                        end = bugMatcher.end(),
-                        displayText = bugMatcher.group(0) ?: "",
-                        url = "https://bugzilla.mozilla.org/show_bug.cgi?id=$bugNumber",
-                    ),
-                )
-            }
-        }
-        spans.sortBy { it.start }
-        spans
-    }
-
-    val annotatedString = buildAnnotatedString {
-        var lastMatchEnd = 0
-        linkSpans.forEach { span ->
-            if (span.start > lastMatchEnd) {
-                append(comment.substring(lastMatchEnd, span.start))
-            }
-            withLink(
-                link = LinkAnnotation.Url(
-                    url = span.url,
-                    styles = TextLinkStyles(
-                        style = SpanStyle(
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        textDecoration = TextDecoration.Underline,
-                    ),
-                    ),
-                ),
-            ) {
-                append(span.displayText)
-            }
-            lastMatchEnd = span.end
-        }
-        if (lastMatchEnd < comment.length) {
-            append(comment.substring(lastMatchEnd))
-        }
-    }
+    val annotatedString = rememberLinkedPushComment(comment)
 
     Card(
         modifier = Modifier

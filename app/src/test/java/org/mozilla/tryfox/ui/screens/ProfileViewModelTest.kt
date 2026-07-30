@@ -95,6 +95,46 @@ class ProfileViewModelTest {
     }
 
     @Test
+    fun `prefers bracketed Bug commit messages over generated try syntax`() {
+        val generatedTryMessage = "Perf selections= Queries=[     \"\" ]"
+        val bugMessage = "[Bug 0000000](https://bugzilla.mozilla.org/show_bug.cgi?id=0000000) - Run benchmarks"
+        val revisions = listOf(
+            RevisionDetail(1, 1, "try", "author", generatedTryMessage),
+            RevisionDetail(1, 1, "bug", "author", bugMessage),
+        )
+
+        assertEquals(bugMessage, selectPreferredPushComment(revisions))
+    }
+
+    @Test
+    fun `perf-again retry inherits the nearest preceding Bug commit message`() {
+        val retry = RevisionDetail(
+            1,
+            1,
+            "9240aec3d50cab971bbbacab005f3eee0aeb9eb1",
+            "author",
+            "Perf selections= Queries=[     \"\" ]\n\nPushed via `mach try perf-again`",
+        )
+        val bugMessage = "Bug 0000000 - Run startup-profile benchmarks on additional Bitbar devices r?#releng-reviewers"
+        val precedingPush = listOf(RevisionDetail(1, 1, "1fd6", "author", bugMessage))
+
+        assertEquals(bugMessage, selectPreferredPushComment(listOf(retry), listOf(precedingPush)))
+    }
+
+    @Test
+    fun `perf-again retry uses the immediately newer result in Treeherder response order`() {
+        val retry = RevisionDetail(1, 1, "9240", "author", "Pushed via `mach try perf-again`")
+        val bugMessage = "Bug 0000000 - Run startup-profile benchmarks on additional Bitbar devices"
+        val priorPush = listOf(RevisionDetail(1, 1, "1fd6", "author", bugMessage))
+        val responseOrder = listOf(priorPush, listOf(retry))
+
+        assertEquals(
+            bugMessage,
+            selectPreferredPushComment(responseOrder[1], responseOrder.take(1).asReversed()),
+        )
+    }
+
+    @Test
     fun `author search forwards selected project and rejects malformed emails`() = runTest {
         val projectViewModel = createViewModel(authorEmail = null, project = "mozilla-central")
         fenixRepository.lastAuthorProject = null

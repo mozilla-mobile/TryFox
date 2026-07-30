@@ -25,13 +25,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +58,7 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -69,11 +71,16 @@ import org.mozilla.tryfox.ui.composables.AppIcon
 import org.mozilla.tryfox.ui.composables.BinButton
 import org.mozilla.tryfox.ui.composables.DownloadButton
 import org.mozilla.tryfox.ui.composables.ErrorState
-import org.mozilla.tryfox.ui.composables.PushCommentCard
+import org.mozilla.tryfox.ui.composables.rememberLinkedPushComment
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
+import org.mozilla.tryfox.ui.models.PushUiModel
 import org.mozilla.tryfox.util.FENIX
+import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_NIGHTLY
+import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_BETA
+import org.mozilla.tryfox.util.FOCUS_NIGHTLY
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import java.util.Locale
 
@@ -85,6 +92,21 @@ private fun formatAppNameForDisplay(appName: String): String {
         FOCUS -> "Focus Nightly"
         FOCUS_RELEASE -> "Focus Release"
         else -> appName.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+    }
+}
+
+internal fun appIconNameForJob(jobName: String, fallbackAppName: String): String {
+    val normalizedJobName = jobName.lowercase(Locale.ROOT)
+    return when {
+        "focus-debug" in normalizedJobName -> FOCUS
+        "focus-nightly" in normalizedJobName -> FOCUS_NIGHTLY
+        "focus-beta" in normalizedJobName -> FOCUS_BETA
+        "focus" in normalizedJobName -> FOCUS
+        "fenix-debug" in normalizedJobName -> FENIX
+        "fenix-nightly" in normalizedJobName -> FENIX_NIGHTLY
+        "fenix-release" in normalizedJobName -> FENIX_RELEASE
+        "fenix-beta" in normalizedJobName -> FENIX_BETA
+        else -> fallbackAppName
     }
 }
 
@@ -332,32 +354,21 @@ fun ProfileScreen(
                 pushes.isNotEmpty() -> {
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         errorMessage?.let { message ->
                             item { ErrorState(errorMessage = message) }
                         }
-                        items(pushes, key = { push ->
-                            push.pushComment + push.author + (push.jobs.firstOrNull()?.taskId ?: "")
-                        }) { push ->
-                            ElevatedCard(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    PushCommentCard(
-                                        comment = push.pushComment,
-                                        author = push.author,
-                                        revision = push.revision ?: "unknown_revision",
-                                        pushTimestamp = push.pushTimestamp,
-                                    )
-                                    push.jobs.forEach { job ->
-                                        JobCard(job = job, profileViewModel = profileViewModel)
-                                    }
-                                }
-                            }
+                        item {
+                            Text(
+                                text = pluralStringResource(R.plurals.profile_screen_pushes_found, pushes.size, pushes.size),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.testTag("email_search_results_heading"),
+                            )
+                        }
+                        items(pushes, key = { push -> push.revision ?: push.pushComment }) { push ->
+                            EmailPushCard(push = push, profileViewModel = profileViewModel)
                         }
                     }
                 }
@@ -383,50 +394,62 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun JobCard(
-    job: JobDetailsUiModel,
-    profileViewModel: ProfileViewModel,
-) {
-    val appNameForIconAndLogic = job.appName
-    val displayJobName = job.jobName.ifBlank { formatAppNameForDisplay(appNameForIconAndLogic) }
-    val apk = remember(job.artifacts) {
-        job.artifacts.firstOrNull { it.abi.isSupported }
+private fun EmailPushCard(push: PushUiModel, profileViewModel: ProfileViewModel) {
+    val commitTitle = remember(push.pushComment) {
+        push.pushComment.lineSequence().firstOrNull().orEmpty().trim()
     }
-
-    androidx.compose.material3.Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+    Card(
+        modifier = Modifier.fillMaxWidth().testTag("email_search_push_${push.revision}"),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                AppIcon(appName = appNameForIconAndLogic, modifier = Modifier.size(40.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = displayJobName,
-                    style = MaterialTheme.typography.titleMedium.copy(hyphens = Hyphens.Auto),
-                    fontWeight = FontWeight.Bold,
-                    softWrap = true,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(8.dp))
-                apk?.let {
-                    DownloadButton(
-                        downloadState = it.downloadState,
-                        onDownloadClick = { profileViewModel.downloadArtifact(it) },
-                        onInstallClick = { file -> profileViewModel.installApk(file) },
-                        modifier = Modifier.width(128.dp),
-                    )
-                }
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = rememberLinkedPushComment(commitTitle),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                text = "${formatRelativePushTime(push.pushTimestamp)} · ${push.author}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            HorizontalDivider(modifier = Modifier.padding(top = 14.dp))
+            push.jobs.forEachIndexed { index, job ->
+                if (index > 0) HorizontalDivider()
+                CompactApkRow(job = job, profileViewModel = profileViewModel)
             }
+        }
+    }
+}
+
+@Composable
+private fun CompactApkRow(job: JobDetailsUiModel, profileViewModel: ProfileViewModel) {
+    val apk = remember(job.artifacts) { job.artifacts.firstOrNull { it.abi.isSupported } }
+    val appIconName = remember(job.jobName, job.appName) { appIconNameForJob(job.jobName, job.appName) }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        AppIcon(
+            appName = appIconName,
+            modifier = Modifier.size(34.dp),
+            useSearchResultVariant = true,
+        )
+        Text(
+            text = job.jobName.ifBlank { formatAppNameForDisplay(job.appName) },
+            style = MaterialTheme.typography.bodyMedium.copy(hyphens = Hyphens.Auto),
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
+        Spacer(Modifier.width(8.dp))
+        apk?.let {
+            DownloadButton(
+                downloadState = it.downloadState,
+                onDownloadClick = { profileViewModel.downloadArtifact(it) },
+                onInstallClick = profileViewModel::installApk,
+                modifier = Modifier.width(112.dp),
+            )
         }
     }
 }

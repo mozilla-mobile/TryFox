@@ -6,6 +6,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -75,12 +76,22 @@ class ProfileScreenTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
-        val timestampChips = composeTestRule
-            .onAllNodesWithTag("push_timestamp_chip_fakerevision123", useUnmergedTree = true)
+        val searchResultsHeading = composeTestRule
+            .onAllNodesWithTag("email_search_results_heading", useUnmergedTree = true)
             .fetchSemanticsNodes()
         assertTrue(
-            "Expected a push timestamp chip to be rendered for Try push entry",
-            timestampChips.isNotEmpty(),
+            "Expected an email-search result count heading",
+            searchResultsHeading.isNotEmpty(),
+        )
+        composeTestRule.onNodeWithTag("email_search_results_heading").assert(hasText("1 push found"))
+        composeTestRule.onNodeWithText("Build Fenix for arm64-v8a").assert(hasText("Build Fenix for arm64-v8a"))
+
+        val pushCards = composeTestRule
+            .onAllNodesWithTag("email_search_push_fakerevision123", useUnmergedTree = true)
+            .fetchSemanticsNodes()
+        assertTrue(
+            "Expected a compact push card to be rendered for the Try push entry",
+            pushCards.isNotEmpty(),
         )
 
         composeTestRule.onNodeWithTag(downloadButtonInitialTag, useUnmergedTree = true)
