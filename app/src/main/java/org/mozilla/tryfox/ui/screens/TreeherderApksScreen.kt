@@ -2,10 +2,8 @@ package org.mozilla.tryfox.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,21 +20,16 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
@@ -56,6 +49,7 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -65,6 +59,7 @@ import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.AppCard
 import org.mozilla.tryfox.ui.composables.BinButton
 import org.mozilla.tryfox.ui.composables.ErrorState
+import org.mozilla.tryfox.ui.composables.ProjectSelector
 import org.mozilla.tryfox.ui.composables.PushCommentCard
 
 // Project name mappings
@@ -74,7 +69,6 @@ private val projectDisplayToActualMap = mapOf(
     "beta" to "mozilla-beta",
     "release" to "mozilla-release",
 )
-private val projectActualToDisplayMap = projectDisplayToActualMap.entries.associate { (k, v) -> v to k }
 
 internal const val TREEHERDER_LOADING_STATE_TAG = "treeherder_loading_state"
 internal const val TREEHERDER_RESULTS_HEADER_TAG = "treeherder_results_header"
@@ -279,71 +273,36 @@ fun SearchSection(
     isLoading: Boolean,
 ) {
     val projectDisplayOptions = projectDisplayToActualMap.keys.toList()
-    var expanded by remember { mutableStateOf(false) }
-
-    Card(
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ProjectSelector(
+            projects = projectDisplayOptions,
+            selectedProject = projectDisplayToActualMap.entries.first { it.value == selectedProject }.key,
+            projectLabel = { it },
+            onProjectSelected = { displayProject -> onProjectSelected(projectDisplayToActualMap.getValue(displayProject)) },
+            modifier = Modifier.height(52.dp),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            ExposedDropdownMenuBox(
-                expanded = expanded,
-                onExpandedChange = { expanded = !expanded },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                TextField(
-                    value = projectActualToDisplayMap[selectedProject] ?: selectedProject,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text(stringResource(id = R.string.treeherder_apks_project_label)) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(),
-                )
-                ExposedDropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                ) {
-                    projectDisplayOptions.forEach { displayKey ->
-                        DropdownMenuItem(
-                            text = { Text(displayKey) },
-                            onClick = {
-                                onProjectSelected(projectDisplayToActualMap[displayKey] ?: displayKey)
-                                expanded = false
-                            },
-                        )
-                    }
-                }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = revision,
-                    onValueChange = onRevisionChange,
-                    label = { Text(stringResource(id = R.string.treeherder_apks_revision_label)) },
-                    placeholder = { Text(stringResource(id = R.string.treeherder_apks_revision_placeholder)) },
-                    modifier = Modifier.weight(1f).fillMaxHeight(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 0.dp, bottomEnd = 0.dp), // Matched ProfileScreen
-                    colors = OutlinedTextFieldDefaults.colors(),
-                )
-
-                SearchButton( // Using the same SearchButton as ProfileScreen
-                    onClick = onSearchClick,
-                    enabled = !isLoading && revision.isNotBlank(),
-                    isLoading = isLoading,
-                    modifier = Modifier
-                        .padding(top = 8.dp)
-                        .fillMaxHeight(),
-                )
-            }
+            OutlinedTextField(
+                value = revision,
+                onValueChange = onRevisionChange,
+                placeholder = { Text(stringResource(id = R.string.profile_screen_user_email_label)) },
+                modifier = Modifier.weight(1f).height(52.dp).testTag("profile_email_input"),
+                singleLine = true,
+                shape = RoundedCornerShape(20.dp),
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                colors = OutlinedTextFieldDefaults.colors(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Email),
+            )
+            SearchButton(
+                onClick = onSearchClick,
+                enabled = !isLoading && revision.isNotBlank(),
+                isLoading = isLoading,
+                modifier = Modifier.size(52.dp).testTag("profile_search_button"),
+            )
         }
     }
 }
@@ -362,7 +321,7 @@ fun SearchButton( // This is the local SearchButton
         onClick = onClick,
         enabled = enabled,
         modifier = modifier,
-        shape = RoundedCornerShape(topStart = 0.dp, bottomStart = 0.dp, topEnd = 12.dp, bottomEnd = 12.dp), // Shape from Treeherder
+        shape = RoundedCornerShape(24.dp),
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
         contentPadding = PaddingValues(horizontal = 0.dp),
     ) {

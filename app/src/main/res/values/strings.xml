@@ -55,7 +55,7 @@
     <string name="job_card_compatible_apks_title">Compatible APKs</string>
     <string name="job_card_no_compatible_apks">No compatible APKs found for this job.</string>
     <string name="profile_screen_search_card_title">Search builds</string>
-    <string name="profile_screen_user_email_label">Email or revision</string>
+    <string name="profile_screen_user_email_label">Revision number or email…</string>
     <string name="profile_screen_search_button_description">Search builds</string>
     <string name="profile_screen_no_pushes_enter_email">Enter an email or revision and tap search.</string>
     <string name="profile_screen_clear_email_description">Clear email field</string>
