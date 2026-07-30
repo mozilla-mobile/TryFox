@@ -3,6 +3,7 @@ package org.mozilla.tryfox.ui.composables
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -32,6 +33,11 @@ fun ProjectSelector(
     modifier: Modifier = Modifier,
 ) {
     val selectedIndex = projects.indexOf(selectedProject).coerceAtLeast(0)
+    val selectedContainerColor = if (isSystemInDarkTheme()) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+    }
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -51,7 +57,7 @@ fun ProjectSelector(
                 .offset(x = indicatorOffset)
                 .width(segmentWidth)
                 .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(20.dp)),
+                .background(selectedContainerColor, RoundedCornerShape(20.dp)),
         )
         Row(modifier = Modifier.fillMaxWidth().fillMaxHeight()) {
             projects.forEach { project ->

@@ -188,7 +188,11 @@ class MainActivity : ComponentActivity() {
                     deepLinkRevision = null,
                     onNavigateUp = { localNavController.popBackStack() },
                     onSearchEmail = { project, email ->
-                        localNavController.navigate(AppRoutes.createTreeherderSearchRoute(project, email))
+                        localNavController.navigate(AppRoutes.createTreeherderSearchRoute(project, email)) {
+                            popUpTo(NavScreen.TreeherderSearch.route) {
+                                inclusive = true
+                            }
+                        }
                     },
                 )
             }
