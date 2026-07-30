@@ -1,5 +1,6 @@
 package org.mozilla.tryfox.di
 
+import androidx.work.WorkManager
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -7,7 +8,6 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
-import androidx.work.WorkManager
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
@@ -218,7 +218,9 @@ val viewModelModule = module {
             get(named("IODispatcher")),
         )
     }
-    viewModel { params -> ProfileViewModel(get(), get(), get(), get(), get(), get(), params.getOrNull()) }
+    viewModel { params ->
+        ProfileViewModel(get(), get(), get(), get(), get(), get(), params.getOrNull(), project = params.getOrNull() ?: "try")
+    }
 }
 
 val appModules = listOf(dispatchersModule, networkModule, repositoryModule, viewModelModule)

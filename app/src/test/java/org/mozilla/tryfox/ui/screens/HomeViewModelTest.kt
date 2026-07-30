@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.io.TempDir
-import org.mockito.Mock
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.junit.jupiter.MockitoSettings
 import org.mockito.quality.Strictness
@@ -39,13 +38,13 @@ import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
 import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
-import org.mozilla.tryfox.model.AppState
-import org.mozilla.tryfox.model.CacheManagementState
-import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
+import org.mozilla.tryfox.model.AppState
+import org.mozilla.tryfox.model.CacheManagementState
+import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult

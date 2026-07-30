@@ -16,7 +16,7 @@ class FakeDownloadFileRepository(
     override suspend fun downloadFile(
         downloadUrl: String,
         outputFile: File,
-        onProgress: (bytesDownloaded: Long, totalBytes: Long) -> Unit,
+        onProgress: suspend (bytesDownloaded: Long, totalBytes: Long) -> Unit,
     ): NetworkResult<File> {
         downloadFileCalled = true
 

@@ -34,12 +34,12 @@ class AppDeepLinkRouteMapperTest {
     }
 
     @Test
-    fun `maps scanned author link to encoded profile route`() {
+    fun `maps scanned author link to encoded unified search route`() {
         val route = AppDeepLinkRouteMapper.routeFor(
             "tryfox://jobs?author=try%2Buser%40mozilla.com",
         )
 
-        assertEquals("profile_by_email?email=try%2Buser%40mozilla.com", route)
+        assertEquals("treeherder_search/try/try%2Buser%40mozilla.com", route)
     }
 
     @Test

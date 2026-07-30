@@ -27,15 +27,20 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.material3.TooltipBox
 import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
@@ -44,7 +49,9 @@ import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -111,16 +118,20 @@ private fun ProfileSearchButton(
     }
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun UserSearchCard(
     email: String,
     onEmailChange: (String) -> Unit,
+    project: String,
+    onProjectChange: (String) -> Unit,
     onSearchClick: () -> Unit,
     isLoading: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
+    val projects = listOf("try", "mozilla-central", "mozilla-beta", "mozilla-release")
+    var projectMenuExpanded by remember { mutableStateOf(false) }
 
     androidx.compose.material3.Card(
         modifier = modifier.fillMaxWidth(),
@@ -135,6 +146,36 @@ private fun UserSearchCard(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
             )
+            ExposedDropdownMenuBox(
+                expanded = projectMenuExpanded,
+                onExpandedChange = { projectMenuExpanded = !projectMenuExpanded },
+            ) {
+                TextField(
+                    value = project,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(id = R.string.treeherder_apks_project_label)) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = projectMenuExpanded) },
+                    modifier = Modifier
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                        .fillMaxWidth()
+                        .testTag("unified_search_project_input"),
+                )
+                ExposedDropdownMenu(
+                    expanded = projectMenuExpanded,
+                    onDismissRequest = { projectMenuExpanded = false },
+                ) {
+                    projects.forEach { candidate ->
+                        DropdownMenuItem(
+                            text = { Text(candidate) },
+                            onClick = {
+                                onProjectChange(candidate)
+                                projectMenuExpanded = false
+                            },
+                        )
+                    }
+                }
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -196,8 +237,10 @@ fun ProfileScreen(
     modifier: Modifier = Modifier,
     onNavigateUp: () -> Unit,
     profileViewModel: ProfileViewModel,
+    onSearchRevision: (project: String, revision: String) -> Unit = { _, _ -> },
 ) {
     val authorEmail by profileViewModel.authorEmail.collectAsState()
+    val selectedProject by profileViewModel.selectedProject.collectAsState()
     val pushes by profileViewModel.pushes.collectAsState()
     val isLoading by profileViewModel.isLoading.collectAsState()
     val errorMessage by profileViewModel.errorMessage.collectAsState()
@@ -264,7 +307,15 @@ fun ProfileScreen(
             UserSearchCard(
                 email = authorEmail,
                 onEmailChange = { profileViewModel.updateAuthorEmail(it) },
-                onSearchClick = { profileViewModel.searchByAuthor() },
+                project = selectedProject,
+                onProjectChange = { profileViewModel.updateSelectedProject(it) },
+                onSearchClick = {
+                    when (val query = SearchQueryClassifier.classify(authorEmail).getOrNull()) {
+                        is SearchQuery.Email -> profileViewModel.searchByAuthor()
+                        is SearchQuery.Revision -> onSearchRevision(selectedProject, query.value)
+                        null -> profileViewModel.showInvalidQueryError()
+                    }
+                },
                 isLoading = isLoading && pushes.isEmpty(),
             )
 
@@ -282,13 +333,13 @@ fun ProfileScreen(
                         )
                     }
                 }
-                errorMessage != null -> {
-                    ErrorState(errorMessage = errorMessage!!)
-                }
                 pushes.isNotEmpty() -> {
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = 16.dp),
                     ) {
+                        errorMessage?.let { message ->
+                            item { ErrorState(errorMessage = message) }
+                        }
                         items(pushes, key = { push ->
                             push.pushComment + push.author + (push.jobs.firstOrNull()?.taskId ?: "")
                         }) { push ->
@@ -314,6 +365,9 @@ fun ProfileScreen(
                         }
                     }
                 }
+                errorMessage != null -> {
+                    ErrorState(errorMessage = errorMessage!!)
+                }
                 !isLoading && errorMessage == null && pushes.isEmpty() -> {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -338,7 +392,7 @@ private fun JobCard(
     profileViewModel: ProfileViewModel,
 ) {
     val appNameForIconAndLogic = job.appName
-    val displayAppName = formatAppNameForDisplay(appNameForIconAndLogic)
+    val displayJobName = job.jobName.ifBlank { formatAppNameForDisplay(appNameForIconAndLogic) }
     val apk = remember(job.artifacts) {
         job.artifacts.firstOrNull { it.abi.isSupported }
     }
@@ -361,7 +415,7 @@ private fun JobCard(
                 AppIcon(appName = appNameForIconAndLogic, modifier = Modifier.size(40.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = displayAppName,
+                    text = displayJobName,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                 )

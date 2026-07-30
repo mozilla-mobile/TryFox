@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
@@ -63,8 +62,7 @@ import java.io.File
  * Composable function for the Home screen, which displays a list of available apps and allows users to interact with them.
  *
  * @param modifier The modifier to be applied to the component.
- * @param onNavigateToTreeherder Callback to navigate to the Treeherder search screen.
- * @param onNavigateToProfile Callback to navigate to the Profile screen.
+ * @param onNavigateToSearch Callback to navigate to the unified build search screen.
  * @param onNavigateToHistory Callback to navigate to the History screen.
  * @param homeViewModel The ViewModel for the Home screen.
  */
@@ -72,8 +70,7 @@ import java.io.File
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    onNavigateToTreeherder: () -> Unit,
-    onNavigateToProfile: () -> Unit,
+    onNavigateToSearch: () -> Unit,
     onNavigateToQrScanner: () -> Unit,
     onNavigateToReceiveFromDesktop: () -> Unit,
     onNavigateToHistory: () -> Unit,
@@ -123,13 +120,7 @@ fun HomeScreen(
                             contentDescription = null,
                         )
                     }
-                    IconButton(onClick = onNavigateToProfile) {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = stringResource(id = R.string.home_profile_button_description),
-                        )
-                    }
-                    IconButton(onClick = onNavigateToTreeherder) {
+                    IconButton(onClick = onNavigateToSearch) {
                         Icon(
                             imageVector = Icons.Filled.Search,
                             contentDescription = stringResource(

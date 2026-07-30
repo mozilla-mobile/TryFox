@@ -2,8 +2,8 @@ package org.mozilla.tryfox.download
 
 import android.content.Context
 import androidx.work.ExistingWorkPolicy
-import androidx.work.OutOfQuotaPolicy
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow

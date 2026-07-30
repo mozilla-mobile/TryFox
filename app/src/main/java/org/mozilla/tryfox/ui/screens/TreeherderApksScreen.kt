@@ -66,6 +66,7 @@ import org.mozilla.tryfox.TryFoxViewModel
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.AppCard
 import org.mozilla.tryfox.ui.composables.BinButton
+import org.mozilla.tryfox.ui.composables.ErrorState
 import org.mozilla.tryfox.ui.composables.PushCommentCard
 
 // Project name mappings
@@ -82,15 +83,22 @@ internal const val TREEHERDER_RESULTS_HEADER_TAG = "treeherder_results_header"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TryFoxMainScreen(
+fun SearchScreen(
     tryFoxViewModel: TryFoxViewModel,
     deepLinkProject: String?,
     deepLinkRevision: String?,
     onNavigateUp: () -> Unit,
+    onSearchEmail: (project: String, email: String) -> Unit = { _, _ -> },
 ) {
     val cacheState by tryFoxViewModel.cacheState.collectAsState()
     val isDownloading by tryFoxViewModel.isDownloadingAnyFile.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
+    var queryValidationError by remember(deepLinkRevision) {
+        mutableStateOf(
+            deepLinkRevision?.takeIf { SearchQueryClassifier.classify(it).isFailure }
+                ?.let { "Enter a valid email address or a revision without @." },
+        )
+    }
 
     LaunchedEffect(Unit) {
         tryFoxViewModel.checkCacheStatus()
@@ -109,12 +117,13 @@ fun TryFoxMainScreen(
     }
 
     LaunchedEffect(deepLinkProject, deepLinkRevision) {
-        if (!deepLinkRevision.isNullOrBlank()) {
+        val revisionQuery = SearchQueryClassifier.classify(deepLinkRevision.orEmpty()).getOrNull() as? SearchQuery.Revision
+        if (revisionQuery != null) {
             val resolvedProject = deepLinkProject ?: "try"
             val projectChanged = tryFoxViewModel.selectedProject != resolvedProject
-            val revisionChanged = tryFoxViewModel.revision != deepLinkRevision
+            val revisionChanged = tryFoxViewModel.revision != revisionQuery.value
             if (projectChanged || revisionChanged) {
-                tryFoxViewModel.setRevisionFromDeepLinkAndSearch(resolvedProject, deepLinkRevision)
+                tryFoxViewModel.setRevisionFromDeepLinkAndSearch(resolvedProject, revisionQuery.value)
             }
         }
     }
@@ -170,8 +179,23 @@ fun TryFoxMainScreen(
                     selectedProject = tryFoxViewModel.selectedProject,
                     onProjectSelected = { actualProjectValue -> tryFoxViewModel.updateSelectedProject(actualProjectValue) },
                     revision = tryFoxViewModel.revision,
-                    onRevisionChange = { tryFoxViewModel.updateRevision(it) },
-                    onSearchClick = { tryFoxViewModel.searchJobsAndArtifacts() },
+                    onRevisionChange = {
+                        queryValidationError = null
+                        tryFoxViewModel.updateRevision(it)
+                    },
+                    onSearchClick = {
+                        when (val query = SearchQueryClassifier.classify(tryFoxViewModel.revision).getOrNull()) {
+                            is SearchQuery.Email -> {
+                                queryValidationError = null
+                                onSearchEmail(tryFoxViewModel.selectedProject, query.value)
+                            }
+                            is SearchQuery.Revision -> {
+                                queryValidationError = null
+                                tryFoxViewModel.searchJobsAndArtifacts()
+                            }
+                            null -> queryValidationError = "Enter a valid email address or a revision without @."
+                        }
+                    },
                     isLoading = tryFoxViewModel.isLoading,
                 )
             }
@@ -182,6 +206,8 @@ fun TryFoxMainScreen(
                     item { ErrorState(errorMessage = it) }
                 }
             }
+
+            queryValidationError?.let { item { ErrorState(errorMessage = it) } }
 
             tryFoxViewModel.relevantPushComment?.let { comment ->
                 val pushTimestamp = tryFoxViewModel.relevantPushTimestamp
@@ -233,6 +259,16 @@ fun TryFoxMainScreen(
         }
     }
 }
+
+/** Backwards-compatible name retained for callers and existing UI tests. */
+@Composable
+fun TryFoxMainScreen(
+    tryFoxViewModel: TryFoxViewModel,
+    deepLinkProject: String?,
+    deepLinkRevision: String?,
+    onNavigateUp: () -> Unit,
+    onSearchEmail: (project: String, email: String) -> Unit = { _, _ -> },
+) = SearchScreen(tryFoxViewModel, deepLinkProject, deepLinkRevision, onNavigateUp, onSearchEmail)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

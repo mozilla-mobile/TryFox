@@ -6,12 +6,12 @@ object AppDeepLinkRouteMapper {
             is AppDeepLinkDestination.TreeherderSearch -> {
                 AppRoutes.createTreeherderSearchRoute(
                     project = destination.project,
-                    revision = destination.revision,
+                    query = destination.revision,
                 )
             }
 
             is AppDeepLinkDestination.Profile -> {
-                AppRoutes.createProfileByEmailRoute(destination.email)
+                AppRoutes.createTreeherderSearchRoute(project = destination.project, query = destination.email)
             }
 
             null -> null

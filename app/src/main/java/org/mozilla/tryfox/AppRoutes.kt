@@ -9,12 +9,11 @@ object AppRoutes {
     const val RECEIVE_MESSAGE_HISTORY = "receive_message_history"
     const val QR_SCANNER = "qr_scanner"
     const val TREEHERDER_SEARCH = "treeherder_search"
-    const val TREEHERDER_SEARCH_WITH_ARGS = "treeherder_search/{project}/{revision}"
-    const val PROFILE = "profile"
+    const val TREEHERDER_SEARCH_WITH_ARGS = "treeherder_search/{project}/{query}"
     const val PROFILE_BY_EMAIL = "profile_by_email?email={email}"
 
-    fun createTreeherderSearchRoute(project: String, revision: String): String {
-        return "treeherder_search/${encode(project)}/${encode(revision)}"
+    fun createTreeherderSearchRoute(project: String, query: String): String {
+        return "treeherder_search/${encode(project)}/${encode(query)}"
     }
 
     fun createProfileByEmailRoute(email: String): String {
