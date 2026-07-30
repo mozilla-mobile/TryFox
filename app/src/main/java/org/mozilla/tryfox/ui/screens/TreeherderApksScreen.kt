@@ -5,14 +5,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -134,7 +132,7 @@ fun SearchScreen(
         modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(id = R.string.app_name)) },
+                title = { Text(stringResource(id = R.string.profile_screen_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateUp) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(id = R.string.common_back_button_description))
@@ -290,11 +288,35 @@ fun SearchSection(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = stringResource(id = R.string.treeherder_apks_search_artifacts_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = !expanded },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TextField(
+                    value = projectActualToDisplayMap[selectedProject] ?: selectedProject,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(id = R.string.treeherder_apks_project_label)) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(),
+                )
+                ExposedDropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false },
+                ) {
+                    projectDisplayOptions.forEach { displayKey ->
+                        DropdownMenuItem(
+                            text = { Text(displayKey) },
+                            onClick = {
+                                onProjectSelected(projectDisplayToActualMap[displayKey] ?: displayKey)
+                                expanded = false
+                            },
+                        )
+                    }
+                }
+            }
 
             Row(
                 modifier = Modifier
@@ -302,44 +324,12 @@ fun SearchSection(
                     .height(IntrinsicSize.Min),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ExposedDropdownMenuBox(
-                    expanded = expanded,
-                    onExpandedChange = { expanded = !expanded },
-                    modifier = Modifier.weight(0.5f).fillMaxHeight(),
-                ) {
-                    TextField(
-                        value = projectActualToDisplayMap[selectedProject] ?: selectedProject,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(stringResource(id = R.string.treeherder_apks_project_label)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                        colors = OutlinedTextFieldDefaults.colors(),
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false },
-                    ) {
-                        projectDisplayOptions.forEach { displayKey ->
-                            DropdownMenuItem(
-                                text = { Text(displayKey) },
-                                onClick = {
-                                    onProjectSelected(projectDisplayToActualMap[displayKey] ?: displayKey)
-                                    expanded = false
-                                },
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.width(8.dp))
-
                 OutlinedTextField(
                     value = revision,
                     onValueChange = onRevisionChange,
                     label = { Text(stringResource(id = R.string.treeherder_apks_revision_label)) },
                     placeholder = { Text(stringResource(id = R.string.treeherder_apks_revision_placeholder)) },
-                    modifier = Modifier.weight(0.5f).fillMaxHeight(),
+                    modifier = Modifier.weight(1f).fillMaxHeight(),
                     singleLine = true,
                     shape = RoundedCornerShape(topStart = 8.dp, bottomStart = 8.dp, topEnd = 0.dp, bottomEnd = 0.dp), // Matched ProfileScreen
                     colors = OutlinedTextFieldDefaults.colors(),

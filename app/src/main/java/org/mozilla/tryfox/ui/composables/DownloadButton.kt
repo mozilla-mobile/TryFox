@@ -23,12 +23,13 @@ fun DownloadButton(
     downloadState: DownloadState,
     onDownloadClick: () -> Unit,
     onInstallClick: (File) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     when (downloadState) {
         is DownloadState.Downloaded -> {
             Button(
                 onClick = { onInstallClick(downloadState.file) },
-                modifier = Modifier.testTag("action_button_install_ready"), // Tag for Install state
+                modifier = modifier.testTag("action_button_install_ready"), // Tag for Install state
             ) {
                 Text(stringResource(id = R.string.download_button_install))
             }
@@ -47,7 +48,7 @@ fun DownloadButton(
             Button(
                 onClick = {},
                 enabled = false,
-                modifier = Modifier.testTag("action_button_downloading"), // Tag for Downloading state
+                modifier = modifier.testTag("action_button_downloading"), // Tag for Downloading state
             ) {
                 if (downloadState.isIndeterminate) {
                     CircularProgressIndicator(
@@ -72,7 +73,7 @@ fun DownloadButton(
         is DownloadState.NotDownloaded, is DownloadState.DownloadFailed -> {
             Button(
                 onClick = onDownloadClick,
-                modifier = Modifier.testTag("action_button_download_initial"), // Tag for Download state
+                modifier = modifier.testTag("action_button_download_initial"), // Tag for Download state
             ) {
                 Text(stringResource(id = R.string.download_button_download))
             }

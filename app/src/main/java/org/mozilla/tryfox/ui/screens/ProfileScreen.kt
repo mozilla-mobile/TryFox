@@ -60,6 +60,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.unit.dp
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.DownloadState
@@ -141,11 +142,6 @@ private fun UserSearchCard(
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(
-                text = stringResource(id = R.string.profile_screen_search_card_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
             ExposedDropdownMenuBox(
                 expanded = projectMenuExpanded,
                 onExpandedChange = { projectMenuExpanded = !projectMenuExpanded },
@@ -416,15 +412,18 @@ private fun JobCard(
                 Spacer(Modifier.width(8.dp))
                 Text(
                     text = displayJobName,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(hyphens = Hyphens.Auto),
                     fontWeight = FontWeight.Bold,
+                    softWrap = true,
+                    modifier = Modifier.weight(1f),
                 )
-                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.width(8.dp))
                 apk?.let {
                     DownloadButton(
                         downloadState = it.downloadState,
                         onDownloadClick = { profileViewModel.downloadArtifact(it) },
                         onInstallClick = { file -> profileViewModel.installApk(file) },
+                        modifier = Modifier.width(128.dp),
                     )
                 }
             }
