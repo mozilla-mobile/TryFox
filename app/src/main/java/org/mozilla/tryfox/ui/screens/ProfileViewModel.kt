@@ -16,6 +16,7 @@ import logcat.LogPriority
 import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.RevisionDetail
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
@@ -34,6 +35,31 @@ import org.mozilla.tryfox.ui.models.PushUiModel
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+
+private fun bugComment(revisions: List<RevisionDetail>): String? {
+    return revisions.firstOrNull { revision ->
+        revision.comments.trimStart().startsWith("Bug ", ignoreCase = true) ||
+            revision.comments.trimStart().startsWith("[Bug ", ignoreCase = true)
+    }?.comments
+}
+
+internal fun selectPreferredPushComment(
+    revisions: List<RevisionDetail>,
+    precedingPushRevisions: List<List<RevisionDetail>> = emptyList(),
+): String {
+    val ownComment = bugComment(revisions) ?: revisions.firstOrNull()?.comments.orEmpty().ifBlank { "No comment" }
+    val isPerfAgainRetry = ownComment.contains("Pushed via `mach try perf-again`", ignoreCase = true)
+    return if (isPerfAgainRetry) {
+        precedingPushRevisions.firstNotNullOfOrNull(::bugComment) ?: ownComment
+    } else {
+        ownComment
+    }
+}
+
+internal fun isPerfAgainRetry(revisions: List<RevisionDetail>): Boolean {
+    val firstComment = revisions.firstOrNull()?.comments.orEmpty()
+    return firstComment.contains("Pushed via `mach try perf-again`", ignoreCase = true)
+}
 
 /**
  * ViewModel for the Profile screen, responsible for fetching pushes and artifacts by author, managing downloads, and handling user interactions.
@@ -184,7 +210,7 @@ class ProfileViewModel(
                         TAG,
                     ) { "getPushesByAuthor success, processing ${result.data.results.size} pushes" }
                     val failedPushCount = AtomicInteger(0)
-                    val pushesWithJobsAndArtifacts = result.data.results.map { pushResult ->
+                    val pushesWithJobsAndArtifacts = result.data.results.mapIndexed { pushIndex, pushResult ->
                         async {
                             val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
                             if (jobsResult is NetworkResult.Success) {
@@ -216,19 +242,14 @@ class ProfileViewModel(
                                     }.awaitAll().filterNotNull()
 
                                     if (jobsWithArtifacts.isNotEmpty()) {
-                                        var determinedPushComment: String? = null
-                                        for (revDetail in pushResult.revisions) {
-                                            if (revDetail.comments.startsWith("Bug ")) {
-                                                determinedPushComment = revDetail.comments
-                                                break
-                                            }
-                                        }
-                                        if (determinedPushComment == null) {
-                                            determinedPushComment = pushResult.revisions.firstOrNull()?.comments
-                                                ?: "No comment"
-                                        }
                                         PushUiModel(
-                                            pushComment = determinedPushComment,
+                                            pushComment = selectPreferredPushComment(
+                                                revisions = pushResult.revisions,
+                                                precedingPushRevisions = result.data.results
+                                                    .take(pushIndex)
+                                                    .asReversed()
+                                                    .map { it.revisions },
+                                            ),
                                             author = pushResult.author,
                                             jobs = jobsWithArtifacts,
                                             revision = pushResult.revision,

@@ -46,6 +46,10 @@
     <string name="profile_screen_title">Search builds</string>
     <string name="profile_screen_loading_pushes">Loading pushes…</string>
     <string name="profile_screen_no_pushes_found">No pushes found for this author.</string>
+    <plurals name="profile_screen_pushes_found">
+        <item quantity="one">%1$d push found</item>
+        <item quantity="other">%1$d pushes found</item>
+    </plurals>
     <string name="job_card_job_name_label">Job: </string>
     <string name="job_card_task_id_label">Task ID: </string>
     <string name="job_card_compatible_apks_title">Compatible APKs</string>

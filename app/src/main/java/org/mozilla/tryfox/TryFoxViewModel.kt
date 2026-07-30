@@ -35,6 +35,8 @@ import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
+import org.mozilla.tryfox.ui.screens.isPerfAgainRetry
+import org.mozilla.tryfox.ui.screens.selectPreferredPushComment
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
 
@@ -211,27 +213,30 @@ class TryFoxViewModel(
             when (val revisionResult = fenixRepository.getPushByRevision(selectedProject, revision)) {
                 is NetworkResult.Success -> {
                     val pushData = revisionResult.data
-                    var foundComment: String? = null
                     val firstPushResult = pushData.results.firstOrNull()
 
                     if (firstPushResult != null) {
-                        for (revDetail in firstPushResult.revisions) {
-                            if (revDetail.comments.startsWith("Bug ")) {
-                                foundComment = revDetail.comments
-                                break
+                        val precedingPushRevisions = if (isPerfAgainRetry(firstPushResult.revisions)) {
+                            when (val authorPushes = fenixRepository.getPushesByAuthor(selectedProject, firstPushResult.author)) {
+                                is NetworkResult.Success -> {
+                                    val pushIndex = authorPushes.data.results.indexOfFirst { it.id == firstPushResult.id }
+                                    authorPushes.data.results
+                                        .take(pushIndex.coerceAtLeast(0))
+                                        .asReversed()
+                                        .map { it.revisions }
+                                }
+                                is NetworkResult.Error -> emptyList()
                             }
+                        } else {
+                            emptyList()
                         }
-                        if (foundComment == null) {
-                            foundComment = firstPushResult.revisions.firstOrNull()?.comments ?: "No comment"
-                        }
+                        relevantPushComment = selectPreferredPushComment(firstPushResult.revisions, precedingPushRevisions)
                         relevantPushAuthor = firstPushResult.author
                         relevantPushTimestamp = firstPushResult.pushTimestamp
                     } else {
                         relevantPushAuthor = null
                         relevantPushTimestamp = null
                     }
-                    relevantPushComment = foundComment
-
                     if (pushData.results.isEmpty()) {
                         errorMessage = "No push found for project: $selectedProject, revision: $revision"
                         isLoading = false
