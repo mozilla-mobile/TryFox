@@ -25,6 +25,8 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.SearchHistoryEntry
+import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
@@ -124,6 +126,9 @@ class TryFoxViewModel(
     var selectedJobs by mutableStateOf<List<JobDetailsUiModel>>(emptyList())
         private set
 
+    var successfulSearch by mutableStateOf<SearchHistoryEntry?>(null)
+        private set
+
     val isLoadingJobArtifacts = mutableStateMapOf<String, Boolean>()
 
     var onInstallApk: ((File) -> Unit)? = null
@@ -193,6 +198,7 @@ class TryFoxViewModel(
     }
 
     fun searchJobsAndArtifacts() {
+        successfulSearch = null
         if (revision.isBlank()) {
             errorMessage = "Please enter a revision to search."
             return
@@ -397,6 +403,14 @@ class TryFoxViewModel(
         }
 
         selectedJobs = selectedJobs.filter { it.artifacts.isNotEmpty() }
+        if (selectedJobs.isNotEmpty()) {
+            successfulSearch = SearchHistoryEntry(
+                project = selectedProject,
+                query = revision,
+                queryType = SearchHistoryQueryType.REVISION,
+                searchedAt = currentTimeMillisProvider(),
+            )
+        }
         infoLogger(
             TAG,
             "searchJobsAndArtifacts: finished in ${elapsedRealtimeProvider() - loadStartMs} ms with ${selectedJobs.size} job(s) shown",

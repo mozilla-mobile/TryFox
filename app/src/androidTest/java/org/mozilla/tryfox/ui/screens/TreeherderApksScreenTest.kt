@@ -1,5 +1,8 @@
 package org.mozilla.tryfox.ui.screens
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -7,8 +10,11 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.delay
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +30,8 @@ import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.RevisionDetail
 import org.mozilla.tryfox.data.RevisionMeta
 import org.mozilla.tryfox.data.RevisionResult
+import org.mozilla.tryfox.data.SearchHistoryEntry
+import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.data.TreeherderJobsResponse
 import org.mozilla.tryfox.data.TreeherderRevisionResponse
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
@@ -82,6 +90,81 @@ class TreeherderApksScreenTest {
             .assertIsDisplayed()
         composeTestRule.onNodeWithText(targetJobName, substring = false, useUnmergedTree = true)
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun searchHistory_filtersSuggestions_andSelectsAnEntry() {
+        val emailEntry = SearchHistoryEntry(
+            project = "mozilla-central",
+            query = "person@mozilla.org",
+            queryType = SearchHistoryQueryType.EMAIL,
+            searchedAt = 2L,
+        )
+        var query by mutableStateOf("")
+        var selectedEntry: SearchHistoryEntry? = null
+
+        composeTestRule.setContent {
+            TryFoxTheme {
+                SearchSection(
+                    selectedProject = "try",
+                    onProjectSelected = {},
+                    revision = query,
+                    onRevisionChange = { query = it },
+                    onSearchClick = {},
+                    isLoading = false,
+                    searchHistory = listOf(
+                        emailEntry,
+                        SearchHistoryEntry("try", "abc123", SearchHistoryQueryType.REVISION, 1L),
+                    ),
+                    onHistoryItemSelected = { selectedEntry = it },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag(TREEHERDER_SEARCH_HISTORY_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Recent searches").assertIsDisplayed()
+        composeTestRule.onNodeWithText("central").assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("person@mozilla.org").performClick()
+        composeTestRule.runOnIdle {
+            assertEquals(emailEntry, selectedEntry)
+        }
+
+        composeTestRule.onNodeWithTag("profile_email_input").performTextInput("no-match")
+        composeTestRule.onAllNodesWithTag(TREEHERDER_SEARCH_HISTORY_TAG).assertCountEquals(0)
+    }
+
+    @Test
+    fun selectingHistoryEntry_hidesHistoryBeforeShowingSearchResults() {
+        val viewModel = TryFoxViewModel(
+            fenixRepository = DelayedTreeherderRepository(targetJobName = "signing-apk-focus-nightly"),
+            downloadFileRepository = FakeDownloadFileRepository(),
+            cacheManager = FakeCacheManager(),
+            intentManager = FakeIntentManager(),
+            historyRepository = FakeHistoryRepository(),
+            project = null,
+            revision = null,
+            supportedAbis = listOf("arm64-v8a"),
+            infoLogger = { _, _ -> 0 },
+        )
+
+        composeTestRule.setContent {
+            TryFoxTheme {
+                TryFoxMainScreen(
+                    tryFoxViewModel = viewModel,
+                    deepLinkProject = null,
+                    deepLinkRevision = null,
+                    onNavigateUp = {},
+                    searchHistory = listOf(
+                        SearchHistoryEntry("try", "abc123", SearchHistoryQueryType.REVISION, 1L),
+                    ),
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag(TREEHERDER_SEARCH_HISTORY_TAG).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("treeherder_search_history_0").performClick()
+        composeTestRule.onAllNodesWithTag(TREEHERDER_SEARCH_HISTORY_TAG).assertCountEquals(0)
     }
 
     private class DelayedTreeherderRepository(
