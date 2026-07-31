@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -26,6 +27,7 @@ import org.mozilla.tryfox.ui.screens.ProfileScreen
 import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
 import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopScreen
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryScreen
+import org.mozilla.tryfox.ui.screens.SearchHistoryViewModel
 import org.mozilla.tryfox.ui.screens.SearchQuery
 import org.mozilla.tryfox.ui.screens.SearchQueryClassifier
 import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
@@ -118,6 +120,7 @@ class MainActivity : ComponentActivity() {
     @Suppress("LongMethod")
     @Composable
     fun AppNavigation() {
+        val appSearchHistoryViewModel: SearchHistoryViewModel = koinViewModel()
         val localNavController = rememberNavController()
         this@MainActivity.navController = localNavController
 
@@ -150,9 +153,7 @@ class MainActivity : ComponentActivity() {
             composable(NavScreen.QrScanner.route) {
                 QrCodeScannerScreen(
                     onNavigateUp = { localNavController.popBackStack() },
-                    onQrCodeScanned = { rawValue ->
-                        routeDeepLink(rawValue, popQrScanner = true)
-                    },
+                    onQrCodeScanned = { rawValue -> routeDeepLink(rawValue, popQrScanner = true) },
                 )
             }
             composable(NavScreen.ReceiveFromDesktop.route) {
@@ -181,6 +182,7 @@ class MainActivity : ComponentActivity() {
                 )
             }
             composable(NavScreen.TreeherderSearch.route) {
+                val searchHistory by appSearchHistoryViewModel.searchHistory.collectAsState()
                 // mainActivityViewModel is already injected and passed as a parameter
                 TryFoxMainScreen(
                     tryFoxViewModel = koinViewModel(),
@@ -194,6 +196,8 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     },
+                    searchHistory = searchHistory,
+                    onSearchSucceeded = appSearchHistoryViewModel::recordSuccessfulSearch,
                 )
             }
             composable(
@@ -220,6 +224,7 @@ class MainActivity : ComponentActivity() {
                         deepLinkProject = project,
                         deepLinkRevision = query,
                         onNavigateUp = { localNavController.popBackStack() },
+                        onSearchSucceeded = appSearchHistoryViewModel::recordSuccessfulSearch,
                     )
                     null -> TryFoxMainScreen(
                         tryFoxViewModel = koinViewModel { parametersOf(project, query) },
@@ -263,8 +268,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun routeDeepLink(rawValue: String?, popQrScanner: Boolean): Boolean {
-        val route = AppDeepLinkRouteMapper.routeFor(rawValue) ?: return false
+        when (val destination = AppDeepLinkParser.parse(rawValue)) {
+            is AppDeepLinkDestination.TreeherderSearch -> {
+                navigateToDeepLinkRoute(
+                    AppRoutes.createTreeherderSearchRoute(destination.project, destination.revision),
+                    popQrScanner,
+                )
+                return true
+            }
 
+            is AppDeepLinkDestination.Profile -> {
+                navigateToDeepLinkRoute(
+                    AppRoutes.createTreeherderSearchRoute(destination.project, destination.email),
+                    popQrScanner,
+                )
+                return true
+            }
+
+            null -> return false
+        }
+    }
+
+    private fun navigateToDeepLinkRoute(route: String, popQrScanner: Boolean) {
         navController.navigate(route) {
             launchSingleTop = true
             if (popQrScanner) {
@@ -273,6 +298,5 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        return true
     }
 }

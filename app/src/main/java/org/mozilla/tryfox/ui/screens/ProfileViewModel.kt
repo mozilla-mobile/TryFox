@@ -197,7 +197,6 @@ class ProfileViewModel(
             return
         }
         viewModelScope.launch {
-            userDataRepository.saveLastSearchedEmail(emailToSearch)
             _isLoading.value = true
             _errorMessage.value = null
             _pushes.value = emptyList()
@@ -280,6 +279,9 @@ class ProfileViewModel(
 
                     _pushes.value = pushesWithJobsAndArtifacts
                     syncLoadedStateDownloadStates()
+                    if (pushesWithJobsAndArtifacts.isNotEmpty()) {
+                        userDataRepository.recordSearch(_selectedProject.value, emailToSearch)
+                    }
                     logcat(TAG) { "Search finished, ${_pushes.value.size} pushes with artifacts found." }
                     if (failedPushCount.get() > 0) {
                         _errorMessage.value = "Some pushes could not be loaded."

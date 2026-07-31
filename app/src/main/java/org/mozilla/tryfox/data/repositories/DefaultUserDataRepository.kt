@@ -8,6 +8,12 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.mozilla.tryfox.data.SearchHistory
+import org.mozilla.tryfox.data.SearchHistoryEntry
+import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.lan.LanReceiveIdentity
 
 /**
@@ -19,15 +25,24 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
 
     private object PreferenceKeys {
         val USER_EMAIL = stringPreferencesKey("user_email_preference_key")
+        val SEARCH_HISTORY = stringPreferencesKey("search_history_preference_key")
         val LAN_DEVICE_ID = stringPreferencesKey("lan_device_id")
         val LAN_DEVICE_NAME = stringPreferencesKey("lan_device_name")
         val LAN_SHARED_SECRET = stringPreferencesKey("lan_shared_secret")
     }
 
-    override val lastSearchedEmailFlow: Flow<String> = appContext.dataStore.data
-        .map { preferences ->
-            preferences[PreferenceKeys.USER_EMAIL] ?: ""
+    override val searchHistoryFlow: Flow<List<SearchHistoryEntry>> = appContext.dataStore.data.map { preferences ->
+        val storedHistory = preferences[PreferenceKeys.SEARCH_HISTORY]
+            ?.let(::decodeSearchHistory)
+            .orEmpty()
+        if (storedHistory.isNotEmpty()) {
+            storedHistory
+        } else {
+            listOfNotNull(SearchHistory.legacyEmailEntry(preferences[PreferenceKeys.USER_EMAIL].orEmpty()))
         }
+    }
+
+    override val lastSearchedEmailFlow: Flow<String> = searchHistoryFlow.map(SearchHistory::latestEmail)
 
     override val lanReceiveIdentityFlow: Flow<LanReceiveIdentity?> = appContext.dataStore.data
         .map { preferences ->
@@ -46,8 +61,24 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
         }
 
     override suspend fun saveLastSearchedEmail(email: String) {
+        recordSearch(project = "try", query = email)
+    }
+
+    override suspend fun recordSearch(project: String, query: String, searchedAt: Long) {
+        val normalizedQuery = query.trim()
+        val queryType = if ('@' in normalizedQuery) SearchHistoryQueryType.EMAIL else SearchHistoryQueryType.REVISION
+        val entry = SearchHistoryEntry(project.trim(), normalizedQuery, queryType, searchedAt)
         appContext.dataStore.edit { preferences ->
-            preferences[PreferenceKeys.USER_EMAIL] = email
+            val existingEntries = preferences[PreferenceKeys.SEARCH_HISTORY]
+                ?.let(::decodeSearchHistory)
+                .orEmpty()
+                .ifEmpty {
+                    listOfNotNull(SearchHistory.legacyEmailEntry(preferences[PreferenceKeys.USER_EMAIL].orEmpty()))
+                }
+            preferences[PreferenceKeys.SEARCH_HISTORY] = json.encodeToString(SearchHistory.record(existingEntries, entry))
+            if (queryType == SearchHistoryQueryType.EMAIL) {
+                preferences[PreferenceKeys.USER_EMAIL] = normalizedQuery
+            }
         }
     }
 
@@ -57,5 +88,12 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
             preferences[PreferenceKeys.LAN_DEVICE_NAME] = identity.deviceName
             preferences[PreferenceKeys.LAN_SHARED_SECRET] = identity.sharedSecret
         }
+    }
+
+    private fun decodeSearchHistory(serializedHistory: String): List<SearchHistoryEntry> =
+        runCatching { json.decodeFromString<List<SearchHistoryEntry>>(serializedHistory) }.getOrDefault(emptyList())
+
+    private companion object {
+        val json = Json { ignoreUnknownKeys = true }
     }
 }

@@ -2,6 +2,7 @@
     <string name="app_name">TryFox</string>
     <string name="home_search_treeherder_button_description">Search builds</string>
     <string name="home_history_button_description">History</string>
+    <string name="search_history_title">Recent searches</string>
     <string name="home_scan_qr_code_button_description">Scan QR code</string>
     <string name="home_receive_from_desktop_button_description">Receive from desktop</string>
     <string name="home_fetching_nightly_builds">Fetching latest nightly builds...</string>
