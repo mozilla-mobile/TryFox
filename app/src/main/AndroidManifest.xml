@@ -15,8 +15,10 @@
 
     <queries>
         <package android:name="org.mozilla.fenix" />
+        <package android:name="org.mozilla.fenix.debug" />
         <package android:name="org.mozilla.focus.nightly" />
         <package android:name="org.mozilla.focus" />
+        <package android:name="org.mozilla.focus.beta" />
         <package android:name="org.mozilla.firefox" />
         <package android:name="org.mozilla.firefox_beta" />
         <package android:name="org.mozilla.reference.browser" />
@@ -74,12 +76,8 @@
         </provider>
 
         <receiver
-            android:name=".InstallResultReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="org.mozilla.tryfox.INSTALL_COMPLETE" />
-            </intent-filter>
-        </receiver>
+            android:name=".install.InstallResultReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".lan.TryFoxLanReceiveNotificationReceiver"

@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.unit.dp
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.composables.AppIcon
 import org.mozilla.tryfox.ui.composables.DownloadButton
 import org.mozilla.tryfox.ui.composables.rememberLinkedPushComment
@@ -36,11 +37,19 @@ import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_NIGHTLY
 import org.mozilla.tryfox.util.FOCUS_RELEASE
-import java.io.File
 import java.util.Locale
 
+@Suppress("LongParameterList")
 @Composable
-internal fun PushResultCard(push: PushUiModel, onDownloadClick: (ArtifactUiModel) -> Unit, onInstallClick: (File) -> Unit, testTag: String) {
+internal fun PushResultCard(
+    push: PushUiModel,
+    onDownloadClick: (ArtifactUiModel) -> Unit,
+    onInstallClick: (ArtifactUiModel) -> Unit,
+    onOpenClick: (String) -> Unit,
+    installStates: Map<String, InstallState>,
+    activeInstallKey: String?,
+    testTag: String,
+) {
     val commitTitle = remember(push.pushComment) { push.pushComment.lineSequence().firstOrNull().orEmpty().trim().ifBlank { "Revision ${push.revision?.take(12).orEmpty()}" } }
     Card(modifier = Modifier.fillMaxWidth().testTag(testTag), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -51,21 +60,50 @@ internal fun PushResultCard(push: PushUiModel, onDownloadClick: (ArtifactUiModel
             HorizontalDivider(modifier = Modifier.padding(top = 14.dp))
             push.jobs.forEachIndexed { index, job ->
                 if (index > 0) HorizontalDivider()
-                CompactApkRow(job, onDownloadClick, onInstallClick)
+                CompactApkRow(job, onDownloadClick, onInstallClick, onOpenClick, installStates, activeInstallKey)
             }
         }
     }
 }
 
 @Composable
-private fun CompactApkRow(job: JobDetailsUiModel, onDownloadClick: (ArtifactUiModel) -> Unit, onInstallClick: (File) -> Unit) {
+private fun CompactApkRow(
+    job: JobDetailsUiModel,
+    onDownloadClick: (ArtifactUiModel) -> Unit,
+    onInstallClick: (ArtifactUiModel) -> Unit,
+    onOpenClick: (String) -> Unit,
+    installStates: Map<String, InstallState>,
+    activeInstallKey: String?,
+) {
     val apk = remember(job.artifacts) { job.artifacts.firstOrNull { it.abi.isSupported } }
     val appIconName = remember(job.jobName, job.appName) { appIconNameForJob(job.jobName, job.appName) }
-    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        AppIcon(appName = appIconName, modifier = Modifier.size(34.dp), useSearchResultVariant = true)
-        Text(job.jobName.ifBlank { formatAppNameForDisplay(job.appName) }.let(::formatJobNameForDisplay), style = MaterialTheme.typography.bodyMedium.copy(hyphens = Hyphens.Auto), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(8.dp))
-        apk?.let { DownloadButton(downloadState = it.downloadState, onDownloadClick = { onDownloadClick(it) }, onInstallClick = onInstallClick, modifier = Modifier.width(112.dp), inProgressText = stringResource(id = R.string.download_button_download)) }
+    val installState = apk?.let { installStates[it.uniqueKey] ?: InstallState.Idle }
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            AppIcon(appName = appIconName, modifier = Modifier.size(34.dp), useSearchResultVariant = true)
+            Text(job.jobName.ifBlank { formatAppNameForDisplay(job.appName) }.let(::formatJobNameForDisplay), style = MaterialTheme.typography.bodyMedium.copy(hyphens = Hyphens.Auto), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
+            apk?.let { artifact ->
+                DownloadButton(
+                    downloadState = artifact.downloadState,
+                    onDownloadClick = { onDownloadClick(artifact) },
+                    onInstallClick = { onInstallClick(artifact) },
+                    modifier = Modifier.width(112.dp),
+                    inProgressText = stringResource(id = R.string.download_button_download),
+                    installState = installState ?: InstallState.Idle,
+                    installDisabled = activeInstallKey != null && activeInstallKey != artifact.uniqueKey,
+                    onOpenClick = onOpenClick,
+                )
+            }
+        }
+        (installState as? InstallState.Failed)?.let { failure ->
+            Text(
+                text = failure.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(start = 42.dp, top = 6.dp),
+            )
+        }
     }
 }
 
