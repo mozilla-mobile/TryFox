@@ -82,7 +82,7 @@ class MainActivityDeeplinkTest {
     }
 
     @Test
-    fun testDeeplink_withAuthorEmail_populatesProfileScreen() {
+    fun testDeeplink_withAuthorEmail_populatesSearchScreen() {
         val email = "tthibaud@mozilla.com"
         val encodedEmail = "tthibaud%40mozilla.com"
         val deeplinkUri =
@@ -118,7 +118,7 @@ class MainActivityDeeplinkTest {
     }
 
     @Test
-    fun testTryfoxScheme_withAuthorEmail_populatesProfileScreen() {
+    fun testTryfoxScheme_withAuthorEmail_populatesSearchScreen() {
         val email = "tthibaud@mozilla.com"
         val encodedEmail = "tthibaud%40mozilla.com"
         val deeplinkUri =
