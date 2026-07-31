@@ -104,7 +104,11 @@ fun SearchScreen(
     val activeInstallKey = installStates.entries.firstOrNull { (_, state) ->
         state is InstallState.Installing || state is InstallState.Uninstalling || state is InstallState.Conflict
     }?.key
-    val isDownloading = pushes.any { push -> push.jobs.any { job -> job.artifacts.any { it.downloadState is org.mozilla.tryfox.data.DownloadState.InProgress } } }
+    val isDownloading = pushes.any { push ->
+        (push.jobs + push.unsignedJobs).any { job ->
+            job.artifacts.any { it.downloadState is org.mozilla.tryfox.data.DownloadState.InProgress }
+        }
+    }
     var queryValidationError by remember(deepLinkQuery) {
         mutableStateOf(
             deepLinkQuery?.takeIf { SearchQueryClassifier.classify(it).isFailure }

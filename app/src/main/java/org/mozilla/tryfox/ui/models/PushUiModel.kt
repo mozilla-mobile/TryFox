@@ -6,4 +6,5 @@ data class PushUiModel(
     val jobs: List<JobDetailsUiModel>,
     val revision: String?,
     val pushTimestamp: Long,
+    val unsignedJobs: List<JobDetailsUiModel> = emptyList(),
 )

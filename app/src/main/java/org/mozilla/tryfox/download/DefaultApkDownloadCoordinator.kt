@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.download
 
 import android.content.Context
+import android.util.Log
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
@@ -16,6 +17,10 @@ class DefaultApkDownloadCoordinator(
     private val store: ApkDownloadStore = DefaultApkDownloadStore(context.applicationContext),
     private val workManager: WorkManager = WorkManager.getInstance(context.applicationContext),
 ) : ApkDownloadCoordinator {
+    private companion object {
+        const val TAG = "ApkDownloadCoordinator"
+    }
+
     override val downloads: StateFlow<Map<String, PersistedDownloadState>> = store.downloads
 
     override fun enqueue(request: ApkDownloadRequest): String {
@@ -33,6 +38,11 @@ class DefaultApkDownloadCoordinator(
             ),
         )
         workManager.enqueueUniqueWork(request.uniqueKey, ExistingWorkPolicy.REPLACE, workRequest)
+        Log.d(
+            TAG,
+            "enqueued uniqueKey=${request.uniqueKey} workId=${workRequest.id} " +
+                "outputPath=${request.outputPath}",
+        )
         return workRequest.id.toString()
     }
 

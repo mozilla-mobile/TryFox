@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.download.worker
 
 import android.content.Context
+import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
 import androidx.work.WorkerParameters
@@ -31,6 +32,7 @@ class ApkDownloadWorker(
 
     override suspend fun doWork(): Result {
         val request = inputData.toRequest() ?: return Result.failure()
+        Log.d(TAG, "started uniqueKey=${request.uniqueKey} workerId=$id outputPath=${request.outputPath}")
         val startedAt = System.currentTimeMillis()
         var lastBytesDownloaded = 0L
         var lastTotalBytes = -1L
@@ -63,11 +65,17 @@ class ApkDownloadWorker(
                         val now = System.currentTimeMillis()
                         val elapsedSinceLastUpdate = now - lastProgressUpdateAt
                         val shouldPublish =
-                            totalBytes <= 0 ||
+                            if (totalBytes <= 0) {
+                                // Some Taskcluster artifact responses omit Content-Length. The
+                                // progress UI is necessarily indeterminate, but publishing on
+                                // every 4 KiB read overwhelms the state store and logcat.
+                                lastProgressUpdateAt == 0L || elapsedSinceLastUpdate >= PROGRESS_UPDATE_INTERVAL_MS
+                            } else {
                                 lastProgressPercent < 0 ||
-                                bytesDownloaded == totalBytes ||
-                                progressPercent >= lastProgressPercent + MIN_PROGRESS_PERCENT_STEP ||
-                                elapsedSinceLastUpdate >= PROGRESS_UPDATE_INTERVAL_MS
+                                    bytesDownloaded == totalBytes ||
+                                    progressPercent >= lastProgressPercent + MIN_PROGRESS_PERCENT_STEP ||
+                                    elapsedSinceLastUpdate >= PROGRESS_UPDATE_INTERVAL_MS
+                            }
                         if (shouldPublish) {
                             lastProgressUpdateAt = now
                             lastProgressPercent = progressPercent
@@ -111,6 +119,11 @@ class ApkDownloadWorker(
                             ),
                         )
                     } else {
+                        Log.d(
+                            TAG,
+                            "download completed uniqueKey=${request.uniqueKey} file=${downloadedFile.absolutePath} " +
+                                "bytes=$lastBytesDownloaded total=$lastTotalBytes",
+                        )
                         updateSuccess(
                             request = request,
                             startedAt = startedAt,
@@ -128,6 +141,7 @@ class ApkDownloadWorker(
                 }
 
                 is NetworkResult.Error -> {
+                    Log.e(TAG, "download failed uniqueKey=${request.uniqueKey}: ${result.message}")
                     updateFailure(
                         request = request,
                         message = result.message,
@@ -143,6 +157,7 @@ class ApkDownloadWorker(
                 }
             }
         } catch (e: CancellationException) {
+            Log.w(TAG, "download cancelled uniqueKey=${request.uniqueKey}")
             updateCanceled(request = request, startedAt = startedAt)
             cacheManager.checkCacheStatus()
             throw e
@@ -169,6 +184,7 @@ class ApkDownloadWorker(
 
     private fun updateFailure(request: ApkDownloadRequest, message: String?, startedAt: Long) {
         if (!isCurrentRequest(request)) return
+        Log.e(TAG, "recording failure uniqueKey=${request.uniqueKey}: $message")
         downloadStore.upsert(
             request.toPersistedState(
                 status = DownloadStatus.FAILED,
@@ -250,10 +266,18 @@ class ApkDownloadWorker(
             updatedAt = updatedAt,
         )
 
-    private fun isCurrentRequest(request: ApkDownloadRequest): Boolean =
-        downloadStore.get(request.uniqueKey)?.let { persistedState ->
-            persistedState.workId == id.toString() && persistedState.status != DownloadStatus.CANCELED
-        } == true
+    private fun isCurrentRequest(request: ApkDownloadRequest): Boolean {
+        val persistedState = downloadStore.get(request.uniqueKey)
+        val isCurrent = persistedState?.workId == id.toString() && persistedState.status != DownloadStatus.CANCELED
+        if (!isCurrent) {
+            Log.w(
+                TAG,
+                "ignoring stale worker uniqueKey=${request.uniqueKey} workerId=$id " +
+                    "storedWorkId=${persistedState?.workId} storedStatus=${persistedState?.status}",
+            )
+        }
+        return isCurrent
+    }
 
     private fun Data.toRequest(): ApkDownloadRequest? {
         val uniqueKey = getString(KEY_UNIQUE_KEY) ?: return null
@@ -274,6 +298,7 @@ class ApkDownloadWorker(
     }
 
     companion object {
+        private const val TAG = "ApkDownloadWorker"
         private const val PROGRESS_UPDATE_INTERVAL_MS = 500L
         private const val MIN_PROGRESS_PERCENT_STEP = 5
         const val KEY_UNIQUE_KEY = "download_unique_key"

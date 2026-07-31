@@ -52,6 +52,12 @@
     <string name="job_card_task_id_label">Task ID: </string>
     <string name="job_card_compatible_apks_title">Compatible APKs</string>
     <string name="job_card_no_compatible_apks">No compatible APKs found for this job.</string>
+    <plurals name="search_result_unsigned_apks">
+        <item quantity="one">%1$d unsigned apk</item>
+        <item quantity="other">%1$d unsigned apks</item>
+    </plurals>
+    <string name="search_result_unsigned_apks_expanded">Unsigned APKs expanded</string>
+    <string name="search_result_unsigned_apks_collapsed">Unsigned APKs collapsed</string>
     <string name="profile_screen_search_card_title">Search builds</string>
     <string name="profile_screen_user_email_label">Revision or email</string>
     <string name="profile_screen_search_button_description">Search builds</string>
