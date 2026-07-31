@@ -18,10 +18,17 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,7 +47,6 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,23 +55,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import org.mozilla.tryfox.R
-import org.mozilla.tryfox.TryFoxViewModel
 import org.mozilla.tryfox.data.SearchHistory
 import org.mozilla.tryfox.data.SearchHistoryEntry
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.BinButton
 import org.mozilla.tryfox.ui.composables.ProjectSelector
-import org.mozilla.tryfox.ui.models.PushUiModel
 
 // Project name mappings
 private val projectDisplayToActualMap = mapOf(
@@ -81,88 +87,49 @@ internal const val TREEHERDER_SEARCH_HISTORY_TAG = "treeherder_search_history"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
-    tryFoxViewModel: TryFoxViewModel,
+    searchViewModel: SearchViewModel,
     deepLinkProject: String?,
-    deepLinkRevision: String?,
+    deepLinkQuery: String?,
     onNavigateUp: () -> Unit,
-    onSearchEmail: (project: String, email: String) -> Unit = { _, _ -> },
     searchHistory: List<SearchHistoryEntry> = emptyList(),
-    onSearchSucceeded: (project: String, query: String) -> Unit = { _, _ -> },
 ) {
-    val cacheState by tryFoxViewModel.cacheState.collectAsState()
-    val isDownloading by tryFoxViewModel.isDownloadingAnyFile.collectAsState()
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var queryValidationError by remember(deepLinkRevision) {
+    val cacheState by searchViewModel.cacheState.collectAsState()
+    val query by searchViewModel.query.collectAsState()
+    val selectedProject by searchViewModel.selectedProject.collectAsState()
+    val isLoading by searchViewModel.isLoading.collectAsState()
+    val errorMessage by searchViewModel.errorMessage.collectAsState()
+    val pushes by searchViewModel.pushes.collectAsState()
+    val isDownloading = pushes.any { push -> push.jobs.any { job -> job.artifacts.any { it.downloadState is org.mozilla.tryfox.data.DownloadState.InProgress } } }
+    var queryValidationError by remember(deepLinkQuery) {
         mutableStateOf(
-            deepLinkRevision?.takeIf { SearchQueryClassifier.classify(it).isFailure }
+            deepLinkQuery?.takeIf { SearchQueryClassifier.classify(it).isFailure }
                 ?.let { "Enter a valid email address or a revision without @." },
         )
     }
-    var hasSubmittedSearch by rememberSaveable(deepLinkRevision) { mutableStateOf(deepLinkRevision != null) }
-    var displayedQuery by rememberSaveable(deepLinkRevision) { mutableStateOf(deepLinkRevision.orEmpty()) }
+    var hasSubmittedSearch by rememberSaveable(deepLinkQuery) { mutableStateOf(deepLinkQuery != null) }
+    var displayedQuery by rememberSaveable(deepLinkQuery) { mutableStateOf(deepLinkQuery.orEmpty()) }
     var isSearchFieldFocused by remember { mutableStateOf(false) }
-    var lastRecordedSearchKey by rememberSaveable { mutableStateOf<String?>(null) }
 
     val isEditingDisplayedSearch = hasSubmittedSearch &&
         isSearchFieldFocused &&
-        tryFoxViewModel.revision != displayedQuery
+        query != displayedQuery
     val showSearchHistory = !hasSubmittedSearch || isEditingDisplayedSearch
     val showCurrentSearch = !isEditingDisplayedSearch
 
-    fun submitSearch(project: String, query: String) {
-        when (val searchQuery = SearchQueryClassifier.classify(query).getOrNull()) {
-            is SearchQuery.Email -> {
+    fun submitSearch(queryToSubmit: String) {
+        when (SearchQueryClassifier.classify(queryToSubmit).getOrNull()) {
+            is SearchQuery.Email, is SearchQuery.Revision -> {
                 queryValidationError = null
                 hasSubmittedSearch = true
-                displayedQuery = query
-                onSearchEmail(project, searchQuery.value)
-            }
-            is SearchQuery.Revision -> {
-                queryValidationError = null
-                hasSubmittedSearch = true
-                displayedQuery = query
-                tryFoxViewModel.searchJobsAndArtifacts()
+                displayedQuery = queryToSubmit
+                searchViewModel.submitSearch()
             }
             null -> queryValidationError = "Enter a valid email address or a revision without @."
         }
     }
 
-    LaunchedEffect(Unit) {
-        tryFoxViewModel.checkCacheStatus()
-    }
-
-    DisposableEffect(lifecycleOwner, tryFoxViewModel) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                tryFoxViewModel.checkCacheStatus()
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    LaunchedEffect(deepLinkProject, deepLinkRevision) {
-        val revisionQuery = SearchQueryClassifier.classify(deepLinkRevision.orEmpty()).getOrNull() as? SearchQuery.Revision
-        if (revisionQuery != null) {
-            val resolvedProject = deepLinkProject ?: "try"
-            val projectChanged = tryFoxViewModel.selectedProject != resolvedProject
-            val revisionChanged = tryFoxViewModel.revision != revisionQuery.value
-            if (projectChanged || revisionChanged) {
-                tryFoxViewModel.setRevisionFromDeepLinkAndSearch(resolvedProject, revisionQuery.value)
-            }
-        }
-    }
-
-    LaunchedEffect(tryFoxViewModel.successfulSearch) {
-        tryFoxViewModel.successfulSearch?.let { search ->
-            val searchKey = "${search.project}:${search.query}"
-            if (lastRecordedSearchKey != searchKey) {
-                onSearchSucceeded(search.project, search.query)
-                lastRecordedSearchKey = searchKey
-            }
-        }
+    LaunchedEffect(deepLinkProject, deepLinkQuery) {
+        deepLinkQuery?.let { searchViewModel.setQueryFromDeepLinkAndSearch(deepLinkProject, it) }
     }
 
     val binButtonEnabled = !isDownloading && cacheState == CacheManagementState.IdleNonEmpty
@@ -190,7 +157,7 @@ fun SearchScreen(
                     ) {
                         BinButton(
                             cacheState = cacheState,
-                            onConfirm = { tryFoxViewModel.clearAppCache() },
+                            onConfirm = { searchViewModel.clearAppCache() },
                             enabled = binButtonEnabled,
                         )
                     }
@@ -213,34 +180,34 @@ fun SearchScreen(
         ) {
             item {
                 SearchSection(
-                    selectedProject = tryFoxViewModel.selectedProject,
-                    onProjectSelected = { actualProjectValue -> tryFoxViewModel.updateSelectedProject(actualProjectValue) },
-                    revision = tryFoxViewModel.revision,
+                    selectedProject = selectedProject,
+                    onProjectSelected = searchViewModel::updateSelectedProject,
+                    revision = query,
                     onRevisionChange = {
                         queryValidationError = null
                         // A text edit is unambiguously an editing interaction, including
                         // the trailing clear action whose focus callback can be delayed.
                         isSearchFieldFocused = true
-                        tryFoxViewModel.updateRevision(it)
+                        searchViewModel.updateQuery(it)
                     },
                     onSearchClick = {
-                        submitSearch(tryFoxViewModel.selectedProject, tryFoxViewModel.revision)
+                        submitSearch(query)
                     },
-                    isLoading = tryFoxViewModel.isLoading,
+                    isLoading = isLoading,
                     showSearchHistory = showSearchHistory,
                     onSearchFieldFocusChanged = { isSearchFieldFocused = it },
                     searchHistory = SearchHistory.displayOrder(searchHistory),
                     onHistoryItemSelected = { entry ->
-                        tryFoxViewModel.updateSelectedProject(entry.project)
-                        tryFoxViewModel.updateRevision(entry.query)
-                        submitSearch(entry.project, entry.query)
+                        searchViewModel.updateSelectedProject(entry.project)
+                        searchViewModel.updateQuery(entry.query)
+                        submitSearch(entry.query)
                     },
                 )
             }
 
-            tryFoxViewModel.errorMessage?.let {
+            errorMessage?.let {
                 // TODO: Consider creating a specific string resource for \"Download failed\" if it's a common prefix for user-facing errors.
-                if (tryFoxViewModel.selectedJobs.isEmpty() || !it.startsWith("Download failed")) {
+                if (pushes.isEmpty() || !it.startsWith("Download failed")) {
                     item {
                         AnimatedVisibility(
                             visible = showCurrentSearch,
@@ -255,34 +222,28 @@ fun SearchScreen(
 
             queryValidationError?.let { item { ErrorState(errorMessage = it) } }
 
-            if (tryFoxViewModel.isLoading) {
+            if (isLoading) {
                 item {
                     AnimatedVisibility(
                         visible = showCurrentSearch,
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically(),
                     ) {
-                        LoadingState(candidateCount = tryFoxViewModel.isLoadingJobArtifacts.size)
+                        LoadingState(candidateCount = 0)
                     }
                 }
-            } else if (tryFoxViewModel.selectedJobs.isNotEmpty()) {
-                item {
+            } else if (pushes.isNotEmpty()) {
+                items(pushes.size) { index ->
                     AnimatedVisibility(
                         visible = showCurrentSearch,
                         enter = fadeIn() + expandVertically(),
                         exit = fadeOut() + shrinkVertically(),
                     ) {
                         PushResultCard(
-                            push = PushUiModel(
-                                pushComment = tryFoxViewModel.relevantPushComment.orEmpty(),
-                                author = tryFoxViewModel.relevantPushAuthor.orEmpty(),
-                                jobs = tryFoxViewModel.selectedJobs,
-                                revision = tryFoxViewModel.revision,
-                                pushTimestamp = tryFoxViewModel.relevantPushTimestamp ?: 0L,
-                            ),
-                            onDownloadClick = tryFoxViewModel::downloadArtifact,
-                            onInstallClick = tryFoxViewModel::installApk,
-                            testTag = "revision_search_push_${tryFoxViewModel.revision}",
+                            push = pushes[index],
+                            onDownloadClick = searchViewModel::downloadArtifact,
+                            onInstallClick = searchViewModel::installApk,
+                            testTag = "search_push_${pushes[index].revision}",
                         )
                     }
                 }
@@ -290,26 +251,6 @@ fun SearchScreen(
         }
     }
 }
-
-/** Backwards-compatible name retained for callers and existing UI tests. */
-@Composable
-fun TryFoxMainScreen(
-    tryFoxViewModel: TryFoxViewModel,
-    deepLinkProject: String?,
-    deepLinkRevision: String?,
-    onNavigateUp: () -> Unit,
-    onSearchEmail: (project: String, email: String) -> Unit = { _, _ -> },
-    searchHistory: List<SearchHistoryEntry> = emptyList(),
-    onSearchSucceeded: (project: String, query: String) -> Unit = { _, _ -> },
-) = SearchScreen(
-    tryFoxViewModel,
-    deepLinkProject,
-    deepLinkRevision,
-    onNavigateUp,
-    onSearchEmail,
-    searchHistory,
-    onSearchSucceeded,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -414,6 +355,36 @@ internal fun SearchHistoryPanel(
                     }
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+internal fun SearchInputRow(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearchClick: () -> Unit,
+    isLoading: Boolean,
+    onFocusChanged: (Boolean) -> Unit = {},
+) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.material3.OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = { Text(stringResource(R.string.profile_screen_user_email_label), maxLines = 1) },
+            modifier = Modifier.weight(1f).heightIn(min = 56.dp).onFocusChanged { onFocusChanged(it.isFocused) }.testTag("search_query_input"),
+            singleLine = true,
+            shape = RoundedCornerShape(20.dp),
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { onQueryChange("") }) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.profile_screen_clear_email_description)) } },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearchClick(); keyboardController?.hide() }),
+        )
+        Button(onClick = { onSearchClick(); keyboardController?.hide() }, enabled = !isLoading && query.isNotBlank(), modifier = Modifier.size(52.dp), shape = RoundedCornerShape(24.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), contentPadding = PaddingValues(0.dp)) {
+            if (isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+            else Icon(Icons.Default.Search, contentDescription = stringResource(R.string.profile_screen_search_button_description))
         }
     }
 }

@@ -1,7 +1,9 @@
 package org.mozilla.tryfox
 
+import org.mozilla.tryfox.ui.screens.SearchViewModel
+
 /**
- * Canonical name for the build-search state holder.  The implementation remains in
- * [TryFoxViewModel] while its long-lived download/cache API is migrated incrementally.
+ * Compatibility name for integrations which adopted the initial unified-search proposal.
+ * Both names resolve to the one shared state holder.
  */
-typealias UnifiedSearchViewModel = TryFoxViewModel
+typealias UnifiedSearchViewModel = SearchViewModel

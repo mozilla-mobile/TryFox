@@ -10,14 +10,9 @@ object AppRoutes {
     const val QR_SCANNER = "qr_scanner"
     const val TREEHERDER_SEARCH = "treeherder_search"
     const val TREEHERDER_SEARCH_WITH_ARGS = "treeherder_search/{project}/{query}"
-    const val PROFILE_BY_EMAIL = "profile_by_email?email={email}"
 
     fun createTreeherderSearchRoute(project: String, query: String): String {
         return "treeherder_search/${encode(project)}/${encode(query)}"
-    }
-
-    fun createProfileByEmailRoute(email: String): String {
-        return "profile_by_email?email=${encode(email)}"
     }
 
     private fun encode(value: String): String {

@@ -23,14 +23,12 @@ import org.koin.core.parameter.parametersOf
 import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
 import org.mozilla.tryfox.ui.screens.HistoryScreen
 import org.mozilla.tryfox.ui.screens.HomeScreen
-import org.mozilla.tryfox.ui.screens.ProfileScreen
 import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
 import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopScreen
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryScreen
 import org.mozilla.tryfox.ui.screens.SearchHistoryViewModel
-import org.mozilla.tryfox.ui.screens.SearchQuery
-import org.mozilla.tryfox.ui.screens.SearchQueryClassifier
-import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
+import org.mozilla.tryfox.ui.screens.SearchScreen
+import org.mozilla.tryfox.ui.screens.SearchViewModel
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
 /**
@@ -76,13 +74,6 @@ sealed class NavScreen(val route: String) {
             project = project,
             query = revision,
         )
-    }
-
-    /**
-     * Represents the Profile screen filtered by email.
-     */
-    data object ProfileByEmail : NavScreen(AppRoutes.PROFILE_BY_EMAIL) {
-        fun createRoute(email: String) = AppRoutes.createProfileByEmailRoute(email)
     }
 }
 
@@ -184,20 +175,12 @@ class MainActivity : ComponentActivity() {
             composable(NavScreen.TreeherderSearch.route) {
                 val searchHistory by appSearchHistoryViewModel.searchHistory.collectAsState()
                 // mainActivityViewModel is already injected and passed as a parameter
-                TryFoxMainScreen(
-                    tryFoxViewModel = koinViewModel(),
+                SearchScreen(
+                    searchViewModel = koinViewModel<SearchViewModel> { parametersOf("", "try") },
                     deepLinkProject = null,
-                    deepLinkRevision = null,
+                    deepLinkQuery = null,
                     onNavigateUp = { localNavController.popBackStack() },
-                    onSearchEmail = { project, email ->
-                        localNavController.navigate(AppRoutes.createTreeherderSearchRoute(project, email)) {
-                            popUpTo(NavScreen.TreeherderSearch.route) {
-                                inclusive = true
-                            }
-                        }
-                    },
                     searchHistory = searchHistory,
-                    onSearchSucceeded = appSearchHistoryViewModel::recordSuccessfulSearch,
                 )
             }
             composable(
@@ -209,43 +192,13 @@ class MainActivity : ComponentActivity() {
             ) { backStackEntry ->
                 val project = backStackEntry.arguments?.getString("project")
                 val query = backStackEntry.arguments?.getString("query")?.let(Uri::decode).orEmpty()
-                when (SearchQueryClassifier.classify(query).getOrNull()) {
-                    is SearchQuery.Email -> ProfileScreen(
-                        onNavigateUp = { localNavController.popBackStack() },
-                        profileViewModel = koinViewModel { parametersOf(query, project) },
-                        onSearchRevision = { selectedProject, revision ->
-                            localNavController.navigate(
-                                AppRoutes.createTreeherderSearchRoute(selectedProject, revision),
-                            )
-                        },
-                    )
-                    is SearchQuery.Revision -> TryFoxMainScreen(
-                        tryFoxViewModel = koinViewModel { parametersOf(project, query) },
-                        deepLinkProject = project,
-                        deepLinkRevision = query,
-                        onNavigateUp = { localNavController.popBackStack() },
-                        onSearchSucceeded = appSearchHistoryViewModel::recordSuccessfulSearch,
-                    )
-                    null -> TryFoxMainScreen(
-                        tryFoxViewModel = koinViewModel { parametersOf(project, query) },
-                        deepLinkProject = project,
-                        deepLinkRevision = query,
-                        onNavigateUp = { localNavController.popBackStack() },
-                    )
-                }
-            }
-            composable(
-                route = NavScreen.ProfileByEmail.route,
-                arguments = listOf(navArgument("email") { type = NavType.StringType }),
-            ) { backStackEntry ->
-                val email = backStackEntry.arguments?.getString("email")?.let(Uri::decode)
-
-                ProfileScreen(
+                val searchHistory by appSearchHistoryViewModel.searchHistory.collectAsState()
+                SearchScreen(
+                    searchViewModel = koinViewModel<SearchViewModel> { parametersOf("", project) },
+                    deepLinkProject = project,
+                    deepLinkQuery = query,
                     onNavigateUp = { localNavController.popBackStack() },
-                    profileViewModel = koinViewModel { parametersOf(email, "try") },
-                    onSearchRevision = { project, revision ->
-                        localNavController.navigate(AppRoutes.createTreeherderSearchRoute(project, revision))
-                    },
+                    searchHistory = searchHistory,
                 )
             }
         }

@@ -38,7 +38,7 @@ import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
 @RunWith(AndroidJUnit4::class)
-class TreeherderApksScreenTest {
+class SearchScreenTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
@@ -61,7 +61,7 @@ class TreeherderApksScreenTest {
 
         composeTestRule.setContent {
             TryFoxTheme {
-                TryFoxMainScreen(
+                SearchScreen(
                     tryFoxViewModel = viewModel,
                     deepLinkProject = null,
                     deepLinkRevision = null,
@@ -152,7 +152,7 @@ class TreeherderApksScreenTest {
 
         composeTestRule.setContent {
             TryFoxTheme {
-                TryFoxMainScreen(
+                SearchScreen(
                     tryFoxViewModel = viewModel,
                     deepLinkProject = null,
                     deepLinkRevision = null,

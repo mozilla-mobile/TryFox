@@ -70,7 +70,12 @@ internal fun isPerfAgainRetry(revisions: List<RevisionDetail>): Boolean {
  * @param intentManager The manager for handling intents, such as APK installation.
  * @param authorEmail The initial author email to search for, can be null.
  */
-class ProfileViewModel(
+/**
+ * State holder for every Treeherder search.  The input is classified once at submission
+ * time; from that point on the presentation only consumes [pushes], regardless of whether
+ * the repository request was made by revision or by author email.
+ */
+class SearchViewModel(
     private val fenixRepository: TreeherderRepository,
     private val userDataRepository: UserDataRepository,
     private val cacheManager: CacheManager,
@@ -88,7 +93,7 @@ class ProfileViewModel(
     )
 
     companion object {
-        private const val TAG = "ProfileViewModel"
+        private const val TAG = "SearchViewModel"
         private val apkJobNameHints = listOf("signing-apk", "android-apk", "apk-focus", "apk-fenix", "apk-reference-browser", "apk-geckoview")
         private val nonAndroidPlatformHints = listOf("ios", "mac", "macos", "macosx", "win", "windows", "linux", "desktop")
         private val androidProductHints = listOf("focus", "fenix", "reference-browser", "geckoview", "android")
@@ -96,6 +101,9 @@ class ProfileViewModel(
 
     private val _authorEmail = MutableStateFlow(authorEmail ?: "")
     val authorEmail: StateFlow<String> = _authorEmail.asStateFlow()
+
+    /** The shared search field value. Kept as an alias during the email API migration. */
+    val query: StateFlow<String> = _authorEmail.asStateFlow()
 
     private val _selectedProject = MutableStateFlow(project)
     val selectedProject: StateFlow<String> = _selectedProject.asStateFlow()
@@ -119,7 +127,7 @@ class ProfileViewModel(
     }
 
     init {
-        logcat(LogPriority.DEBUG, TAG) { "Initializing ProfileViewModel for email: $authorEmail" }
+        logcat(LogPriority.DEBUG, TAG) { "Initializing SearchViewModel for query: $authorEmail" }
         downloadCoordinator.downloads
             .onEach { persistedDownloads ->
                 downloadStates.value = persistedDownloads
@@ -146,7 +154,7 @@ class ProfileViewModel(
         }.launchIn(viewModelScope)
 
         if (authorEmail != null) {
-            searchByAuthor()
+            submitSearch()
         } else {
             loadLastSearchedEmail()
         }
@@ -171,6 +179,8 @@ class ProfileViewModel(
         _errorMessage.value = null
     }
 
+    fun updateQuery(query: String) = updateAuthorEmail(query)
+
     fun updateSelectedProject(project: String) {
         _selectedProject.value = project
     }
@@ -181,8 +191,107 @@ class ProfileViewModel(
         searchByAuthor()
     }
 
+    /** Applies either kind of deep link to the same model and executes the matching request. */
+    fun setQueryFromDeepLinkAndSearch(project: String?, query: String) {
+        _selectedProject.value = project ?: "try"
+        _authorEmail.value = query
+        submitSearch()
+    }
+
     fun showInvalidQueryError() {
         _errorMessage.value = "Enter a valid email address or a revision without @."
+    }
+
+    /**
+     * The sole search entry point used by the shared screen. Query kind changes only the
+     * Treeherder operation; loading, errors, results and artifact actions stay shared.
+     */
+    fun submitSearch() {
+        when (val parsed = SearchQueryClassifier.classify(_authorEmail.value).getOrNull()) {
+            is SearchQuery.Email -> searchByAuthor()
+            is SearchQuery.Revision -> searchByRevision(parsed.value)
+            null -> showInvalidQueryError()
+        }
+    }
+
+    private fun searchByRevision(revision: String) {
+        if (revision.isBlank()) {
+            _errorMessage.value = "Please enter a revision to search."
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            _pushes.value = emptyList()
+            when (val pushResult = fenixRepository.getPushByRevision(_selectedProject.value, revision)) {
+                is NetworkResult.Success -> {
+                    val push = pushResult.data.results.firstOrNull()
+                    if (push == null) {
+                        _errorMessage.value = "No push found for project: ${_selectedProject.value}, revision: $revision"
+                    } else {
+                        val jobsResult = fenixRepository.getJobsForPush(push.id)
+                        if (jobsResult is NetworkResult.Success) {
+                            val jobs = jobsResult.data.results
+                                .filter(::isAndroidApkCandidate)
+                                .filter { it.jobName.contains("signing-apk", ignoreCase = true) }
+                                .ifEmpty { jobsResult.data.results.filter(::isAndroidApkCandidate) }
+                                .map { job ->
+                                    val artifacts = fetchArtifacts(job.taskId)
+                                    if (artifacts.artifacts.isEmpty()) null else JobDetailsUiModel(
+                                        appName = job.appName,
+                                        jobName = job.jobName,
+                                        jobSymbol = job.jobSymbol,
+                                        taskId = job.taskId,
+                                        isSignedBuild = job.isSignedBuild,
+                                        isTest = job.isTest,
+                                        artifacts = artifacts.artifacts,
+                                    )
+                                }.filterNotNull()
+                            if (jobs.isEmpty()) {
+                                _errorMessage.value = "No signed builds found for this revision."
+                            } else {
+                                val precedingRevisions = if (isPerfAgainRetry(push.revisions)) {
+                                    when (
+                                        val authorPushes = fenixRepository.getPushesByAuthor(
+                                            _selectedProject.value,
+                                            push.author,
+                                        )
+                                    ) {
+                                        is NetworkResult.Success -> {
+                                            val pushIndex = authorPushes.data.results.indexOfFirst { it.id == push.id }
+                                            authorPushes.data.results
+                                                .take(pushIndex.coerceAtLeast(0))
+                                                .asReversed()
+                                                .map { it.revisions }
+                                        }
+                                        is NetworkResult.Error -> emptyList()
+                                    }
+                                } else {
+                                    emptyList()
+                                }
+                                _pushes.value = listOf(
+                                    PushUiModel(
+                                        pushComment = selectPreferredPushComment(push.revisions, precedingRevisions),
+                                        author = push.author,
+                                        jobs = jobs,
+                                        revision = push.revision,
+                                        pushTimestamp = push.pushTimestamp,
+                                    ),
+                                )
+                                syncLoadedStateDownloadStates()
+                                userDataRepository.recordSearch(_selectedProject.value, revision)
+                            }
+                        } else {
+                            _errorMessage.value = "Error fetching jobs: ${(jobsResult as NetworkResult.Error).message}"
+                        }
+                    }
+                }
+                is NetworkResult.Error -> {
+                    _errorMessage.value = "Error fetching revision details for ${_selectedProject.value}: ${pushResult.message}"
+                }
+            }
+            _isLoading.value = false
+        }
     }
 
     fun searchByAuthor() {

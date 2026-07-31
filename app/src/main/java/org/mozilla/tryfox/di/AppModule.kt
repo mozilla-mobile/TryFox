@@ -53,10 +53,10 @@ import org.mozilla.tryfox.network.MozillaArchivesApiService
 import org.mozilla.tryfox.network.TreeherderApiService
 import org.mozilla.tryfox.ui.screens.HistoryViewModel
 import org.mozilla.tryfox.ui.screens.HomeViewModel
-import org.mozilla.tryfox.ui.screens.ProfileViewModel
 import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopViewModel
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryViewModel
 import org.mozilla.tryfox.ui.screens.SearchHistoryViewModel
+import org.mozilla.tryfox.ui.screens.SearchViewModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
@@ -221,7 +221,7 @@ val viewModelModule = module {
         )
     }
     viewModel { params ->
-        ProfileViewModel(get(), get(), get(), get(), get(), get(), params.getOrNull(), project = params.getOrNull() ?: "try")
+        SearchViewModel(get(), get(), get(), get(), get(), get(), params.getOrNull(), project = params.getOrNull() ?: "try")
     }
 }
 
