@@ -13,14 +13,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -30,8 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -56,8 +50,6 @@ import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -66,11 +58,9 @@ import org.mozilla.tryfox.TryFoxViewModel
 import org.mozilla.tryfox.data.SearchHistory
 import org.mozilla.tryfox.data.SearchHistoryEntry
 import org.mozilla.tryfox.model.CacheManagementState
-import org.mozilla.tryfox.ui.composables.AppCard
 import org.mozilla.tryfox.ui.composables.BinButton
-import org.mozilla.tryfox.ui.composables.ErrorState
 import org.mozilla.tryfox.ui.composables.ProjectSelector
-import org.mozilla.tryfox.ui.composables.PushCommentCard
+import org.mozilla.tryfox.ui.models.PushUiModel
 
 // Project name mappings
 private val projectDisplayToActualMap = mapOf(
@@ -81,7 +71,6 @@ private val projectDisplayToActualMap = mapOf(
 )
 
 internal const val TREEHERDER_LOADING_STATE_TAG = "treeherder_loading_state"
-internal const val TREEHERDER_RESULTS_HEADER_TAG = "treeherder_results_header"
 internal const val TREEHERDER_SEARCH_HISTORY_TAG = "treeherder_search_history"
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -238,51 +227,24 @@ fun SearchScreen(
 
             queryValidationError?.let { item { ErrorState(errorMessage = it) } }
 
-            tryFoxViewModel.relevantPushComment?.let { comment ->
-                val pushTimestamp = tryFoxViewModel.relevantPushTimestamp
-                if ((comment.isNotBlank() || tryFoxViewModel.relevantPushAuthor != null) && pushTimestamp != null) {
-                    item {
-                        PushCommentCard(
-                            comment = comment,
-                            author = tryFoxViewModel.relevantPushAuthor,
-                            revision = tryFoxViewModel.revision,
-                            pushTimestamp = pushTimestamp,
-                        )
-                    }
-                }
-            }
-
             if (tryFoxViewModel.isLoading) {
                 item {
                     LoadingState(candidateCount = tryFoxViewModel.isLoadingJobArtifacts.size)
                 }
             } else if (tryFoxViewModel.selectedJobs.isNotEmpty()) {
                 item {
-                    Text(
-                        text = stringResource(id = R.string.treeherder_apks_jobs_found_message, tryFoxViewModel.selectedJobs.size),
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .padding(bottom = 8.dp)
-                            .testTag(TREEHERDER_RESULTS_HEADER_TAG),
+                    PushResultCard(
+                        push = PushUiModel(
+                            pushComment = tryFoxViewModel.relevantPushComment.orEmpty(),
+                            author = tryFoxViewModel.relevantPushAuthor.orEmpty(),
+                            jobs = tryFoxViewModel.selectedJobs,
+                            revision = tryFoxViewModel.revision,
+                            pushTimestamp = tryFoxViewModel.relevantPushTimestamp ?: 0L,
+                        ),
+                        onDownloadClick = tryFoxViewModel::downloadArtifact,
+                        onInstallClick = tryFoxViewModel::installApk,
+                        testTag = "revision_search_push_${tryFoxViewModel.revision}",
                     )
-                }
-
-                items(tryFoxViewModel.selectedJobs, key = { it.taskId }) { job ->
-                    AppCard(job = job, viewModel = tryFoxViewModel)
-                }
-            } else if (!tryFoxViewModel.isLoading && tryFoxViewModel.errorMessage == null && (tryFoxViewModel.relevantPushComment != null || tryFoxViewModel.relevantPushAuthor != null)) {
-                 // Slightly adjusted logic to account for author possibly being present even if comment is not
-                if (tryFoxViewModel.relevantPushComment?.isNotBlank() == true || tryFoxViewModel.relevantPushAuthor != null) {
-                     // This case should ideally be handled by the PushCommentCard itself not rendering if both are empty/null
-                } else {
-                     item {
-                        Text(
-                            stringResource(id = R.string.treeherder_apks_no_jobs_found),
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.padding(16.dp),
-                        )
-                    }
                 }
             }
         }
@@ -330,33 +292,12 @@ fun SearchSection(
             onProjectSelected = { displayProject -> onProjectSelected(projectDisplayToActualMap.getValue(displayProject)) },
             modifier = Modifier.height(52.dp),
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = revision,
-                onValueChange = onRevisionChange,
-                placeholder = { Text(stringResource(id = R.string.profile_screen_user_email_label)) },
-                modifier = Modifier.weight(1f).heightIn(min = 56.dp).testTag("profile_email_input"),
-                singleLine = true,
-                shape = RoundedCornerShape(20.dp),
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                colors = OutlinedTextFieldDefaults.colors(),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Search,
-                ),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { onSearchClick() }),
-            )
-            SearchButton(
-                onClick = onSearchClick,
-                enabled = !isLoading && revision.isNotBlank(),
-                isLoading = isLoading,
-                modifier = Modifier.size(52.dp).testTag("profile_search_button"),
-            )
-        }
+        SearchInputRow(
+            query = revision,
+            onQueryChange = onRevisionChange,
+            onSearchClick = onSearchClick,
+            isLoading = isLoading,
+        )
         SearchHistoryPanel(
             entries = searchHistory.filter { it.query.contains(revision.trim(), ignoreCase = true) },
             onEntryClick = onHistoryItemSelected,
@@ -424,39 +365,6 @@ private fun SearchHistoryPanel(
                     )
                 }
             }
-        }
-    }
-}
-
-// Re-using the SearchButton from ProfileScreen implies it's either moved to a common composables location or defined here.
-// For now, assuming it's defined in this file or accessible. If it was meant to be the ProfileScreen.SearchButton,
-// this would need refactoring to a common composable. The current `SearchButton` defined below seems tailored for this screen.
-@Composable
-fun SearchButton( // This is the local SearchButton
-    onClick: () -> Unit,
-    enabled: Boolean,
-    isLoading: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-        contentPadding = PaddingValues(horizontal = 0.dp),
-    ) {
-        if (isLoading) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(24.dp),
-                color = MaterialTheme.colorScheme.onPrimary,
-            )
-        } else {
-            Icon(
-                Icons.Default.Search,
-                contentDescription = stringResource(id = R.string.treeherder_apks_search_button_description), // Specific description
-                tint = MaterialTheme.colorScheme.onPrimary,
-            )
         }
     }
 }
