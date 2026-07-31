@@ -46,6 +46,7 @@ class TreeherderApksScreenTest {
     @Test
     fun treeherderScreen_showsLoaderUntilSearchCompletes_thenDisplaysResults() {
         val targetJobName = "signing-apk-focus-nightly"
+        val targetDisplayName = "Focus nightly"
         val viewModel = TryFoxViewModel(
             fenixRepository = DelayedTreeherderRepository(targetJobName = targetJobName),
             downloadFileRepository = FakeDownloadFileRepository(),
@@ -76,19 +77,19 @@ class TreeherderApksScreenTest {
 
         composeTestRule.onNodeWithTag(TREEHERDER_LOADING_STATE_TAG, useUnmergedTree = true)
             .assertIsDisplayed()
-        composeTestRule.onAllNodesWithText(targetJobName, substring = false, useUnmergedTree = true)
+        composeTestRule.onAllNodesWithText(targetDisplayName, substring = false, useUnmergedTree = true)
             .assertCountEquals(0)
 
         composeTestRule.waitUntil(timeoutMillis = 5_000) {
-            composeTestRule.onAllNodesWithTag(TREEHERDER_RESULTS_HEADER_TAG, useUnmergedTree = true)
+            composeTestRule.onAllNodesWithTag("revision_search_push_ed209aa2136b241686ff20489c5cb622348e2ecf", useUnmergedTree = true)
                 .fetchSemanticsNodes().isNotEmpty()
         }
 
         composeTestRule.onAllNodesWithTag(TREEHERDER_LOADING_STATE_TAG, useUnmergedTree = true)
             .assertCountEquals(0)
-        composeTestRule.onNodeWithTag(TREEHERDER_RESULTS_HEADER_TAG, useUnmergedTree = true)
+        composeTestRule.onNodeWithText(targetDisplayName, substring = false, useUnmergedTree = true)
             .assertIsDisplayed()
-        composeTestRule.onNodeWithText(targetJobName, substring = false, useUnmergedTree = true)
+        composeTestRule.onNodeWithTag("revision_search_push_ed209aa2136b241686ff20489c5cb622348e2ecf", useUnmergedTree = true)
             .assertIsDisplayed()
     }
 
@@ -131,6 +132,7 @@ class TreeherderApksScreenTest {
         }
 
         composeTestRule.onNodeWithTag("profile_email_input").performTextInput("no-match")
+        composeTestRule.onNodeWithTag("profile_email_clear_button").assertIsDisplayed()
         composeTestRule.onAllNodesWithTag(TREEHERDER_SEARCH_HISTORY_TAG).assertCountEquals(0)
     }
 

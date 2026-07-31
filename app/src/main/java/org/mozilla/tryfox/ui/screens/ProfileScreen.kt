@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,6 +66,7 @@ import org.mozilla.tryfox.ui.composables.DownloadButton
 import org.mozilla.tryfox.ui.composables.ErrorState
 import org.mozilla.tryfox.ui.composables.ProjectSelector
 import org.mozilla.tryfox.ui.composables.rememberLinkedPushComment
+import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import org.mozilla.tryfox.ui.models.PushUiModel
 import org.mozilla.tryfox.util.FENIX
@@ -135,7 +137,7 @@ internal fun appIconNameForJob(jobName: String, fallbackAppName: String): String
 }
 
 @Composable
-private fun ProfileSearchButton(
+internal fun SearchSubmitButton(
     onClick: () -> Unit,
     enabled: Boolean,
     isLoading: Boolean,
@@ -176,7 +178,6 @@ private fun UserSearchCard(
     isLoading: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val keyboardController = LocalSoftwareKeyboardController.current
     val projects = listOf("try", "mozilla-central", "mozilla-beta", "mozilla-release")
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -189,59 +190,82 @@ private fun UserSearchCard(
             onProjectSelected = onProjectChange,
             modifier = Modifier.height(52.dp),
         )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = email,
-                onValueChange = onEmailChange,
-                placeholder = { Text(stringResource(id = R.string.profile_screen_user_email_label)) },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(52.dp)
-                    .testTag("profile_email_input"),
-                singleLine = true,
-                shape = RoundedCornerShape(20.dp),
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = null,
-                    )
-                },
-                trailingIcon = {
-                    if (email.isNotEmpty()) {
-                        IconButton(
-                            onClick = { onEmailChange("") },
-                            modifier = Modifier.testTag("profile_email_clear_button"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Close,
-                                contentDescription = stringResource(id = R.string.profile_screen_clear_email_description),
-                            )
-                        }
+        SearchInputRow(
+            query = email,
+            onQueryChange = onEmailChange,
+            onSearchClick = onSearchClick,
+            isLoading = isLoading,
+        )
+    }
+}
+
+@OptIn(ExperimentalComposeUiApi::class)
+@Composable
+internal fun SearchInputRow(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onSearchClick: () -> Unit,
+    isLoading: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val keyboardController = LocalSoftwareKeyboardController.current
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            placeholder = {
+                Text(
+                    text = stringResource(id = R.string.profile_screen_user_email_label),
+                    maxLines = 1,
+                )
+            },
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 56.dp)
+                .testTag("profile_email_input"),
+            singleLine = true,
+            shape = RoundedCornerShape(20.dp),
+            leadingIcon = {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                )
+            },
+            trailingIcon = {
+                if (query.isNotEmpty()) {
+                    IconButton(
+                        onClick = { onQueryChange("") },
+                        modifier = Modifier.testTag("profile_email_clear_button"),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Close,
+                            contentDescription = stringResource(id = R.string.profile_screen_clear_email_description),
+                        )
                     }
-                },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Search,
-                ),
-                keyboardActions = KeyboardActions(onSearch = {
-                    onSearchClick()
-                    keyboardController?.hide()
-                }),
-            )
-            ProfileSearchButton(
-                onClick = {
-                    onSearchClick()
-                    keyboardController?.hide()
-                },
-                enabled = !isLoading && email.isNotBlank(),
-                isLoading = isLoading,
-                modifier = Modifier.size(52.dp),
-            )
-        }
+                }
+            },
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Email,
+                imeAction = ImeAction.Search,
+            ),
+            keyboardActions = KeyboardActions(onSearch = {
+                onSearchClick()
+                keyboardController?.hide()
+            }),
+        )
+        SearchSubmitButton(
+            onClick = {
+                onSearchClick()
+                keyboardController?.hide()
+            },
+            enabled = !isLoading && query.isNotBlank(),
+            isLoading = isLoading,
+            modifier = Modifier.size(52.dp),
+        )
     }
 }
 
@@ -371,7 +395,12 @@ fun ProfileScreen(
                             )
                         }
                         items(pushes, key = { push -> push.revision ?: push.pushComment }) { push ->
-                            EmailPushCard(push = push, profileViewModel = profileViewModel)
+                            PushResultCard(
+                                push = push,
+                                onDownloadClick = profileViewModel::downloadArtifact,
+                                onInstallClick = profileViewModel::installApk,
+                                testTag = "email_search_push_${push.revision}",
+                            )
                         }
                     }
                 }
@@ -397,12 +426,18 @@ fun ProfileScreen(
 }
 
 @Composable
-private fun EmailPushCard(push: PushUiModel, profileViewModel: ProfileViewModel) {
+internal fun PushResultCard(
+    push: PushUiModel,
+    onDownloadClick: (ArtifactUiModel) -> Unit,
+    onInstallClick: (java.io.File) -> Unit,
+    testTag: String,
+) {
     val commitTitle = remember(push.pushComment) {
         push.pushComment.lineSequence().firstOrNull().orEmpty().trim()
+            .ifBlank { "Revision ${push.revision?.take(12).orEmpty()}" }
     }
     Card(
-        modifier = Modifier.fillMaxWidth().testTag("email_search_push_${push.revision}"),
+        modifier = Modifier.fillMaxWidth().testTag(testTag),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -411,23 +446,36 @@ private fun EmailPushCard(push: PushUiModel, profileViewModel: ProfileViewModel)
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
-            Text(
-                text = "${formatRelativePushTime(push.pushTimestamp)} · ${push.author}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp),
-            )
+            if (push.pushTimestamp > 0L || push.author.isNotBlank()) {
+                Text(
+                    text = listOfNotNull(
+                        formatRelativePushTime(push.pushTimestamp).takeIf { push.pushTimestamp > 0L },
+                        push.author.takeIf(String::isNotBlank),
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
             HorizontalDivider(modifier = Modifier.padding(top = 14.dp))
             push.jobs.forEachIndexed { index, job ->
                 if (index > 0) HorizontalDivider()
-                CompactApkRow(job = job, profileViewModel = profileViewModel)
+                CompactApkRow(
+                    job = job,
+                    onDownloadClick = onDownloadClick,
+                    onInstallClick = onInstallClick,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun CompactApkRow(job: JobDetailsUiModel, profileViewModel: ProfileViewModel) {
+private fun CompactApkRow(
+    job: JobDetailsUiModel,
+    onDownloadClick: (ArtifactUiModel) -> Unit,
+    onInstallClick: (java.io.File) -> Unit,
+) {
     val apk = remember(job.artifacts) { job.artifacts.firstOrNull { it.abi.isSupported } }
     val appIconName = remember(job.jobName, job.appName) { appIconNameForJob(job.jobName, job.appName) }
     Row(
@@ -449,8 +497,8 @@ private fun CompactApkRow(job: JobDetailsUiModel, profileViewModel: ProfileViewM
         apk?.let {
             DownloadButton(
                 downloadState = it.downloadState,
-                onDownloadClick = { profileViewModel.downloadArtifact(it) },
-                onInstallClick = profileViewModel::installApk,
+                onDownloadClick = { onDownloadClick(it) },
+                onInstallClick = onInstallClick,
                 modifier = Modifier.width(112.dp),
                 inProgressText = stringResource(id = R.string.download_button_download),
             )
