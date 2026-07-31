@@ -64,6 +64,26 @@ internal fun isPerfAgainRetry(revisions: List<RevisionDetail>): Boolean {
     return firstComment.contains("Pushed via `mach try perf-again`", ignoreCase = true)
 }
 
+private val unsignedApkJobNamePattern = Regex("^build-apk-(.+)$", RegexOption.IGNORE_CASE)
+
+/** Removes an unsigned build only when its corresponding signed build has a displayable APK. */
+internal fun filterRedundantUnsignedApkJobs(jobs: List<JobDetailsUiModel>): List<JobDetailsUiModel> {
+    val availableSignedJobNames = jobs.asSequence()
+        .filter(JobDetailsUiModel::isSignedBuild)
+        .map { it.jobName.trim().lowercase() }
+        .toSet()
+
+    return jobs.filter { job ->
+        if (job.isSignedBuild) return@filter true
+        val signedEquivalent = unsignedApkJobNamePattern.matchEntire(job.jobName.trim())
+            ?.groupValues
+            ?.get(1)
+            ?.let { "signing-apk-$it" }
+            ?.lowercase()
+        signedEquivalent == null || signedEquivalent !in availableSignedJobNames
+    }
+}
+
 /**
  * ViewModel for the Profile screen, responsible for fetching pushes and artifacts by author, managing downloads, and handling user interactions.
  *
@@ -261,8 +281,9 @@ class SearchViewModel(
                             for (job in signedCandidates + unsignedCandidates) {
                                 loadJob(job)?.let(jobs::add)
                             }
-                            val signedJobs = jobs.filter(JobDetailsUiModel::isSignedBuild)
-                            val unsignedJobs = jobs.filterNot(JobDetailsUiModel::isSignedBuild)
+                            val visibleJobs = filterRedundantUnsignedApkJobs(jobs)
+                            val signedJobs = visibleJobs.filter(JobDetailsUiModel::isSignedBuild)
+                            val unsignedJobs = visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild)
                             if (signedJobs.isEmpty() && unsignedJobs.isEmpty()) {
                                 _errorMessage.value = "No APK builds found for this revision."
                             } else {
@@ -360,7 +381,8 @@ class SearchViewModel(
                                         }
                                     }.awaitAll().filterNotNull()
 
-                                    if (jobsWithArtifacts.isNotEmpty()) {
+                                    val visibleJobs = filterRedundantUnsignedApkJobs(jobsWithArtifacts)
+                                    if (visibleJobs.isNotEmpty()) {
                                         PushUiModel(
                                             pushComment = selectPreferredPushComment(
                                                 revisions = pushResult.revisions,
@@ -370,8 +392,8 @@ class SearchViewModel(
                                                     .map { it.revisions },
                                             ),
                                             author = pushResult.author,
-                                            jobs = jobsWithArtifacts.filter(JobDetailsUiModel::isSignedBuild),
-                                            unsignedJobs = jobsWithArtifacts.filterNot(JobDetailsUiModel::isSignedBuild),
+                                            jobs = visibleJobs.filter(JobDetailsUiModel::isSignedBuild),
+                                            unsignedJobs = visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild),
                                             revision = pushResult.revision,
                                             pushTimestamp = pushResult.pushTimestamp,
                                         )
