@@ -25,6 +25,7 @@ fun DownloadButton(
     installState: InstallState = InstallState.Idle,
     installDisabled: Boolean = false,
     onOpenClick: ((String) -> Unit)? = null,
+    debugLabel: String = "action_button",
 ) {
     val inProgressState = downloadState as? DownloadState.InProgress
     val downloadedState = downloadState as? DownloadState.Downloaded
@@ -34,8 +35,12 @@ fun DownloadButton(
     val isInstalled = installState is InstallState.Installed
     val isDownloading = inProgressState != null
 
-    LaunchedEffect(downloadState) {
-        Log.d(TAG, "downloadState changed: $downloadState")
+    LaunchedEffect(downloadState, installState, installDisabled, debugLabel) {
+        Log.d(
+            TAG,
+            "[$debugLabel] state download=${downloadState.javaClass.simpleName} install=${installState.javaClass.simpleName} " +
+                "installDisabled=$installDisabled",
+        )
     }
 
     ProgressButton(
@@ -56,7 +61,11 @@ fun DownloadButton(
         } else {
             stringResource(id = R.string.download_button_install)
         },
-        loadingText = if (isInstalling) stringResource(id = R.string.download_button_installing) else inProgressText ?: defaultText,
+        loadingText = if (isInstalling || isInstalled) {
+            stringResource(id = R.string.download_button_installing)
+        } else {
+            inProgressText ?: defaultText
+        },
         determinateProgressAnimation = determinateProgressAnimation,
         // Keep the fill stable across every state; the lighter progress ring is
         // deliberately distinct from the primary button background.

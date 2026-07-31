@@ -23,6 +23,8 @@ import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
+import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.models.HistoryItemUiModel
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
@@ -32,6 +34,7 @@ class HistoryViewModel(
     private val downloadCoordinator: ApkDownloadCoordinator,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
+    private val installCoordinator: ApkInstallCoordinator? = null,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val currentTimeMillisProvider: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
@@ -45,6 +48,8 @@ class HistoryViewModel(
 
     private val _historyItems = MutableStateFlow<List<HistoryItemUiModel>>(emptyList())
     val historyItems: StateFlow<List<HistoryItemUiModel>> = _historyItems.asStateFlow()
+    val installStates: StateFlow<Map<String, InstallState>> =
+        installCoordinator?.states ?: MutableStateFlow(emptyMap())
 
     init {
         logcat(LogPriority.DEBUG, TAG) { "init" }
@@ -58,6 +63,20 @@ class HistoryViewModel(
                 downloadStates.value = persistedDownloads.toDownloadStates()
             }
             .launchIn(viewModelScope)
+
+        installCoordinator?.successfulInstalls
+            ?.onEach { artifactKey ->
+                _historyItems.value.firstOrNull { it.entry.uniqueKey == artifactKey }?.let { historyItem ->
+                    try {
+                        historyRepository.upsertHistoryEntry(
+                            historyItem.entry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
+                        )
+                    } catch (_: Exception) {
+                        // History is best-effort; the install has already succeeded.
+                    }
+                }
+            }
+            ?.launchIn(viewModelScope)
 
         historyRepository.historyEntries
             .combine(cacheManager.cacheState) { entries, _ -> entries }
@@ -124,17 +143,21 @@ class HistoryViewModel(
     }
 
     fun install(historyItem: HistoryItemUiModel, file: File) {
-        viewModelScope.launch {
-            try {
-                historyRepository.upsertHistoryEntry(
-                    historyItem.entry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
-                )
-            } catch (_: Exception) {
-                // History is best-effort; never block installation.
+        installCoordinator?.install(historyItem.entry.uniqueKey, file) ?: run {
+            viewModelScope.launch {
+                try {
+                    historyRepository.upsertHistoryEntry(
+                        historyItem.entry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
+                    )
+                } catch (_: Exception) {
+                    // History is best-effort; never block installation.
+                }
+                intentManager.installApk(file)
             }
-            intentManager.installApk(file)
         }
     }
+
+    fun openInstalledApp(packageName: String) = installCoordinator?.openInstalledApp(packageName)
 
     fun delete(historyItem: HistoryItemUiModel) {
         val uniqueKey = historyItem.entry.uniqueKey

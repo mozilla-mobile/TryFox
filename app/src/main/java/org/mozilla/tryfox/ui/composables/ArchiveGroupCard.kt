@@ -65,6 +65,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.toLocalDateTime
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.NightlyBuildOption
@@ -76,7 +77,6 @@ import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.FeatureFlags
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.parseDateToLocalDate
-import java.io.File
 
 private object ArchiveGroupCardTokens {
     val CardPaddingTop = 4.dp
@@ -93,7 +93,7 @@ fun ArchiveGroupCard(
     modifier: Modifier = Modifier,
     apks: List<ApkUiModel>,
     onDownloadClick: (ApkUiModel) -> Unit,
-    onInstallClick: (File) -> Unit,
+    onInstallClick: (ApkUiModel) -> Unit,
     onOpenAppClick: () -> Unit,
     onUninstallClick: () -> Unit,
     appState: AppState?,
@@ -110,6 +110,8 @@ fun ArchiveGroupCard(
     pendingBuildOptions: List<NightlyBuildOption> = emptyList(),
     onBuildSelected: (String) -> Unit = {},
     onDismissBuildPicker: () -> Unit = {},
+    installStates: Map<String, InstallState> = emptyMap(),
+    onOpenInstalledApp: (String) -> Unit = {},
 ) {
     if (pendingBuildOptions.isNotEmpty()) {
         NightlyBuildPickerDialog(
@@ -184,6 +186,8 @@ fun ArchiveGroupCard(
                         onInstallClick,
                         onUninstallClick,
                         appState,
+                        installStates,
+                        onOpenInstalledApp,
                     )
                 }
 
@@ -433,9 +437,11 @@ private fun ReleaseVersionSelector(
 private fun ArchiveGroupAbiSelector(
     apks: List<ApkUiModel>,
     onDownloadClick: (ApkUiModel) -> Unit,
-    onInstallClick: (File) -> Unit,
+    onInstallClick: (ApkUiModel) -> Unit,
     onUninstallClick: () -> Unit,
     appState: AppState?,
+    installStates: Map<String, InstallState>,
+    onOpenInstalledApp: (String) -> Unit,
 ) {
     val firstSupportedIndex = apks.indexOfFirst { it.abi.isSupported }.takeIf { it != -1 } ?: 0
     var selectedIndex by remember { mutableStateOf(firstSupportedIndex) }
@@ -486,6 +492,8 @@ private fun ArchiveGroupAbiSelector(
             Spacer(Modifier.height(ArchiveGroupCardTokens.SpacerHeight))
         }
 
+        val selectedApk = apks[selectedIndex]
+        val installState = installStates[selectedApk.uniqueKey] ?: InstallState.Idle
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (appState?.isInstalled == true) {
                 Button(
@@ -499,11 +507,21 @@ private fun ArchiveGroupAbiSelector(
                 }
             }
 
-            val selectedApk = apks[selectedIndex]
             DownloadButton(
                 downloadState = selectedApk.downloadState,
                 onDownloadClick = { onDownloadClick(selectedApk) },
-                onInstallClick = { file -> onInstallClick(file) },
+                onInstallClick = { onInstallClick(selectedApk) },
+                installState = installState,
+                onOpenClick = onOpenInstalledApp,
+                debugLabel = "home:${selectedApk.uniqueKey}",
+            )
+        }
+        (installState as? InstallState.Failed)?.let { failure ->
+            Text(
+                text = failure.message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp),
             )
         }
     }

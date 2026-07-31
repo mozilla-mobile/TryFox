@@ -199,7 +199,7 @@ val viewModelModule = module {
             params.getOrNull(),
         )
     }
-    viewModel { HistoryViewModel(get(), get(), get(), get(), get(named("IODispatcher"))) }
+    viewModel { HistoryViewModel(get(), get(), get(), get(), get(), get(named("IODispatcher"))) }
     viewModel { ReceiveFromDesktopViewModel(get()) }
     viewModel { ReceiveMessageHistoryViewModel(get(), get(named("IODispatcher"))) }
     viewModel { SearchHistoryViewModel(get()) }
@@ -215,6 +215,7 @@ val viewModelModule = module {
         )
         HomeViewModel(
             releaseRepositories,
+            get(),
             get(),
             get(),
             get(),

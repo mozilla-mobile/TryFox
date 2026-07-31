@@ -7,12 +7,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -26,6 +30,7 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
 import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.screens.HistoryScreen
 import org.mozilla.tryfox.ui.screens.HomeScreen
 import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
@@ -136,8 +141,29 @@ class MainActivity : ComponentActivity() {
     @Composable
     fun AppNavigation() {
         val appSearchHistoryViewModel: SearchHistoryViewModel = koinViewModel()
+        val installStates by installCoordinator.states.collectAsState()
+        val installConflict = installStates.entries.firstOrNull { (_, state) -> state is InstallState.Conflict }
         val localNavController = rememberNavController()
         this@MainActivity.navController = localNavController
+
+        installConflict?.let { (artifactKey, state) ->
+            val conflict = state as InstallState.Conflict
+            AlertDialog(
+                onDismissRequest = { installCoordinator.cancelConflict(artifactKey) },
+                title = { Text(stringResource(id = R.string.install_conflict_title)) },
+                text = { Text(stringResource(R.string.install_conflict_message, conflict.packageName)) },
+                confirmButton = {
+                    Button(onClick = { installCoordinator.confirmUninstallAndRetry(artifactKey) }) {
+                        Text(stringResource(id = R.string.install_conflict_confirm))
+                    }
+                },
+                dismissButton = {
+                    Button(onClick = { installCoordinator.cancelConflict(artifactKey) }) {
+                        Text(stringResource(id = R.string.install_conflict_cancel))
+                    }
+                },
+            )
+        }
 
         LaunchedEffect(localNavController) {
             routeDeepLink(intent)

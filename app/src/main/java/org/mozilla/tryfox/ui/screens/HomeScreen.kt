@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.datetime.LocalDate
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.ArchiveGroupCard
@@ -56,7 +57,6 @@ import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.parseDateToMillis
-import java.io.File
 
 /**
  * Composable function for the Home screen, which displays a list of available apps and allows users to interact with them.
@@ -78,6 +78,7 @@ fun HomeScreen(
 ) {
     val screenState by homeViewModel.homeScreenState.collectAsState()
     val isRefreshing by homeViewModel.isRefreshing.collectAsState()
+    val installStates by homeViewModel.installStates.collectAsState()
     val pullRefreshState = rememberPullRefreshState(isRefreshing, { homeViewModel.refreshData() })
 
     LaunchedEffect(Unit) {
@@ -193,7 +194,9 @@ fun HomeScreen(
                             AppComponent(
                                 app = app,
                                 onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
-                                onInstallClick = { homeViewModel.installApk(it) },
+                                onInstallClick = homeViewModel::installHomeApk,
+                                installStates = installStates,
+                                onOpenInstalledApp = homeViewModel::openInstalledApp,
                                 onOpenAppClick = { homeViewModel.openApp(it) },
                                 onUninstallClick = { homeViewModel.uninstallApp(it) },
                                 onDateSelected = { appName, date ->
@@ -222,7 +225,9 @@ fun HomeScreen(
                             modifier = Modifier.align(Alignment.TopCenter),
                             tryFoxApp = tryFoxApp,
                             onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
-                            onInstallClick = { homeViewModel.installApk(it) },
+                            onInstallClick = homeViewModel::installHomeApk,
+                            installStates = installStates,
+                            onOpenInstalledApp = homeViewModel::openInstalledApp,
                             onDismiss = { homeViewModel.dismissTryFoxCard() },
                             onTryFoxCardHeightChange = { tryFoxCardHeight = it },
                         )
@@ -279,7 +284,9 @@ private fun TopBarActionIcon(
 fun AppComponent(
     app: AppUiModel,
     onDownloadClick: (ApkUiModel) -> Unit,
-    onInstallClick: (File) -> Unit,
+    onInstallClick: (ApkUiModel) -> Unit,
+    installStates: Map<String, InstallState>,
+    onOpenInstalledApp: (String) -> Unit,
     onOpenAppClick: (String) -> Unit,
     onUninstallClick: (String) -> Unit,
     onDateSelected: (String, LocalDate) -> Unit,
@@ -311,6 +318,8 @@ fun AppComponent(
         appState = appState,
         onDownloadClick = onDownloadClick,
         onInstallClick = onInstallClick,
+        installStates = installStates,
+        onOpenInstalledApp = onOpenInstalledApp,
         onOpenAppClick = {
             appState?.packageName?.let {
                 onOpenAppClick(it)
