@@ -58,6 +58,7 @@
     </plurals>
     <string name="search_result_unsigned_apks_expanded">Unsigned APKs expanded</string>
     <string name="search_result_unsigned_apks_collapsed">Unsigned APKs collapsed</string>
+    <string name="search_result_unsigned_apks_warning">Those APKs are unsigned and might not be installable correctly. You can trigger a signing job on Treeherder, like `signing-apk-fenix-nightly`.</string>
     <string name="profile_screen_search_card_title">Search builds</string>
     <string name="profile_screen_user_email_label">Revision or email</string>
     <string name="profile_screen_search_button_description">Search builds</string>
