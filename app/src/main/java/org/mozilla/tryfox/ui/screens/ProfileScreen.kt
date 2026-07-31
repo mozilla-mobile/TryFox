@@ -99,7 +99,7 @@ private fun projectDisplayName(project: String): String {
 }
 
 private val signingApkJobNamePattern = Regex(
-    pattern = "signing-apk-(fenix|focus)-(debug|nightly|beta|release)(-firebase)?",
+    pattern = "signing-apk-(fenix|focus)-(debug|nightly|beta|release)(-(firebase|simulation))?",
     option = RegexOption.IGNORE_CASE,
 )
 
@@ -111,8 +111,12 @@ internal fun formatJobNameForDisplay(jobName: String): String {
         else -> return jobName
     }
     val channel = match.groupValues[2].lowercase(Locale.ROOT)
-    val firebaseSuffix = if (match.groupValues[3].isNotEmpty()) " (firebase)" else ""
-    return "$appName $channel$firebaseSuffix"
+    val variantSuffix = when (match.groupValues[4].lowercase(Locale.ROOT)) {
+        "firebase" -> " (firebase)"
+        "simulation" -> " (perftests)"
+        else -> ""
+    }
+    return "$appName $channel$variantSuffix"
 }
 
 internal fun appIconNameForJob(jobName: String, fallbackAppName: String): String {

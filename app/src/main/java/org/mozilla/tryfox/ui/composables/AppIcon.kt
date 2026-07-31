@@ -66,7 +66,7 @@ fun AppIcon(
     }
 
     if (iconResId != null && contentDescResId != null) {
-        val isPaddedSearchResultForeground = useSearchResultVariant && appName in setOf(FENIX, FENIX_BETA, FOCUS_BETA)
+        val isPaddedSearchResultForeground = useSearchResultVariant && appName in setOf(FENIX, FENIX_NIGHTLY, FENIX_BETA, FOCUS_BETA)
         if (isPaddedSearchResultForeground) {
             Box(modifier = modifier.clipToBounds()) {
                 Image(
