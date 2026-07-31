@@ -11,6 +11,8 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -20,7 +22,12 @@ import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
+import org.mozilla.tryfox.data.repositories.CachedHomeApk
+import org.mozilla.tryfox.data.repositories.CachedHomeApp
 import org.mozilla.tryfox.data.repositories.DateAwareReleaseRepository
+import org.mozilla.tryfox.data.repositories.EmptyHomeDataCacheRepository
+import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
+import org.mozilla.tryfox.data.repositories.HomeDataSnapshot
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.data.repositories.VersionAwareReleaseRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
@@ -64,6 +71,7 @@ class HomeViewModel(
     private val intentManager: IntentManager,
     private val installCoordinator: ApkInstallCoordinator? = null,
     private val ioDispatcher: CoroutineDispatcher,
+    private val homeDataCacheRepository: HomeDataCacheRepository = EmptyHomeDataCacheRepository,
     private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
 ) : ViewModel() {
 
@@ -75,6 +83,15 @@ class HomeViewModel(
     val installStates: StateFlow<Map<String, InstallState>> =
         installCoordinator?.states ?: MutableStateFlow(emptyMap())
     private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
+    private var currentAppsByName: Map<String, AppUiModel> = emptyMap()
+    private var cachedAppsByName: Map<String, AppUiModel> = emptyMap()
+    private var initialLoadStarted = false
+    private var tryFoxCardDismissed = false
+    private val appMutationVersions = mutableMapOf<String, Long>()
+    private val appsLock = Any()
+    private val refreshMutex = Mutex()
+    private val refreshStateMutex = Mutex()
+    private var activeRefreshes = 0
 
     init {
         downloadCoordinator.downloads
@@ -121,25 +138,77 @@ class HomeViewModel(
     }
 
     fun initialLoad() {
-        viewModelScope.launch(ioDispatcher) {
-            _homeScreenState.value = HomeScreenState.InitialLoading
-            _isRefreshing.value = true
-            cacheManager.checkCacheStatus() // Initial check
-            fetchData()
-            _isRefreshing.value = false
-        }
+        if (initialLoadStarted) return
+        initialLoadStarted = true
+        launchRefresh(hydrateCache = true)
     }
 
     fun refreshData() {
+        launchRefresh(hydrateCache = false)
+    }
+
+    private fun launchRefresh(hydrateCache: Boolean) {
         viewModelScope.launch(ioDispatcher) {
-            _isRefreshing.value = true
-            fetchData()
-            _isRefreshing.value = false
+            markRefreshStarted()
+            try {
+                refreshMutex.withLock {
+                    if (hydrateCache) {
+                        cacheManager.checkCacheStatus()
+                        hydrateCachedData()
+                    }
+                    fetchData()
+                }
+            } finally {
+                markRefreshFinished()
+            }
         }
     }
 
+    private suspend fun markRefreshStarted() = refreshStateMutex.withLock {
+        activeRefreshes += 1
+        _isRefreshing.value = true
+    }
+
+    private suspend fun markRefreshFinished() = refreshStateMutex.withLock {
+        activeRefreshes -= 1
+        _isRefreshing.value = activeRefreshes > 0
+    }
+
+    private suspend fun hydrateCachedData() {
+        val snapshot = homeDataCacheRepository.read() ?: return
+        val appInfoMap = appInfoMap()
+        val cachedApps = snapshot.apps.associate { cachedApp ->
+            cachedApp.appName to cachedApp.toAppUiModel(appInfoMap[cachedApp.appName])
+        }
+        if (cachedApps.isEmpty()) return
+
+        synchronized(appsLock) {
+            cachedAppsByName = cachedApps
+            currentAppsByName = initialApps(appInfoMap) + cachedApps
+        }
+        publishCurrentApps()
+    }
+
     private suspend fun fetchData() {
-        val appInfoMap = mapOf(
+        val appInfoMap = appInfoMap()
+        val mutationVersionsAtStart = synchronized(appsLock) { appMutationVersions.toMap() }
+        if (_homeScreenState.value !is HomeScreenState.Loaded) {
+            synchronized(appsLock) {
+                currentAppsByName = initialApps(appInfoMap)
+            }
+            publishCurrentApps()
+        }
+
+        val fetchedApps = releaseRepositories.associate { repository ->
+            repository.appName to buildAppUiModel(repository, appInfoMap[repository.appName])
+        }
+        applyFetchedApps(fetchedApps, mutationVersionsAtStart)
+        publishCurrentApps()
+        persistSuccessfulApps()
+    }
+
+    private fun appInfoMap(): Map<String, AppState> {
+        return mapOf(
             FENIX to mozillaPackageManager.fenix,
             FENIX_RELEASE to mozillaPackageManager.fenixRelease,
             FENIX_BETA to mozillaPackageManager.fenixBeta,
@@ -148,47 +217,109 @@ class HomeViewModel(
             REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
             TRYFOX to mozillaPackageManager.tryfox,
         )
+    }
 
-        _homeScreenState.update {
-            val currentCacheState = cacheManager.cacheState.value
-            val initialApps = appInfoMap.mapValues { (appName, appState) ->
-                AppUiModel(
-                    name = appName,
-                    packageName = appState.packageName,
-                    installedVersion = appState.version,
-                    installedVersionCode = appState.versionCode,
-                    installedDate = appState.formattedInstallDate,
-                    installingPackageName = appState.installingPackageName,
-                    splitNames = appState.splitNames,
-                    apks = ApksResult.Loading,
-                )
-            }
-            HomeScreenState.Loaded(
-                apps = initialApps.filterNot { (key, _) -> key == TRYFOX },
-                tryfoxApp = initialApps[TRYFOX],
-                cacheManagementState = currentCacheState,
-                isDownloadingAnyFile = false,
+    private fun initialApps(appInfoMap: Map<String, AppState>): Map<String, AppUiModel> =
+        appInfoMap.mapValues { (appName, appState) ->
+            AppUiModel(
+                name = appName,
+                packageName = appState.packageName,
+                installedVersion = appState.version,
+                installedVersionCode = appState.versionCode,
+                installedDate = appState.formattedInstallDate,
+                installingPackageName = appState.installingPackageName,
+                splitNames = appState.splitNames,
+                apks = ApksResult.Loading,
             )
         }
 
-        val newApps = releaseRepositories.associate { repository ->
-            repository.appName to buildAppUiModel(repository, appInfoMap[repository.appName])
-        }
+    private fun publishCurrentApps() {
+        val apps = synchronized(appsLock) { currentAppsByName }
+        val currentCacheState = cacheManager.cacheState.value
+        val tryFoxApp = apps[TRYFOX]
+            ?.takeIf { !tryFoxCardDismissed && it.newVersionAvailable }
+        _homeScreenState.value = HomeScreenState.Loaded(
+            apps = apps.filterNot { (key, _) -> key == TRYFOX },
+            tryfoxApp = tryFoxApp,
+            cacheManagementState = currentCacheState,
+            isDownloadingAnyFile = false,
+        ).applyDownloadStates(downloadStates.value)
+    }
 
-        val tryFoxApp = newApps[TRYFOX]?.takeIf { it.newVersionAvailable }
-
-        _homeScreenState.update {
-            if (it is HomeScreenState.Loaded) {
-                val loadedState = it.copy(
-                    apps = newApps.filterNot { (key, _) -> key == TRYFOX },
-                    tryfoxApp = tryFoxApp,
-                )
-                loadedState.applyDownloadStates(downloadStates.value)
-            } else {
-                it
-            }
+    private fun updateCurrentApp(appName: String, update: (AppUiModel) -> AppUiModel) {
+        synchronized(appsLock) {
+            val currentApp = currentAppsByName[appName] ?: return
+            currentAppsByName = currentAppsByName + (appName to update(currentApp))
+            appMutationVersions[appName] = (appMutationVersions[appName] ?: 0) + 1
         }
     }
+
+    private fun applyFetchedApps(
+        fetchedApps: Map<String, AppUiModel>,
+        mutationVersionsAtStart: Map<String, Long>,
+    ) {
+        synchronized(appsLock) {
+            val mergedApps = fetchedApps.mapValues { (appName, fetchedApp) ->
+                val cachedApp = currentAppsByName[appName]
+                val changedWhileRefreshing = appMutationVersions[appName] != mutationVersionsAtStart[appName]
+                if (changedWhileRefreshing && cachedApp != null) {
+                    cachedApp
+                } else if (fetchedApp.apks is ApksResult.Error && cachedApp?.apks is ApksResult.Success) {
+                    cachedApp
+                } else {
+                    fetchedApp
+                }
+            }
+            currentAppsByName = currentAppsByName + mergedApps
+            cachedAppsByName = cachedAppsByName + fetchedApps.filterValues { it.apks is ApksResult.Success }
+        }
+    }
+
+    private suspend fun persistSuccessfulApps() {
+        val cachedApps = synchronized(appsLock) { cachedAppsByName }
+        val successfulApps = cachedApps.values.mapNotNull { app ->
+            val successfulApks = app.apks as? ApksResult.Success ?: return@mapNotNull null
+            CachedHomeApp(
+                appName = app.name,
+                apks = successfulApks.apks.map(::toCachedHomeApk),
+                selectedReleaseVersion = app.selectedReleaseVersion,
+                availableReleaseVersions = app.availableReleaseVersions,
+            )
+        }
+        if (successfulApps.isNotEmpty()) {
+            homeDataCacheRepository.write(
+                HomeDataSnapshot(version = HomeDataSnapshot.CURRENT_VERSION, apps = successfulApps),
+            )
+        }
+    }
+
+    private fun CachedHomeApp.toAppUiModel(appState: AppState?): AppUiModel = AppUiModel(
+        name = appName,
+        packageName = appState?.packageName.orEmpty(),
+        installedVersion = appState?.version,
+        installedVersionCode = appState?.versionCode,
+        installedDate = appState?.formattedInstallDate,
+        installingPackageName = appState?.installingPackageName,
+        splitNames = appState?.splitNames.orEmpty(),
+        apks = ApksResult.Success(apks.map { it.toUiModel() }),
+        selectedReleaseVersion = selectedReleaseVersion,
+        availableReleaseVersions = availableReleaseVersions,
+    )
+
+    private fun CachedHomeApk.toUiModel(): ApkUiModel {
+        val parsed = MozillaArchiveApk(originalString, rawDateString, appName, version, abiName, fullUrl, fileName)
+        return convertParsedApksToUiModels(listOf(parsed)).single()
+    }
+
+    private fun toCachedHomeApk(apk: ApkUiModel): CachedHomeApk = CachedHomeApk(
+        originalString = apk.originalString,
+        rawDateString = apk.uniqueKey.split('/').let { parts -> parts.getOrNull(1)?.takeIf { parts.size > 2 } },
+        appName = apk.appName,
+        version = apk.version,
+        abiName = apk.abi.name.orEmpty(),
+        fullUrl = apk.url,
+        fileName = apk.fileName,
+    )
 
     private fun getLatestApks(apks: List<MozillaArchiveApk>): List<MozillaArchiveApk> {
         if (apks.isEmpty()) {
@@ -372,6 +503,11 @@ class HomeViewModel(
         val builds = pendingBuildsByApp.remove(appName) ?: return
         val chosen = builds.filter { it.rawDateString == buildId }
         if (chosen.isEmpty()) return
+        val chosenApks = ApksResult.Success(convertParsedApksToUiModels(chosen))
+
+        updateCurrentApp(appName) {
+            it.copy(apks = chosenApks, pendingBuildOptions = emptyList())
+        }
 
         _homeScreenState.update { state ->
             if (state !is HomeScreenState.Loaded) return@update state
@@ -379,7 +515,7 @@ class HomeViewModel(
             state.copy(
                 apps = state.apps + (
                     appName to app.copy(
-                        apks = ApksResult.Success(convertParsedApksToUiModels(chosen)),
+                        apks = chosenApks,
                         pendingBuildOptions = emptyList(),
                     )
                     ),
@@ -390,6 +526,7 @@ class HomeViewModel(
     /** Dismisses the multi-build prompt, leaving the latest build (already shown) in place. */
     fun onDismissBuildPicker(appName: String) {
         pendingBuildsByApp.remove(appName)
+        updateCurrentApp(appName) { app -> app.copy(pendingBuildOptions = emptyList()) }
         _homeScreenState.update { state ->
             if (state !is HomeScreenState.Loaded) return@update state
             val app = state.apps[appName] ?: return@update state
@@ -422,6 +559,9 @@ class HomeViewModel(
                 apks = ApksResult.Loading,
                 selectedReleaseVersion = version,
             )
+            updateCurrentApp(appName) {
+                it.copy(apks = ApksResult.Loading, selectedReleaseVersion = version)
+            }
             _homeScreenState.value = currentState.copy(apps = updatedApps)
 
             val newApksResult = repository.getReleasesForVersion(version).toApksResult(appName)
@@ -433,6 +573,9 @@ class HomeViewModel(
                 apks = newApksResult,
                 selectedReleaseVersion = version,
             )
+            updateCurrentApp(appName) {
+                it.copy(apks = newApksResult, selectedReleaseVersion = version)
+            }
 
             _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
             syncLoadedStateDownloadStates()
@@ -456,6 +599,13 @@ class HomeViewModel(
                 apks = ApksResult.Loading,
                 pendingBuildOptions = emptyList(),
             )
+            updateCurrentApp(appName) {
+                it.copy(
+                    userPickedDate = date,
+                    apks = ApksResult.Loading,
+                    pendingBuildOptions = emptyList(),
+                )
+            }
 
             _homeScreenState.value = currentState.copy(apps = updatedApps)
 
@@ -487,6 +637,13 @@ class HomeViewModel(
 
             val finalUpdatedApps = latestState.apps.toMutableMap()
             finalUpdatedApps[appName] = finalUpdatedApp
+            updateCurrentApp(appName) {
+                it.copy(
+                    userPickedDate = date,
+                    apks = newApksResult,
+                    pendingBuildOptions = buildOptions,
+                )
+            }
             _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
             syncLoadedStateDownloadStates()
         }
@@ -519,6 +676,7 @@ class HomeViewModel(
     }
 
     fun dismissTryFoxCard() {
+        tryFoxCardDismissed = true
         _homeScreenState.update { currentState ->
             if (currentState !is HomeScreenState.Loaded) return@update currentState
             currentState.copy(tryfoxApp = null)

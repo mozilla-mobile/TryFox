@@ -1,10 +1,12 @@
 package org.mozilla.tryfox.ui.screens
 
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
@@ -33,10 +35,15 @@ import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
+import org.mozilla.tryfox.data.repositories.CachedHomeApk
+import org.mozilla.tryfox.data.repositories.CachedHomeApp
+import org.mozilla.tryfox.data.repositories.DateAwareReleaseRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseReleaseRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
 import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
+import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
+import org.mozilla.tryfox.data.repositories.HomeDataSnapshot
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
@@ -181,6 +188,7 @@ class HomeViewModelTest {
     private fun createViewModel(
         releaseRepositories: List<ReleaseRepository> = emptyList(),
         mozillaPackageManager: MozillaPackageManager = FakeMozillaPackageManager(),
+        homeDataCacheRepository: HomeDataCacheRepository = FakeHomeDataCacheRepository(),
     ) = HomeViewModel(
         releaseRepositories = releaseRepositories,
         downloadCoordinator = fakeDownloadCoordinator,
@@ -188,8 +196,53 @@ class HomeViewModelTest {
         cacheManager = fakeCacheManager,
         intentManager = intentManager,
         ioDispatcher = mainCoroutineRule.testDispatcher,
+        homeDataCacheRepository = homeDataCacheRepository,
         supportedAbis = listOf("arm64-v8a", "x86_64", "armeabi-v7a"),
     )
+
+    private class FakeHomeDataCacheRepository(
+        var snapshot: HomeDataSnapshot? = null,
+    ) : HomeDataCacheRepository {
+        val writes = mutableListOf<HomeDataSnapshot>()
+
+        override suspend fun read(): HomeDataSnapshot? = snapshot
+
+        override suspend fun write(snapshot: HomeDataSnapshot) {
+            writes += snapshot
+            this.snapshot = snapshot
+        }
+    }
+
+    private class CountingReleaseRepository(
+        override val appName: String,
+        private val result: NetworkResult<List<MozillaArchiveApk>>,
+    ) : ReleaseRepository {
+        var calls = 0
+
+        override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
+            calls += 1
+            return result
+        }
+    }
+
+    private class BlockingDateReleaseRepository(
+        override val appName: String,
+        private val latestResult: NetworkResult<List<MozillaArchiveApk>>,
+        private val dateResult: NetworkResult<List<MozillaArchiveApk>>,
+    ) : DateAwareReleaseRepository {
+        val latestStarted = CompletableDeferred<Unit>()
+        val unblockLatest = CompletableDeferred<Unit>()
+        var latestCalls = 0
+
+        override suspend fun getLatestReleases(): NetworkResult<List<MozillaArchiveApk>> {
+            latestCalls += 1
+            latestStarted.complete(Unit)
+            unblockLatest.await()
+            return latestResult
+        }
+
+        override suspend fun getReleases(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> = dateResult
+    }
 
     private class FakeApkDownloadCoordinator : ApkDownloadCoordinator {
         private val _downloads = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
@@ -272,6 +325,141 @@ class HomeViewModelTest {
                 "Initial HomeScreenState should be InitialLoading",
             )
         }
+
+    @Test
+    fun `initialLoad hydrates cached data and retains it when refresh fails`() = runTest {
+        val cachedApk = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
+        val cache = FakeHomeDataCacheRepository(
+            HomeDataSnapshot(
+                version = HomeDataSnapshot.CURRENT_VERSION,
+                apps = listOf(
+                    CachedHomeApp(
+                        appName = testFenixAppName,
+                        apks = listOf(
+                            CachedHomeApk(
+                                cachedApk.originalString,
+                                cachedApk.rawDateString,
+                                cachedApk.appName,
+                                cachedApk.version,
+                                cachedApk.abiName,
+                                cachedApk.fullUrl,
+                                cachedApk.fileName,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val repository = CountingReleaseRepository(
+            testFenixAppName,
+            NetworkResult.Error("offline"),
+        )
+        viewModel = createViewModel(listOf(repository), homeDataCacheRepository = cache)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertTrue(state.apps[testFenixAppName]?.apks is ApksResult.Success)
+        assertEquals(1, repository.calls)
+        assertEquals(1, cache.writes.size)
+    }
+
+    @Test
+    fun `initialLoad is idempotent after home view model has loaded`() = runTest {
+        val repository = CountingReleaseRepository(
+            testFenixAppName,
+            NetworkResult.Success(emptyList()),
+        )
+        viewModel = createViewModel(listOf(repository))
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.calls)
+    }
+
+    @Test
+    fun `refresh waits for an in-flight load before starting another request`() = runTest {
+        val repository = BlockingDateReleaseRepository(
+            testFenixAppName,
+            NetworkResult.Success(emptyList()),
+            NetworkResult.Success(emptyList()),
+        )
+        viewModel = createViewModel(listOf(repository))
+
+        viewModel.initialLoad()
+        runCurrent()
+        assertTrue(repository.latestStarted.isCompleted)
+        viewModel.refreshData()
+        runCurrent()
+
+        assertEquals(1, repository.latestCalls)
+        assertTrue(viewModel.isRefreshing.value)
+
+        repository.unblockLatest.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(2, repository.latestCalls)
+        assertFalse(viewModel.isRefreshing.value)
+    }
+
+    @Test
+    fun `date selection is retained when cache refresh finishes later`() = runTest {
+        val cachedApk = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
+        val selectedApk = createTestParsedNightlyApk(
+            testFenixAppName,
+            "2023-10-30-01-01-01",
+            testVersion,
+            testAbi,
+        )
+        val cache = FakeHomeDataCacheRepository(
+            HomeDataSnapshot(
+                version = HomeDataSnapshot.CURRENT_VERSION,
+                apps = listOf(
+                    CachedHomeApp(
+                        appName = testFenixAppName,
+                        apks = listOf(
+                            CachedHomeApk(
+                                cachedApk.originalString,
+                                cachedApk.rawDateString,
+                                cachedApk.appName,
+                                cachedApk.version,
+                                cachedApk.abiName,
+                                cachedApk.fullUrl,
+                                cachedApk.fileName,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val repository = BlockingDateReleaseRepository(
+            testFenixAppName,
+            NetworkResult.Success(listOf(cachedApk)),
+            NetworkResult.Success(listOf(selectedApk)),
+        )
+        viewModel = createViewModel(listOf(repository), homeDataCacheRepository = cache)
+        val selectedDate = LocalDate(2023, 10, 30)
+
+        viewModel.initialLoad()
+        runCurrent()
+        assertTrue(repository.latestStarted.isCompleted)
+
+        viewModel.onDateSelected(testFenixAppName, selectedDate)
+        runCurrent()
+        repository.unblockLatest.complete(Unit)
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertEquals(selectedDate, state.apps[testFenixAppName]?.userPickedDate)
+        assertEquals(
+            selectedApk.rawDateString?.formatApkDateForTest(),
+            (state.apps[testFenixAppName]?.apks as? ApksResult.Success)?.apks?.single()?.date,
+        )
+    }
 
     @Test
     fun `initialLoad success should update HomeScreenState to Loaded with data`() = runTest {

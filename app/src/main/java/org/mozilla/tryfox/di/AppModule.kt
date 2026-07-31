@@ -22,6 +22,7 @@ import org.mozilla.tryfox.data.managers.DefaultIntentManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DefaultDownloadFileRepository
 import org.mozilla.tryfox.data.repositories.DefaultHistoryRepository
+import org.mozilla.tryfox.data.repositories.DefaultHomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.DefaultTreeherderRepository
 import org.mozilla.tryfox.data.repositories.DefaultUserDataRepository
@@ -32,6 +33,7 @@ import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
 import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.HistoryRepository
+import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.MozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.ReferenceBrowserReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
@@ -154,6 +156,7 @@ val repositoryModule = module {
     single<TreeherderRepository> { DefaultTreeherderRepository(get()) }
     single<MozillaArchiveRepository> { DefaultMozillaArchiveRepository(get()) }
     single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
+    single<HomeDataCacheRepository> { DefaultHomeDataCacheRepository(androidContext(), get(named("IODispatcher"))) }
     single<HistoryRepository> { DefaultHistoryRepository(androidContext(), get(named("IODispatcher"))) }
     single<LanMessageHistoryRepository> {
         DefaultLanMessageHistoryRepository(
@@ -221,6 +224,7 @@ val viewModelModule = module {
             get(),
             get(),
             get(named("IODispatcher")),
+            get(),
         )
     }
     viewModel { params ->
