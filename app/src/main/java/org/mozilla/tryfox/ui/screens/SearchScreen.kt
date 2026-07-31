@@ -109,12 +109,6 @@ fun SearchScreen(
             job.artifacts.any { it.downloadState is org.mozilla.tryfox.data.DownloadState.InProgress }
         }
     }
-    var queryValidationError by remember(deepLinkQuery) {
-        mutableStateOf(
-            deepLinkQuery?.takeIf { SearchQueryClassifier.classify(it).isFailure }
-                ?.let { "Enter a valid email address or a revision without @." },
-        )
-    }
     var hasSubmittedSearch by rememberSaveable(deepLinkQuery) { mutableStateOf(deepLinkQuery != null) }
     var displayedQuery by rememberSaveable(deepLinkQuery) { mutableStateOf(deepLinkQuery.orEmpty()) }
     var isSearchFieldFocused by remember { mutableStateOf(false) }
@@ -126,14 +120,10 @@ fun SearchScreen(
     val showCurrentSearch = !isEditingDisplayedSearch
 
     fun submitSearch(queryToSubmit: String) {
-        when (SearchQueryClassifier.classify(queryToSubmit).getOrNull()) {
-            is SearchQuery.Email, is SearchQuery.Revision -> {
-                queryValidationError = null
-                hasSubmittedSearch = true
-                displayedQuery = queryToSubmit
-                searchViewModel.submitSearch()
-            }
-            null -> queryValidationError = "Enter a valid email address or a revision without @."
+        if (SearchQueryClassifier.classify(queryToSubmit).isSuccess) {
+            hasSubmittedSearch = true
+            displayedQuery = queryToSubmit
+            searchViewModel.submitSearch()
         }
     }
 
@@ -180,83 +170,92 @@ fun SearchScreen(
             )
         },
     ) { innerPadding ->
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item {
+            // Keep the controls available while the suggestions below scroll.
+            Column(modifier = Modifier.padding(16.dp)) {
                 SearchSection(
                     selectedProject = selectedProject,
                     onProjectSelected = searchViewModel::updateSelectedProject,
                     revision = query,
                     onRevisionChange = {
-                        queryValidationError = null
                         // A text edit is unambiguously an editing interaction, including
                         // the trailing clear action whose focus callback can be delayed.
                         isSearchFieldFocused = true
                         searchViewModel.updateQuery(it)
                     },
-                    onSearchClick = {
-                        submitSearch(query)
-                    },
+                    onSearchClick = { submitSearch(query) },
                     isLoading = isLoading,
-                    showSearchHistory = showSearchHistory,
+                    showSearchHistory = false,
                     onSearchFieldFocusChanged = { isSearchFieldFocused = it },
-                    searchHistory = SearchHistory.displayOrder(searchHistory),
-                    onHistoryItemSelected = { entry ->
-                        searchViewModel.updateSelectedProject(entry.project)
-                        searchViewModel.updateQuery(entry.query)
-                        submitSearch(entry.query)
-                    },
                 )
             }
 
-            errorMessage?.let {
-                // TODO: Consider creating a specific string resource for \"Download failed\" if it's a common prefix for user-facing errors.
-                if (pushes.isEmpty() || !it.startsWith("Download failed")) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (showSearchHistory) {
+                    item {
+                        SearchHistoryPanel(
+                            entries = SearchHistory.displayOrder(searchHistory)
+                                .filter { it.query.contains(query.trim(), ignoreCase = true) },
+                            visible = true,
+                            onEntryClick = { entry ->
+                                searchViewModel.updateSelectedProject(entry.project)
+                                searchViewModel.updateQuery(entry.query)
+                                submitSearch(entry.query)
+                            },
+                        )
+                    }
+                }
+
+                errorMessage?.let {
+                    // TODO: Consider creating a specific string resource for \"Download failed\" if it's a common prefix for user-facing errors.
+                    if (pushes.isEmpty() || !it.startsWith("Download failed")) {
+                        item {
+                            AnimatedVisibility(
+                                visible = showCurrentSearch,
+                                enter = fadeIn() + expandVertically(),
+                                exit = fadeOut() + shrinkVertically(),
+                            ) {
+                                ErrorState(errorMessage = it)
+                            }
+                        }
+                    }
+                }
+
+                if (isLoading) {
                     item {
                         AnimatedVisibility(
                             visible = showCurrentSearch,
                             enter = fadeIn() + expandVertically(),
                             exit = fadeOut() + shrinkVertically(),
                         ) {
-                            ErrorState(errorMessage = it)
+                            LoadingState(candidateCount = 0)
                         }
                     }
-                }
-            }
-
-            queryValidationError?.let { item { ErrorState(errorMessage = it) } }
-
-            if (isLoading) {
-                item {
-                    AnimatedVisibility(
-                        visible = showCurrentSearch,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        LoadingState(candidateCount = 0)
-                    }
-                }
-            } else if (pushes.isNotEmpty()) {
-                items(pushes.size) { index ->
-                    AnimatedVisibility(
-                        visible = showCurrentSearch,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically(),
-                    ) {
-                        PushResultCard(
-                            push = pushes[index],
-                            onDownloadClick = searchViewModel::downloadArtifact,
-                            onInstallClick = searchViewModel::installArtifact,
-                            onOpenClick = searchViewModel::openInstalledApp,
-                            installStates = installStates,
-                            activeInstallKey = activeInstallKey,
-                            testTag = "search_push_${pushes[index].revision}",
-                        )
+                } else if (pushes.isNotEmpty()) {
+                    items(pushes.size) { index ->
+                        AnimatedVisibility(
+                            visible = showCurrentSearch,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically(),
+                        ) {
+                            PushResultCard(
+                                push = pushes[index],
+                                onDownloadClick = searchViewModel::downloadArtifact,
+                                onInstallClick = searchViewModel::installArtifact,
+                                onOpenClick = searchViewModel::openInstalledApp,
+                                installStates = installStates,
+                                activeInstallKey = activeInstallKey,
+                                testTag = "search_push_${pushes[index].revision}",
+                            )
+                        }
                     }
                 }
             }

@@ -21,7 +21,7 @@ object SearchQueryClassifier {
             value.isBlank() -> Result.failure(IllegalArgumentException("Enter an email or revision."))
             '@' !in value -> Result.success(SearchQuery.Revision(value))
             emailPattern.matches(value) -> Result.success(SearchQuery.Email(value))
-            else -> Result.failure(IllegalArgumentException("Enter a valid email address or a revision without @."))
+            else -> Result.failure(IllegalArgumentException("Invalid search query."))
         }
     }
 }

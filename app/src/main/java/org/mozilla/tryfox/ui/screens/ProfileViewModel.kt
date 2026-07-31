@@ -241,10 +241,6 @@ class SearchViewModel(
         submitSearch()
     }
 
-    fun showInvalidQueryError() {
-        _errorMessage.value = "Enter a valid email address or a revision without @."
-    }
-
     /**
      * The sole search entry point used by the shared screen. Query kind changes only the
      * Treeherder operation; loading, errors, results and artifact actions stay shared.
@@ -253,7 +249,7 @@ class SearchViewModel(
         when (val parsed = SearchQueryClassifier.classify(_authorEmail.value).getOrNull()) {
             is SearchQuery.Email -> searchByAuthor()
             is SearchQuery.Revision -> searchByRevision(parsed.value)
-            null -> showInvalidQueryError()
+            null -> Unit
         }
     }
 
@@ -341,7 +337,6 @@ class SearchViewModel(
             return
         }
         if (SearchQueryClassifier.classify(emailToSearch).getOrNull() !is SearchQuery.Email) {
-            _errorMessage.value = "Enter a valid email address."
             return
         }
         viewModelScope.launch {
