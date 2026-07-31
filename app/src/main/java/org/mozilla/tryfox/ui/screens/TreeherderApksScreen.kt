@@ -1,5 +1,10 @@
 package org.mozilla.tryfox.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -94,18 +99,28 @@ fun SearchScreen(
         )
     }
     var hasSubmittedSearch by rememberSaveable(deepLinkRevision) { mutableStateOf(deepLinkRevision != null) }
+    var displayedQuery by rememberSaveable(deepLinkRevision) { mutableStateOf(deepLinkRevision.orEmpty()) }
+    var isSearchFieldFocused by remember { mutableStateOf(false) }
     var lastRecordedSearchKey by rememberSaveable { mutableStateOf<String?>(null) }
+
+    val isEditingDisplayedSearch = hasSubmittedSearch &&
+        isSearchFieldFocused &&
+        tryFoxViewModel.revision != displayedQuery
+    val showSearchHistory = !hasSubmittedSearch || isEditingDisplayedSearch
+    val showCurrentSearch = !isEditingDisplayedSearch
 
     fun submitSearch(project: String, query: String) {
         when (val searchQuery = SearchQueryClassifier.classify(query).getOrNull()) {
             is SearchQuery.Email -> {
                 queryValidationError = null
                 hasSubmittedSearch = true
+                displayedQuery = query
                 onSearchEmail(project, searchQuery.value)
             }
             is SearchQuery.Revision -> {
                 queryValidationError = null
                 hasSubmittedSearch = true
+                displayedQuery = query
                 tryFoxViewModel.searchJobsAndArtifacts()
             }
             null -> queryValidationError = "Enter a valid email address or a revision without @."
@@ -203,13 +218,18 @@ fun SearchScreen(
                     revision = tryFoxViewModel.revision,
                     onRevisionChange = {
                         queryValidationError = null
+                        // A text edit is unambiguously an editing interaction, including
+                        // the trailing clear action whose focus callback can be delayed.
+                        isSearchFieldFocused = true
                         tryFoxViewModel.updateRevision(it)
                     },
                     onSearchClick = {
                         submitSearch(tryFoxViewModel.selectedProject, tryFoxViewModel.revision)
                     },
                     isLoading = tryFoxViewModel.isLoading,
-                    searchHistory = if (hasSubmittedSearch) emptyList() else SearchHistory.displayOrder(searchHistory),
+                    showSearchHistory = showSearchHistory,
+                    onSearchFieldFocusChanged = { isSearchFieldFocused = it },
+                    searchHistory = SearchHistory.displayOrder(searchHistory),
                     onHistoryItemSelected = { entry ->
                         tryFoxViewModel.updateSelectedProject(entry.project)
                         tryFoxViewModel.updateRevision(entry.query)
@@ -221,7 +241,15 @@ fun SearchScreen(
             tryFoxViewModel.errorMessage?.let {
                 // TODO: Consider creating a specific string resource for \"Download failed\" if it's a common prefix for user-facing errors.
                 if (tryFoxViewModel.selectedJobs.isEmpty() || !it.startsWith("Download failed")) {
-                    item { ErrorState(errorMessage = it) }
+                    item {
+                        AnimatedVisibility(
+                            visible = showCurrentSearch,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically(),
+                        ) {
+                            ErrorState(errorMessage = it)
+                        }
+                    }
                 }
             }
 
@@ -229,22 +257,34 @@ fun SearchScreen(
 
             if (tryFoxViewModel.isLoading) {
                 item {
-                    LoadingState(candidateCount = tryFoxViewModel.isLoadingJobArtifacts.size)
+                    AnimatedVisibility(
+                        visible = showCurrentSearch,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
+                        LoadingState(candidateCount = tryFoxViewModel.isLoadingJobArtifacts.size)
+                    }
                 }
             } else if (tryFoxViewModel.selectedJobs.isNotEmpty()) {
                 item {
-                    PushResultCard(
-                        push = PushUiModel(
-                            pushComment = tryFoxViewModel.relevantPushComment.orEmpty(),
-                            author = tryFoxViewModel.relevantPushAuthor.orEmpty(),
-                            jobs = tryFoxViewModel.selectedJobs,
-                            revision = tryFoxViewModel.revision,
-                            pushTimestamp = tryFoxViewModel.relevantPushTimestamp ?: 0L,
-                        ),
-                        onDownloadClick = tryFoxViewModel::downloadArtifact,
-                        onInstallClick = tryFoxViewModel::installApk,
-                        testTag = "revision_search_push_${tryFoxViewModel.revision}",
-                    )
+                    AnimatedVisibility(
+                        visible = showCurrentSearch,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
+                        PushResultCard(
+                            push = PushUiModel(
+                                pushComment = tryFoxViewModel.relevantPushComment.orEmpty(),
+                                author = tryFoxViewModel.relevantPushAuthor.orEmpty(),
+                                jobs = tryFoxViewModel.selectedJobs,
+                                revision = tryFoxViewModel.revision,
+                                pushTimestamp = tryFoxViewModel.relevantPushTimestamp ?: 0L,
+                            ),
+                            onDownloadClick = tryFoxViewModel::downloadArtifact,
+                            onInstallClick = tryFoxViewModel::installApk,
+                            testTag = "revision_search_push_${tryFoxViewModel.revision}",
+                        )
+                    }
                 }
             }
         }
@@ -280,6 +320,8 @@ fun SearchSection(
     onRevisionChange: (String) -> Unit,
     onSearchClick: () -> Unit,
     isLoading: Boolean,
+    showSearchHistory: Boolean = true,
+    onSearchFieldFocusChanged: (Boolean) -> Unit = {},
     searchHistory: List<SearchHistoryEntry> = emptyList(),
     onHistoryItemSelected: (SearchHistoryEntry) -> Unit = {},
 ) {
@@ -297,72 +339,79 @@ fun SearchSection(
             onQueryChange = onRevisionChange,
             onSearchClick = onSearchClick,
             isLoading = isLoading,
+            onFocusChanged = onSearchFieldFocusChanged,
         )
         SearchHistoryPanel(
             entries = searchHistory.filter { it.query.contains(revision.trim(), ignoreCase = true) },
+            visible = showSearchHistory,
             onEntryClick = onHistoryItemSelected,
         )
     }
 }
 
 @Composable
-private fun SearchHistoryPanel(
+internal fun SearchHistoryPanel(
     entries: List<SearchHistoryEntry>,
+    visible: Boolean,
     onEntryClick: (SearchHistoryEntry) -> Unit,
 ) {
-    if (entries.isEmpty()) return
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(TREEHERDER_SEARCH_HISTORY_TAG),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+    AnimatedVisibility(
+        visible = visible && entries.isNotEmpty(),
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
     ) {
-        Column {
-            Text(
-                text = stringResource(R.string.search_history_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            )
-            entries.forEachIndexed { index, entry ->
-                if (index > 0) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outlineVariant,
-                    )
-                }
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onEntryClick(entry) }
-                        .testTag("treeherder_search_history_$index")
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.History,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = entry.query,
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Text(
-                        text = projectDisplayToActualMap.entries.firstOrNull { it.value == entry.project }?.key ?: entry.project,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag(TREEHERDER_SEARCH_HISTORY_TAG),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        ) {
+            Column {
+                Text(
+                    text = stringResource(R.string.search_history_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                )
+                entries.forEachIndexed { index, entry ->
+                    if (index > 0) {
+                        HorizontalDivider(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant,
+                        )
+                    }
+                    Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                    )
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { onEntryClick(entry) }
+                            .testTag("treeherder_search_history_$index")
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.History,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = entry.query,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Text(
+                            text = projectDisplayToActualMap.entries.firstOrNull { it.value == entry.project }?.key ?: entry.project,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(MaterialTheme.colorScheme.secondaryContainer)
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                        )
+                    }
                 }
             }
         }

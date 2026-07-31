@@ -1,5 +1,10 @@
 package org.mozilla.tryfox.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,12 +47,17 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
@@ -59,6 +69,7 @@ import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.unit.dp
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.DownloadState
+import org.mozilla.tryfox.data.SearchHistory
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.AppIcon
 import org.mozilla.tryfox.ui.composables.BinButton
@@ -176,6 +187,7 @@ private fun UserSearchCard(
     onProjectChange: (String) -> Unit,
     onSearchClick: () -> Unit,
     isLoading: Boolean,
+    onSearchFieldFocusChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val projects = listOf("try", "mozilla-central", "mozilla-beta", "mozilla-release")
@@ -195,6 +207,7 @@ private fun UserSearchCard(
             onQueryChange = onEmailChange,
             onSearchClick = onSearchClick,
             isLoading = isLoading,
+            onFocusChanged = onSearchFieldFocusChanged,
         )
     }
 }
@@ -206,6 +219,7 @@ internal fun SearchInputRow(
     onQueryChange: (String) -> Unit,
     onSearchClick: () -> Unit,
     isLoading: Boolean,
+    onFocusChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -226,6 +240,7 @@ internal fun SearchInputRow(
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = 56.dp)
+                .onFocusChanged { onFocusChanged(it.isFocused) }
                 .testTag("profile_email_input"),
             singleLine = true,
             shape = RoundedCornerShape(20.dp),
@@ -290,6 +305,14 @@ fun ProfileScreen(
     val isLoading by profileViewModel.isLoading.collectAsState()
     val errorMessage by profileViewModel.errorMessage.collectAsState()
     val cacheState by profileViewModel.cacheState.collectAsState()
+    val searchHistory by profileViewModel.searchHistory.collectAsState(initial = emptyList())
+    var displayedQuery by rememberSaveable { mutableStateOf("") }
+    var isSearchFieldFocused by remember { mutableStateOf(false) }
+
+    LaunchedEffect(pushes) {
+        if (pushes.isNotEmpty()) displayedQuery = authorEmail
+    }
+    val isEditingDisplayedSearch = pushes.isNotEmpty() && isSearchFieldFocused && authorEmail != displayedQuery
 
     val isDownloading = remember(pushes) {
         pushes.any { push ->
@@ -351,7 +374,10 @@ fun ProfileScreen(
         ) {
             UserSearchCard(
                 email = authorEmail,
-                onEmailChange = { profileViewModel.updateAuthorEmail(it) },
+                onEmailChange = {
+                    isSearchFieldFocused = true
+                    profileViewModel.updateAuthorEmail(it)
+                },
                 project = selectedProject,
                 onProjectChange = { profileViewModel.updateSelectedProject(it) },
                 onSearchClick = {
@@ -362,6 +388,22 @@ fun ProfileScreen(
                     }
                 },
                 isLoading = isLoading && pushes.isEmpty(),
+                onSearchFieldFocusChanged = { isSearchFieldFocused = it },
+            )
+
+            SearchHistoryPanel(
+                entries = SearchHistory.displayOrder(searchHistory)
+                    .filter { it.query.contains(authorEmail.trim(), ignoreCase = true) },
+                visible = isEditingDisplayedSearch,
+                onEntryClick = { entry ->
+                    profileViewModel.updateSelectedProject(entry.project)
+                    profileViewModel.updateAuthorEmail(entry.query)
+                    when (val query = SearchQueryClassifier.classify(entry.query).getOrNull()) {
+                        is SearchQuery.Email -> profileViewModel.searchByAuthor()
+                        is SearchQuery.Revision -> onSearchRevision(entry.project, query.value)
+                        null -> profileViewModel.showInvalidQueryError()
+                    }
+                },
             )
 
             when {
@@ -379,6 +421,11 @@ fun ProfileScreen(
                     }
                 }
                 pushes.isNotEmpty() -> {
+                    AnimatedVisibility(
+                        visible = !isEditingDisplayedSearch,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically(),
+                    ) {
                     LazyColumn(
                         contentPadding = PaddingValues(bottom = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -402,6 +449,7 @@ fun ProfileScreen(
                                 testTag = "email_search_push_${push.revision}",
                             )
                         }
+                    }
                     }
                 }
                 errorMessage != null -> {
