@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -69,6 +70,7 @@ import androidx.compose.ui.unit.dp
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.SearchHistory
 import org.mozilla.tryfox.data.SearchHistoryEntry
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.BinButton
 import org.mozilla.tryfox.ui.composables.ProjectSelector
@@ -99,6 +101,11 @@ fun SearchScreen(
     val isLoading by searchViewModel.isLoading.collectAsState()
     val errorMessage by searchViewModel.errorMessage.collectAsState()
     val pushes by searchViewModel.pushes.collectAsState()
+    val installStates by searchViewModel.installStates.collectAsState()
+    val activeInstallKey = installStates.entries.firstOrNull { (_, state) ->
+        state is InstallState.Installing || state is InstallState.Uninstalling || state is InstallState.Conflict
+    }?.key
+    val installConflict = installStates.entries.firstOrNull { (_, state) -> state is InstallState.Conflict }
     val isDownloading = pushes.any { push -> push.jobs.any { job -> job.artifacts.any { it.downloadState is org.mozilla.tryfox.data.DownloadState.InProgress } } }
     var queryValidationError by remember(deepLinkQuery) {
         mutableStateOf(
@@ -109,6 +116,25 @@ fun SearchScreen(
     var hasSubmittedSearch by rememberSaveable(deepLinkQuery) { mutableStateOf(deepLinkQuery != null) }
     var displayedQuery by rememberSaveable(deepLinkQuery) { mutableStateOf(deepLinkQuery.orEmpty()) }
     var isSearchFieldFocused by remember { mutableStateOf(false) }
+
+    installConflict?.let { (artifactKey, state) ->
+        val conflict = state as InstallState.Conflict
+        AlertDialog(
+            onDismissRequest = { searchViewModel.cancelInstallConflict(artifactKey) },
+            title = { Text(stringResource(id = R.string.install_conflict_title)) },
+            text = { Text(stringResource(R.string.install_conflict_message, conflict.packageName)) },
+            confirmButton = {
+                Button(onClick = { searchViewModel.confirmUninstallAndRetry(artifactKey) }) {
+                    Text(stringResource(id = R.string.install_conflict_confirm))
+                }
+            },
+            dismissButton = {
+                Button(onClick = { searchViewModel.cancelInstallConflict(artifactKey) }) {
+                    Text(stringResource(id = R.string.install_conflict_cancel))
+                }
+            },
+        )
+    }
 
     val isEditingDisplayedSearch = hasSubmittedSearch &&
         isSearchFieldFocused &&
@@ -132,7 +158,7 @@ fun SearchScreen(
         deepLinkQuery?.let { searchViewModel.setQueryFromDeepLinkAndSearch(deepLinkProject, it) }
     }
 
-    val binButtonEnabled = !isDownloading && cacheState == CacheManagementState.IdleNonEmpty
+    val binButtonEnabled = !isDownloading && activeInstallKey == null && cacheState == CacheManagementState.IdleNonEmpty
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
@@ -242,7 +268,10 @@ fun SearchScreen(
                         PushResultCard(
                             push = pushes[index],
                             onDownloadClick = searchViewModel::downloadArtifact,
-                            onInstallClick = searchViewModel::installApk,
+                            onInstallClick = searchViewModel::installArtifact,
+                            onOpenClick = searchViewModel::openInstalledApp,
+                            installStates = installStates,
+                            activeInstallKey = activeInstallKey,
                             testTag = "search_push_${pushes[index].revision}",
                         )
                     }

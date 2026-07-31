@@ -43,6 +43,7 @@ import org.mozilla.tryfox.download.ApkDownloadStore
 import org.mozilla.tryfox.download.DefaultApkDownloadCoordinator
 import org.mozilla.tryfox.download.DefaultApkDownloadStore
 import org.mozilla.tryfox.download.DownloadNotificationFactory
+import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.lan.DefaultLanMessageHistoryRepository
 import org.mozilla.tryfox.lan.LanMessageHistoryRepository
 import org.mozilla.tryfox.lan.LanReceiveIdentityManager
@@ -171,6 +172,7 @@ val repositoryModule = module {
         )
     }
     single<IntentManager> { DefaultIntentManager(androidContext()) }
+    single { ApkInstallCoordinator(androidContext()) }
     single<ApkDownloadStore> { DefaultApkDownloadStore(androidContext(), get(named("IODispatcher"))) }
     single { DownloadNotificationFactory(androidContext()) }
     single { WorkManager.getInstance(androidContext()) }

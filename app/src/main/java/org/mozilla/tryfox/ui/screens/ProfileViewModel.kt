@@ -19,7 +19,6 @@ import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.RevisionDetail
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
-import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
@@ -27,6 +26,8 @@ import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
+import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
@@ -79,9 +80,9 @@ class SearchViewModel(
     private val fenixRepository: TreeherderRepository,
     private val userDataRepository: UserDataRepository,
     private val cacheManager: CacheManager,
-    private val intentManager: IntentManager,
     private val historyRepository: HistoryRepository,
     private val downloadCoordinator: ApkDownloadCoordinator,
+    private val installCoordinator: ApkInstallCoordinator,
     authorEmail: String?,
     private val currentTimeMillisProvider: () -> Long = System::currentTimeMillis,
     project: String = "try",
@@ -121,6 +122,7 @@ class SearchViewModel(
 
     val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
     val searchHistory = userDataRepository.searchHistoryFlow
+    val installStates: StateFlow<Map<String, InstallState>> = installCoordinator.states
 
     private val deviceSupportedAbis: List<String> by lazy {
         runCatching { Build.SUPPORTED_ABIS.toList() }.getOrDefault(emptyList())
@@ -132,6 +134,18 @@ class SearchViewModel(
             .onEach { persistedDownloads ->
                 downloadStates.value = persistedDownloads
                 syncLoadedStateDownloadStates()
+            }
+            .launchIn(viewModelScope)
+
+        installCoordinator.successfulInstalls
+            .onEach { artifactKey ->
+                findArtifact(artifactKey)?.let { downloadedArtifact ->
+                    try {
+                        updateInstallTimestamp(downloadedArtifact)
+                    } catch (_: Exception) {
+                        // History is best-effort; installation has already succeeded.
+                    }
+                }
             }
             .launchIn(viewModelScope)
 
@@ -577,20 +591,26 @@ class SearchViewModel(
         }
     }
 
-    fun installApk(file: File) {
+    fun installArtifact(artifactUiModel: ArtifactUiModel) {
+        val downloadState = artifactUiModel.downloadState as? DownloadState.Downloaded ?: return
+        installCoordinator.install(artifactUiModel.uniqueKey, downloadState.file)
+    }
+
+    fun cancelInstallConflict(artifactKey: String) = installCoordinator.cancelConflict(artifactKey)
+
+    fun confirmUninstallAndRetry(artifactKey: String) = installCoordinator.confirmUninstallAndRetry(artifactKey)
+
+    fun openInstalledApp(packageName: String) = installCoordinator.openInstalledApp(packageName)
+
+    private fun installApk(file: File) {
         val downloadedArtifact = findDownloadedArtifact(file)
         if (downloadedArtifact == null) {
-            intentManager.installApk(file)
+            installCoordinator.install(file.absolutePath, file)
             return
         }
 
         viewModelScope.launch {
-            try {
-                updateInstallTimestamp(downloadedArtifact)
-            } catch (_: Exception) {
-                // History is best-effort; never block installation.
-            }
-            intentManager.installApk(file)
+            installCoordinator.install(downloadedArtifact.artifact.uniqueKey, file)
         }
     }
 

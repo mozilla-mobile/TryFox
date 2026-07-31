@@ -28,6 +28,12 @@
     <string name="bin_button_clear_cache_description">Clear Cache</string>
     <string name="bin_button_tooltip_clear_downloaded_apks">Clear downloaded apks</string>
     <string name="download_button_install">Install</string>
+    <string name="download_button_installing">Installing…</string>
+    <string name="download_button_open">Open</string>
+    <string name="install_conflict_title">Replace installed app?</string>
+    <string name="install_conflict_message">An incompatible or newer version of %1$s is installed. Uninstalling it deletes that app’s local data before this build is installed.</string>
+    <string name="install_conflict_confirm">Uninstall and install</string>
+    <string name="install_conflict_cancel">Cancel</string>
     <string name="download_button_downloading">Downloading</string>
     <string name="download_button_download">Download</string>
     <string name="archive_group_card_no_apk_details">No APK details available.</string>

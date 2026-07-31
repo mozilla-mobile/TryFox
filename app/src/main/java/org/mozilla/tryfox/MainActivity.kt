@@ -6,21 +6,26 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
+import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.ui.screens.HistoryScreen
 import org.mozilla.tryfox.ui.screens.HomeScreen
 import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
@@ -82,11 +87,30 @@ sealed class NavScreen(val route: String) {
  * This activity sets up the navigation host and handles deep links.
  */
 class MainActivity : ComponentActivity() {
+    private val installCoordinator: ApkInstallCoordinator by inject()
     private lateinit var navController: NavHostController
     private var receiveFromDesktopStartRequested by mutableStateOf(false)
+    private var pendingUninstallOperationId: String? = null
+    private val uninstallLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        pendingUninstallOperationId?.let { operationId ->
+            installCoordinator.onUninstallResult(operationId, result.resultCode == RESULT_OK)
+        }
+        pendingUninstallOperationId = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycleScope.launch {
+            installCoordinator.uninstallRequests.collect { request ->
+                pendingUninstallOperationId = request.operationId
+                uninstallLauncher.launch(
+                    Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+                        data = Uri.fromParts("package", request.packageName, null)
+                        putExtra(Intent.EXTRA_RETURN_RESULT, true)
+                    },
+                )
+            }
+        }
         enableEdgeToEdge()
         setContent {
             TryFoxTheme {
