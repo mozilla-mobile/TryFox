@@ -448,6 +448,7 @@ private fun CompactApkRow(job: JobDetailsUiModel, profileViewModel: ProfileViewM
                 onDownloadClick = { profileViewModel.downloadArtifact(it) },
                 onInstallClick = profileViewModel::installApk,
                 modifier = Modifier.width(112.dp),
+                inProgressText = stringResource(id = R.string.download_button_download),
             )
         }
     }

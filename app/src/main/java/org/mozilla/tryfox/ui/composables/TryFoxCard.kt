@@ -60,6 +60,7 @@ fun TryFoxCard(
                     val downloadedFile = (latestApk.downloadState as? DownloadState.Downloaded)?.file
                     downloadedFile?.let { onInstallClick(it) }
                 },
+                inProgressText = stringResource(id = R.string.download_button_download),
             )
         }
     }
