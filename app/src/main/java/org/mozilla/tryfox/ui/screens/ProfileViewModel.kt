@@ -112,6 +112,7 @@ class ProfileViewModel(
     private val pendingAutoInstallDownloads = mutableSetOf<String>()
 
     val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
+    val searchHistory = userDataRepository.searchHistoryFlow
 
     private val deviceSupportedAbis: List<String> by lazy {
         runCatching { Build.SUPPORTED_ABIS.toList() }.getOrDefault(emptyList())
