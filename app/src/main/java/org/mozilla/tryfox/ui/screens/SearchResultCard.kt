@@ -1,5 +1,6 @@
 package org.mozilla.tryfox.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,17 +8,28 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.Hyphens
 import androidx.compose.ui.unit.dp
@@ -62,6 +74,63 @@ internal fun PushResultCard(
                 if (index > 0) HorizontalDivider()
                 CompactApkRow(job, onDownloadClick, onInstallClick, onOpenClick, installStates, activeInstallKey)
             }
+            if (push.unsignedJobs.isNotEmpty()) {
+                UnsignedApksSection(push, onDownloadClick, onInstallClick, onOpenClick, installStates, activeInstallKey)
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnsignedApksSection(
+    push: PushUiModel,
+    onDownloadClick: (ArtifactUiModel) -> Unit,
+    onInstallClick: (ArtifactUiModel) -> Unit,
+    onOpenClick: (String) -> Unit,
+    installStates: Map<String, InstallState>,
+    activeInstallKey: String?,
+) {
+    var expanded by rememberSaveable(push.revision) { mutableStateOf(false) }
+    val stateDescription = stringResource(
+        if (expanded) R.string.search_result_unsigned_apks_expanded else R.string.search_result_unsigned_apks_collapsed,
+    )
+
+    HorizontalDivider()
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded }
+            .semantics { this.stateDescription = stateDescription }
+            .testTag("unsigned_apks_toggle_${push.revision}")
+            .padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = pluralStringResource(
+                R.plurals.search_result_unsigned_apks,
+                push.unsignedJobs.size,
+                push.unsignedJobs.size,
+            ),
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, contentDescription = null)
+    }
+    if (expanded) {
+        Column(modifier = Modifier.padding(start = 16.dp)) {
+            push.unsignedJobs.forEach { job ->
+                HorizontalDivider()
+                CompactApkRow(
+                    job = job,
+                    onDownloadClick = onDownloadClick,
+                    onInstallClick = onInstallClick,
+                    onOpenClick = onOpenClick,
+                    installStates = installStates,
+                    activeInstallKey = activeInstallKey,
+                    modifier = Modifier.testTag("unsigned_apk_row_${job.taskId}"),
+                )
+            }
         }
     }
 }
@@ -74,11 +143,12 @@ private fun CompactApkRow(
     onOpenClick: (String) -> Unit,
     installStates: Map<String, InstallState>,
     activeInstallKey: String?,
+    modifier: Modifier = Modifier,
 ) {
     val apk = remember(job.artifacts) { job.artifacts.firstOrNull { it.abi.isSupported } }
     val appIconName = remember(job.jobName, job.appName) { appIconNameForJob(job.jobName, job.appName) }
     val installState = apk?.let { installStates[it.uniqueKey] ?: InstallState.Idle }
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+    Column(modifier = modifier.fillMaxWidth().padding(vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AppIcon(appName = appIconName, modifier = Modifier.size(34.dp), useSearchResultVariant = true)
             Text(job.jobName.ifBlank { formatAppNameForDisplay(job.appName) }.let(::formatJobNameForDisplay), style = MaterialTheme.typography.bodyMedium.copy(hyphens = Hyphens.Auto), fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))

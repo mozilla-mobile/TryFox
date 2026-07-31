@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import logcat.LogPriority
 import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
@@ -95,6 +97,7 @@ class SearchViewModel(
 
     companion object {
         private const val TAG = "SearchViewModel"
+        private const val MAX_PARALLEL_ARTIFACT_REQUESTS = 6
         private val apkJobNameHints = listOf("signing-apk", "android-apk", "apk-focus", "apk-fenix", "apk-reference-browser", "apk-geckoview")
         private val nonAndroidPlatformHints = listOf("ios", "mac", "macos", "macosx", "win", "windows", "linux", "desktop")
         private val androidProductHints = listOf("focus", "fenix", "reference-browser", "geckoview", "android")
@@ -118,7 +121,6 @@ class SearchViewModel(
     private val _pushes = MutableStateFlow<List<PushUiModel>>(emptyList())
     val pushes: StateFlow<List<PushUiModel>> = _pushes.asStateFlow()
     private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
-    private val pendingAutoInstallDownloads = mutableSetOf<String>()
 
     val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
     val searchHistory = userDataRepository.searchHistoryFlow
@@ -154,6 +156,13 @@ class SearchViewModel(
                 val updatedPushes = _pushes.value.map {
                     it.copy(
                         jobs = it.jobs.map { job ->
+                            job.copy(
+                                artifacts = job.artifacts.map { artifact ->
+                                    artifact.copy(downloadState = DownloadState.NotDownloaded)
+                                },
+                            )
+                        },
+                        unsignedJobs = it.unsignedJobs.map { job ->
                             job.copy(
                                 artifacts = job.artifacts.map { artifact ->
                                     artifact.copy(downloadState = DownloadState.NotDownloaded)
@@ -245,24 +254,17 @@ class SearchViewModel(
                     } else {
                         val jobsResult = fenixRepository.getJobsForPush(push.id)
                         if (jobsResult is NetworkResult.Success) {
-                            val jobs = jobsResult.data.results
-                                .filter(::isAndroidApkCandidate)
-                                .filter { it.jobName.contains("signing-apk", ignoreCase = true) }
-                                .ifEmpty { jobsResult.data.results.filter(::isAndroidApkCandidate) }
-                                .map { job ->
-                                    val artifacts = fetchArtifacts(job.taskId)
-                                    if (artifacts.artifacts.isEmpty()) null else JobDetailsUiModel(
-                                        appName = job.appName,
-                                        jobName = job.jobName,
-                                        jobSymbol = job.jobSymbol,
-                                        taskId = job.taskId,
-                                        isSignedBuild = job.isSignedBuild,
-                                        isTest = job.isTest,
-                                        artifacts = artifacts.artifacts,
-                                    )
-                                }.filterNotNull()
-                            if (jobs.isEmpty()) {
-                                _errorMessage.value = "No signed builds found for this revision."
+                            val (signedCandidates, unsignedCandidates) = selectJobsBySigning(
+                                jobsResult.data.results.filter(::isAndroidApkCandidate),
+                            )
+                            val jobs = mutableListOf<JobDetailsUiModel>()
+                            for (job in signedCandidates + unsignedCandidates) {
+                                loadJob(job)?.let(jobs::add)
+                            }
+                            val signedJobs = jobs.filter(JobDetailsUiModel::isSignedBuild)
+                            val unsignedJobs = jobs.filterNot(JobDetailsUiModel::isSignedBuild)
+                            if (signedJobs.isEmpty() && unsignedJobs.isEmpty()) {
+                                _errorMessage.value = "No APK builds found for this revision."
                             } else {
                                 val precedingRevisions = if (isPerfAgainRetry(push.revisions)) {
                                     when (
@@ -287,7 +289,8 @@ class SearchViewModel(
                                     PushUiModel(
                                         pushComment = selectPreferredPushComment(push.revisions, precedingRevisions),
                                         author = push.author,
-                                        jobs = jobs,
+                                        jobs = signedJobs,
+                                        unsignedJobs = unsignedJobs,
                                         revision = push.revision,
                                         pushTimestamp = push.pushTimestamp,
                                     ),
@@ -325,6 +328,7 @@ class SearchViewModel(
             _errorMessage.value = null
             _pushes.value = emptyList()
             logcat(LogPriority.DEBUG, TAG) { "Starting search..." }
+            val artifactSemaphore = Semaphore(MAX_PARALLEL_ARTIFACT_REQUESTS)
 
             when (val result = fenixRepository.getPushesByAuthor(_selectedProject.value, emailToSearch)) {
                 is NetworkResult.Success -> {
@@ -337,29 +341,21 @@ class SearchViewModel(
                         async {
                             val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
                             if (jobsResult is NetworkResult.Success) {
-                                val candidates = jobsResult.data.results.filter(::isAndroidApkCandidate)
-                                val filteredJobs = candidates.filter { it.jobName.contains("signing-apk", ignoreCase = true) }
-                                    .ifEmpty { candidates }
-                                if (filteredJobs.isNotEmpty()) {
-                                    val jobsWithArtifacts = filteredJobs.map { jobDetails ->
+                                val (signedCandidates, unsignedCandidates) = selectJobsBySigning(
+                                    jobsResult.data.results.filter(::isAndroidApkCandidate),
+                                )
+                                val selectedJobs = signedCandidates + unsignedCandidates
+                                if (selectedJobs.isNotEmpty()) {
+                                    val jobsWithArtifacts = selectedJobs.map { jobDetails ->
                                         async {
-                                            val artifactResult = fetchArtifacts(jobDetails.taskId)
+                                            val artifactResult = artifactSemaphore.withPermit {
+                                                fetchArtifacts(jobDetails.taskId)
+                                            }
                                             if (artifactResult.failed) {
                                                 failedPushCount.incrementAndGet()
                                             }
-                                            val artifacts = artifactResult.artifacts
-                                            if (artifacts.isNotEmpty()) {
-                                                JobDetailsUiModel(
-                                                    appName = jobDetails.appName,
-                                                    jobName = jobDetails.jobName,
-                                                    jobSymbol = jobDetails.jobSymbol,
-                                                    taskId = jobDetails.taskId,
-                                                    isSignedBuild = jobDetails.isSignedBuild,
-                                                    isTest = jobDetails.isTest,
-                                                    artifacts = artifacts,
-                                                )
-                                            } else {
-                                                null
+                                            artifactResult.artifacts.takeIf { it.isNotEmpty() }?.let { artifacts ->
+                                                jobWithArtifacts(jobDetails, artifacts)
                                             }
                                         }
                                     }.awaitAll().filterNotNull()
@@ -374,7 +370,8 @@ class SearchViewModel(
                                                     .map { it.revisions },
                                             ),
                                             author = pushResult.author,
-                                            jobs = jobsWithArtifacts,
+                                            jobs = jobsWithArtifacts.filter(JobDetailsUiModel::isSignedBuild),
+                                            unsignedJobs = jobsWithArtifacts.filterNot(JobDetailsUiModel::isSignedBuild),
                                             revision = pushResult.revision,
                                             pushTimestamp = pushResult.pushTimestamp,
                                         )
@@ -386,7 +383,7 @@ class SearchViewModel(
                                     }
                                 } else {
                                     logcat(LogPriority.VERBOSE, TAG) {
-                                        "No signed, non-test jobs for push ID: ${pushResult.id}"
+                                        "No eligible, non-test APK jobs for push ID: ${pushResult.id}"
                                     }
                                     null
                                 }
@@ -410,8 +407,8 @@ class SearchViewModel(
                     if (failedPushCount.get() > 0) {
                         _errorMessage.value = "Some pushes could not be loaded."
                     } else if (pushesWithJobsAndArtifacts.isEmpty()) {
-                        _errorMessage.value = "No signed builds found for this author."
-                        logcat(TAG) { "No signed builds found for author." }
+                        _errorMessage.value = "No APK builds found for this author."
+                        logcat(TAG) { "No APK builds found for author." }
                     }
                 }
 
@@ -478,7 +475,7 @@ class SearchViewModel(
     }
 
     private fun isAndroidApkCandidate(job: org.mozilla.tryfox.data.JobDetails): Boolean {
-        if (job.isTest || !job.isSignedBuild) return false
+        if (job.isTest) return false
         val appName = job.appName.lowercase()
         val jobName = job.jobName.lowercase()
         val hasAndroidSource = jobName.contains("build-android") ||
@@ -487,13 +484,42 @@ class SearchViewModel(
         return apkJobNameHints.any(jobName::contains) || jobName.contains("apk")
     }
 
+    /** Keeps the existing signing-job preference while loading unsigned candidates as a separate group. */
+    private fun selectJobsBySigning(
+        candidates: List<org.mozilla.tryfox.data.JobDetails>,
+    ): Pair<List<org.mozilla.tryfox.data.JobDetails>, List<org.mozilla.tryfox.data.JobDetails>> {
+        val signedCandidates = candidates.filter { it.isSignedBuild }
+        val preferredSignedCandidates = signedCandidates
+            .filter { it.jobName.contains("signing-apk", ignoreCase = true) }
+            .ifEmpty { signedCandidates }
+        return preferredSignedCandidates to candidates.filterNot { it.isSignedBuild }
+    }
+
+    private suspend fun loadJob(job: org.mozilla.tryfox.data.JobDetails): JobDetailsUiModel? {
+        val artifactResult = fetchArtifacts(job.taskId)
+        return artifactResult.artifacts.takeIf { it.isNotEmpty() }?.let { artifacts -> jobWithArtifacts(job, artifacts) }
+    }
+
+    private fun jobWithArtifacts(
+        job: org.mozilla.tryfox.data.JobDetails,
+        artifacts: List<ArtifactUiModel>,
+    ) = JobDetailsUiModel(
+        appName = job.appName,
+        jobName = job.jobName,
+        jobSymbol = job.jobSymbol,
+        taskId = job.taskId,
+        isSignedBuild = job.isSignedBuild,
+        isTest = job.isTest,
+        artifacts = artifacts,
+    )
+
     fun getDownloadedFile(artifactName: String, taskId: String): File? {
         if (taskId.isBlank()) return null
         val taskSpecificDir = File(cacheManager.getCacheDir(TREEHERDER), taskId)
         val outputFile = File(taskSpecificDir, artifactName)
         val exists = outputFile.exists()
         logcat(
-            LogPriority.DEBUG,
+            LogPriority.VERBOSE,
             TAG,
         ) {
             "getDownloadedFile artifactName=$artifactName, taskId=$taskId, " +
@@ -571,13 +597,15 @@ class SearchViewModel(
                 cacheRelativePath = "$TREEHERDER/$taskId/$artifactFileName",
             )
 
-            pendingAutoInstallDownloads += artifactUiModel.uniqueKey
             try {
-                downloadCoordinator.enqueue(request)
+                val workId = downloadCoordinator.enqueue(request)
+                logcat(LogPriority.DEBUG, TAG) {
+                    "Download enqueued uniqueKey=${artifactUiModel.uniqueKey} workId=$workId " +
+                        "outputPath=${outputFile.absolutePath}"
+                }
                 downloadStates.value = downloadCoordinator.downloads.value
                 syncLoadedStateDownloadStates()
             } catch (e: Exception) {
-                pendingAutoInstallDownloads.remove(artifactUiModel.uniqueKey)
                 logcat(LogPriority.ERROR, TAG) {
                     "Failed to enqueue download for ${artifactUiModel.name}: ${e.message}"
                 }
@@ -602,18 +630,6 @@ class SearchViewModel(
 
     fun openInstalledApp(packageName: String) = installCoordinator.openInstalledApp(packageName)
 
-    private fun installApk(file: File) {
-        val downloadedArtifact = findDownloadedArtifact(file)
-        if (downloadedArtifact == null) {
-            installCoordinator.install(file.absolutePath, file)
-            return
-        }
-
-        viewModelScope.launch {
-            installCoordinator.install(downloadedArtifact.artifact.uniqueKey, file)
-        }
-    }
-
     private fun updateArtifactDownloadState(
         taskIdToUpdate: String,
         artifactNameToUpdate: String,
@@ -632,6 +648,14 @@ class SearchViewModel(
         copy(
             jobs =
                 jobs.map { job: JobDetailsUiModel ->
+                    if (job.taskId != taskId) {
+                        job
+                    } else {
+                        job.updateArtifact(artifactNameToUpdate, newState)
+                    }
+                },
+            unsignedJobs =
+                unsignedJobs.map { job: JobDetailsUiModel ->
                     if (job.taskId != taskId) {
                         job
                     } else {
@@ -671,9 +695,21 @@ class SearchViewModel(
                         },
                     )
                 },
+                unsignedJobs = push.unsignedJobs.map { job ->
+                    job.copy(
+                        artifacts = job.artifacts.map { artifact ->
+                            artifact.copy(
+                                downloadState = resolveDownloadState(
+                                    artifactName = artifact.name.substringAfterLast('/'),
+                                    taskId = artifact.taskId,
+                                    uniqueKey = artifact.uniqueKey,
+                                ),
+                            )
+                        },
+                    )
+                },
             )
         }
-        maybeAutoInstallCompletedDownloads(persistedDownloads)
     }
 
     private fun resolveDownloadState(
@@ -709,43 +745,9 @@ class SearchViewModel(
             DownloadStatus.CANCELED -> DownloadState.NotDownloaded
         }
 
-    private fun maybeAutoInstallCompletedDownloads(persistedDownloads: Map<String, PersistedDownloadState>) {
-        val completedKeys = pendingAutoInstallDownloads.filter { uniqueKey ->
-            persistedDownloads[uniqueKey]?.status == DownloadStatus.SUCCEEDED
-        }
-
-        completedKeys.forEach { uniqueKey ->
-            val persistedDownload = persistedDownloads[uniqueKey] ?: return@forEach
-            val file = File(persistedDownload.outputPath)
-            if (file.exists()) {
-                logcat(TAG) { "Auto-installing completed download for uniqueKey=$uniqueKey" }
-                installApk(file)
-            } else {
-                logcat(LogPriority.WARN, TAG) {
-                    "Download completed for uniqueKey=$uniqueKey but file is missing at ${file.absolutePath}"
-                }
-            }
-        }
-
-        pendingAutoInstallDownloads.removeAll(completedKeys.toSet())
-        pendingAutoInstallDownloads.removeAll(
-            persistedDownloads.filterValues { it.isTerminal }.keys,
-        )
-    }
-
-    private fun findDownloadedArtifact(file: File): DownloadedArtifact? =
-        _pushes.value.firstNotNullOfOrNull { push ->
-            push.jobs.firstNotNullOfOrNull { job ->
-                job.artifacts.firstOrNull { artifact ->
-                    val downloadState = artifact.downloadState
-                    downloadState is DownloadState.Downloaded && downloadState.file.absolutePath == file.absolutePath
-                }?.let { artifact -> DownloadedArtifact(push, job, artifact) }
-            }
-        }
-
     private fun findArtifact(uniqueKey: String): DownloadedArtifact? =
         _pushes.value.firstNotNullOfOrNull { push ->
-            push.jobs.firstNotNullOfOrNull { job ->
+            (push.jobs + push.unsignedJobs).firstNotNullOfOrNull { job ->
                 job.artifacts.firstOrNull { artifact ->
                     artifact.uniqueKey == uniqueKey
                 }?.let { artifact -> DownloadedArtifact(push, job, artifact) }
