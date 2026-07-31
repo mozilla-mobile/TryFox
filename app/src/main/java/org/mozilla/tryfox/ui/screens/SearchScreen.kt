@@ -27,7 +27,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -105,7 +104,6 @@ fun SearchScreen(
     val activeInstallKey = installStates.entries.firstOrNull { (_, state) ->
         state is InstallState.Installing || state is InstallState.Uninstalling || state is InstallState.Conflict
     }?.key
-    val installConflict = installStates.entries.firstOrNull { (_, state) -> state is InstallState.Conflict }
     val isDownloading = pushes.any { push -> push.jobs.any { job -> job.artifacts.any { it.downloadState is org.mozilla.tryfox.data.DownloadState.InProgress } } }
     var queryValidationError by remember(deepLinkQuery) {
         mutableStateOf(
@@ -116,25 +114,6 @@ fun SearchScreen(
     var hasSubmittedSearch by rememberSaveable(deepLinkQuery) { mutableStateOf(deepLinkQuery != null) }
     var displayedQuery by rememberSaveable(deepLinkQuery) { mutableStateOf(deepLinkQuery.orEmpty()) }
     var isSearchFieldFocused by remember { mutableStateOf(false) }
-
-    installConflict?.let { (artifactKey, state) ->
-        val conflict = state as InstallState.Conflict
-        AlertDialog(
-            onDismissRequest = { searchViewModel.cancelInstallConflict(artifactKey) },
-            title = { Text(stringResource(id = R.string.install_conflict_title)) },
-            text = { Text(stringResource(R.string.install_conflict_message, conflict.packageName)) },
-            confirmButton = {
-                Button(onClick = { searchViewModel.confirmUninstallAndRetry(artifactKey) }) {
-                    Text(stringResource(id = R.string.install_conflict_confirm))
-                }
-            },
-            dismissButton = {
-                Button(onClick = { searchViewModel.cancelInstallConflict(artifactKey) }) {
-                    Text(stringResource(id = R.string.install_conflict_cancel))
-                }
-            },
-        )
-    }
 
     val isEditingDisplayedSearch = hasSubmittedSearch &&
         isSearchFieldFocused &&

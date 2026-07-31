@@ -27,6 +27,8 @@ import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
+import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
@@ -60,6 +62,7 @@ class HomeViewModel(
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
+    private val installCoordinator: ApkInstallCoordinator? = null,
     private val ioDispatcher: CoroutineDispatcher,
     private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
 ) : ViewModel() {
@@ -69,6 +72,8 @@ class HomeViewModel(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+    val installStates: StateFlow<Map<String, InstallState>> =
+        installCoordinator?.states ?: MutableStateFlow(emptyMap())
     private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
 
     init {
@@ -322,7 +327,12 @@ class HomeViewModel(
     }
 
     fun installApk(file: File) {
-        intentManager.installApk(file)
+        installCoordinator?.install(file.absolutePath, file) ?: intentManager.installApk(file)
+    }
+
+    fun installHomeApk(apkInfo: ApkUiModel) {
+        val file = File(apkInfo.apkDir, apkInfo.fileName)
+        installCoordinator?.install(apkInfo.uniqueKey, file) ?: intentManager.installApk(file)
     }
 
     fun uninstallApp(packageName: String) {
@@ -502,6 +512,10 @@ class HomeViewModel(
 
     fun openApp(app: String) {
         mozillaPackageManager.launchApp(app)
+    }
+
+    fun openInstalledApp(packageName: String) {
+        installCoordinator?.openInstalledApp(packageName) ?: mozillaPackageManager.launchApp(packageName)
     }
 
     fun dismissTryFoxCard() {
