@@ -30,6 +30,12 @@ class JobNameFormatterTest {
     }
 
     @Test
+    fun `formats simulation signing APK jobs as perftests`() {
+        assertEquals("Fenix nightly (perftests)", formatJobNameForDisplay("signing-apk-fenix-nightly-simulation"))
+        assertEquals("Focus beta (perftests)", formatJobNameForDisplay("SIGNING-APK-FOCUS-BETA-SIMULATION"))
+    }
+
+    @Test
     fun `preserves job names outside the signing APK naming convention`() {
         assertEquals("Build Fenix for arm64-v8a", formatJobNameForDisplay("Build Fenix for arm64-v8a"))
         assertEquals("signing-apk-fenix-esr", formatJobNameForDisplay("signing-apk-fenix-esr"))
