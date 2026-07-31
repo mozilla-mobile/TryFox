@@ -1,22 +1,16 @@
 package org.mozilla.tryfox.ui.composables
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Text
+import android.util.Log
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag // Added import
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.DownloadState
 import java.io.File
+
+private const val TAG = "DownloadButton"
 
 @Composable
 fun DownloadButton(
@@ -24,59 +18,48 @@ fun DownloadButton(
     onDownloadClick: () -> Unit,
     onInstallClick: (File) -> Unit,
     modifier: Modifier = Modifier,
+    inProgressText: String? = null,
+    determinateProgressAnimation: DeterminateProgressAnimation = DeterminateProgressAnimation.Rotating,
 ) {
-    when (downloadState) {
-        is DownloadState.Downloaded -> {
-            Button(
-                onClick = { onInstallClick(downloadState.file) },
-                modifier = modifier.testTag("action_button_install_ready"), // Tag for Install state
-            ) {
-                Text(stringResource(id = R.string.download_button_install))
-            }
-        }
-        is DownloadState.InProgress -> {
-            val animatedProgress =
-                if (downloadState.isIndeterminate) {
-                    0f
-                } else {
-                    animateFloatAsState(
-                        targetValue = downloadState.progress,
-                        animationSpec = tween(durationMillis = 250, easing = LinearEasing),
-                        label = "downloadProgress",
-                    ).value
-                }
-            Button(
-                onClick = {},
-                enabled = false,
-                modifier = modifier.testTag("action_button_downloading"), // Tag for Downloading state
-            ) {
-                if (downloadState.isIndeterminate) {
-                    CircularProgressIndicator(
-                        modifier = Modifier
-                            .size(ButtonDefaults.IconSize)
-                            .testTag("progress_indicator_indeterminate"), // Tag for indeterminate progress
-                        strokeWidth = 2.dp,
-                    )
-                } else {
-                    CircularProgressIndicator(
-                        progress = { animatedProgress },
-                        modifier = Modifier
-                            .size(ButtonDefaults.IconSize)
-                            .testTag("progress_indicator_determinate"), // Tag for determinate progress
-                        strokeWidth = 2.dp,
-                    )
-                }
-                Spacer(Modifier.size(ButtonDefaults.IconSpacing))
-                Text(stringResource(id = R.string.download_button_downloading))
-            }
-        }
-        is DownloadState.NotDownloaded, is DownloadState.DownloadFailed -> {
-            Button(
-                onClick = onDownloadClick,
-                modifier = modifier.testTag("action_button_download_initial"), // Tag for Download state
-            ) {
-                Text(stringResource(id = R.string.download_button_download))
-            }
-        }
+    val inProgressState = downloadState as? DownloadState.InProgress
+    val downloadedState = downloadState as? DownloadState.Downloaded
+    val defaultText = stringResource(id = R.string.download_button_downloading)
+    val colorScheme = MaterialTheme.colorScheme
+    val isDownloading = inProgressState != null
+
+    LaunchedEffect(downloadState) {
+        Log.d(TAG, "downloadState changed: $downloadState")
     }
+
+    ProgressButton(
+        onClick = {
+            downloadedState?.let { onInstallClick(it.file) } ?: onDownloadClick()
+        },
+        enabled = true,
+        isLoading = isDownloading,
+        progress = inProgressState
+            ?.progress
+            ?.takeUnless { inProgressState.isIndeterminate },
+        text = if (downloadedState == null) {
+            stringResource(id = R.string.download_button_download)
+        } else {
+            stringResource(id = R.string.download_button_install)
+        },
+        loadingText = inProgressText ?: defaultText,
+        determinateProgressAnimation = determinateProgressAnimation,
+        // Keep the fill stable across every state; the lighter progress ring is
+        // deliberately distinct from the primary button background.
+        trackColor = colorScheme.onPrimary.copy(alpha = 0.28f),
+        indicatorColor = colorScheme.primaryContainer,
+        trackEndColor = colorScheme.primaryContainer,
+        endingAnimation = EndingAnimation.None,
+        containerColor = colorScheme.primary,
+        contentColor = colorScheme.onPrimary,
+        modifier = modifier,
+        semanticsTag = when {
+            downloadedState != null -> "action_button_install_ready"
+            inProgressState != null -> "action_button_downloading"
+            else -> "action_button_download_initial"
+        },
+    )
 }

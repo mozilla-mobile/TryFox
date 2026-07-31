@@ -260,6 +260,7 @@ private fun HistoryCard(
                     downloadState = historyItem.downloadState,
                     onDownloadClick = onDownloadClick,
                     onInstallClick = onInstallClick,
+                    inProgressText = stringResource(id = R.string.download_button_download),
                 )
             }
         }

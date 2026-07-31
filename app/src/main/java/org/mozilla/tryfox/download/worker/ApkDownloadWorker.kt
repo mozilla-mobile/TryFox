@@ -61,12 +61,13 @@ class ApkDownloadWorker(
                         val progressPercent =
                             if (totalBytes > 0) ((bytesDownloaded * 100) / totalBytes).toInt() else -1
                         val now = System.currentTimeMillis()
+                        val elapsedSinceLastUpdate = now - lastProgressUpdateAt
                         val shouldPublish =
                             totalBytes <= 0 ||
                                 lastProgressPercent < 0 ||
                                 bytesDownloaded == totalBytes ||
                                 progressPercent >= lastProgressPercent + MIN_PROGRESS_PERCENT_STEP ||
-                                now - lastProgressUpdateAt >= PROGRESS_UPDATE_INTERVAL_MS
+                                elapsedSinceLastUpdate >= PROGRESS_UPDATE_INTERVAL_MS
                         if (shouldPublish) {
                             lastProgressUpdateAt = now
                             lastProgressPercent = progressPercent
