@@ -8,7 +8,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
@@ -221,22 +220,6 @@ class SearchViewModel(
 
         // Screen navigation only supplies a prefill. Searches are submitted explicitly by
         // the screen (including its intentional deep-link effect), never during creation.
-        if (authorEmail.isNullOrBlank()) {
-            loadLastSearchedEmail()
-        }
-    }
-
-    private fun loadLastSearchedEmail() {
-        viewModelScope.launch {
-            val lastEmail = userDataRepository.lastSearchedEmailFlow.first()
-            if (lastEmail.isNotBlank()) {
-                _authorEmail.value = lastEmail
-                logcat(
-                    LogPriority.DEBUG,
-                    TAG,
-                ) { "Initial author email loaded from storage: ${_authorEmail.value}" }
-            }
-        }
     }
 
     fun updateAuthorEmail(email: String) {
