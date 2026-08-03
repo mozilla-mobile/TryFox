@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,6 +31,7 @@ fun ProjectSelector(
     selectedProject: String,
     projectLabel: (String) -> String,
     onProjectSelected: (String) -> Unit,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val selectedIndex = projects.indexOf(selectedProject).coerceAtLeast(0)
@@ -42,7 +44,7 @@ fun ProjectSelector(
         modifier = modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(24.dp))
-            .padding(4.dp)
+            .padding(2.dp)
             .testTag("unified_search_project_input"),
     ) {
         val segmentWidth = maxWidth / projects.size
@@ -63,18 +65,20 @@ fun ProjectSelector(
             projects.forEach { project ->
                 TextButton(
                     onClick = { onProjectSelected(project) },
+                    enabled = enabled,
                     modifier = Modifier
                         .width(segmentWidth)
                         .fillMaxHeight()
                         .testTag("unified_search_project_$project"),
                     shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp),
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     ),
                 ) {
                     Text(
                         text = projectLabel(project),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold,
                     )
                 }

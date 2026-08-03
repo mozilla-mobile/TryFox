@@ -14,6 +14,14 @@ interface TreeherderRepository {
     /** Looks up an author's pushes in the selected Treeherder project. */
     suspend fun getPushesByAuthor(project: String, author: String): NetworkResult<TreeherderRevisionResponse> =
         getPushesByAuthor(author)
+
+    /** Gets the most recent pushes for a project, as shown by Treeherder without a query. */
+    suspend fun getRecentPushes(
+        project: String,
+        count: Int = 10,
+        offset: Int = 0,
+    ): NetworkResult<TreeherderRevisionResponse> =
+        NetworkResult.Error("Recent-push lookup is not implemented.")
     suspend fun getJobsForPush(pushId: Int): NetworkResult<TreeherderJobsResponse>
     suspend fun getJobsForPushPage(
         pushId: Int,

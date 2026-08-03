@@ -37,6 +37,16 @@ class DefaultTreeherderRepository(
         return safeApiCall { treeherderApiService.getPushByAuthor(project = project, author = author) }
     }
 
+    override suspend fun getRecentPushes(
+        project: String,
+        count: Int,
+        offset: Int,
+    ): NetworkResult<TreeherderRevisionResponse> {
+        return safeApiCall {
+            treeherderApiService.getRecentPushes(project = project, count = count, offset = offset)
+        }
+    }
+
     override suspend fun getJobsForPush(pushId: Int): NetworkResult<TreeherderJobsResponse> {
         return safeApiCall {
             val pageSize = 2000

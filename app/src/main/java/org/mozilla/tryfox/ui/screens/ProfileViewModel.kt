@@ -37,7 +37,6 @@ import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import org.mozilla.tryfox.ui.models.PushUiModel
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
-import java.util.concurrent.atomic.AtomicInteger
 
 private fun bugComment(revisions: List<RevisionDetail>): String? {
     return revisions.firstOrNull { revision ->
@@ -138,6 +137,9 @@ class SearchViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _warningMessage = MutableStateFlow<String?>(null)
+    val warningMessage: StateFlow<String?> = _warningMessage.asStateFlow()
+
     private val _pushes = MutableStateFlow<List<PushUiModel>>(emptyList())
     val pushes: StateFlow<List<PushUiModel>> = _pushes.asStateFlow()
     private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
@@ -196,9 +198,9 @@ class SearchViewModel(
             }
         }.launchIn(viewModelScope)
 
-        if (authorEmail != null) {
-            submitSearch()
-        } else {
+        // Screen navigation only supplies a prefill. Searches are submitted explicitly by
+        // the screen (including its intentional deep-link effect), never during creation.
+        if (authorEmail.isNullOrBlank()) {
             loadLastSearchedEmail()
         }
     }
@@ -220,12 +222,14 @@ class SearchViewModel(
         logcat(LogPriority.DEBUG, TAG) { "Updating author email to: $email" }
         _authorEmail.value = email
         _errorMessage.value = null
+        _warningMessage.value = null
     }
 
     fun updateQuery(query: String) = updateAuthorEmail(query)
 
     fun updateSelectedProject(project: String) {
         _selectedProject.value = project
+        _warningMessage.value = null
     }
 
     fun setEmailFromDeepLinkAndSearch(project: String?, email: String) {
@@ -249,6 +253,7 @@ class SearchViewModel(
         when (val parsed = SearchQueryClassifier.classify(_authorEmail.value).getOrNull()) {
             is SearchQuery.Email -> searchByAuthor()
             is SearchQuery.Revision -> searchByRevision(parsed.value)
+            SearchQuery.RecentPushes -> searchRecentPushes()
             null -> Unit
         }
     }
@@ -261,6 +266,7 @@ class SearchViewModel(
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
+            _warningMessage.value = null
             _pushes.value = emptyList()
             when (val pushResult = fenixRepository.getPushByRevision(_selectedProject.value, revision)) {
                 is NetworkResult.Success -> {
@@ -330,6 +336,7 @@ class SearchViewModel(
 
     fun searchByAuthor() {
         val emailToSearch = _authorEmail.value
+        val projectToSearch = _selectedProject.value
         logcat(TAG) { "searchByAuthor called for email: $emailToSearch" }
         if (emailToSearch.isBlank()) {
             _errorMessage.value = "Please enter an author email to search."
@@ -339,20 +346,43 @@ class SearchViewModel(
         if (SearchQueryClassifier.classify(emailToSearch).getOrNull() !is SearchQuery.Email) {
             return
         }
+        searchPushes(
+            queryToRecord = emailToSearch,
+            project = projectToSearch,
+        ) { fenixRepository.getPushesByAuthor(projectToSearch, emailToSearch) }
+    }
+
+    private fun searchRecentPushes() {
+        val projectToSearch = _selectedProject.value
+        searchPushes(
+            queryToRecord = null,
+            project = projectToSearch,
+        ) { fenixRepository.getRecentPushes(projectToSearch) }
+    }
+
+    private fun searchPushes(
+        queryToRecord: String?,
+        project: String,
+        request: suspend () -> NetworkResult<org.mozilla.tryfox.data.TreeherderRevisionResponse>,
+    ) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             _pushes.value = emptyList()
             logcat(LogPriority.DEBUG, TAG) { "Starting search..." }
             val artifactSemaphore = Semaphore(MAX_PARALLEL_ARTIFACT_REQUESTS)
+            var requestToRun = request
+            var retriedRecentPushes = false
+            var fetchedPushCount = 0
 
-            when (val result = fenixRepository.getPushesByAuthor(_selectedProject.value, emailToSearch)) {
-                is NetworkResult.Success -> {
+            searchLoop@ while (true) {
+                when (val result = requestToRun()) {
+                    is NetworkResult.Success -> {
+                    fetchedPushCount += result.data.results.size
                     logcat(
                         LogPriority.DEBUG,
                         TAG,
-                    ) { "getPushesByAuthor success, processing ${result.data.results.size} pushes" }
-                    val failedPushCount = AtomicInteger(0)
+                    ) { "Push lookup succeeded; processing ${result.data.results.size} pushes" }
                     val pushesWithJobsAndArtifacts = result.data.results.mapIndexed { pushIndex, pushResult ->
                         async {
                             val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
@@ -366,9 +396,6 @@ class SearchViewModel(
                                         async {
                                             val artifactResult = artifactSemaphore.withPermit {
                                                 fetchArtifacts(jobDetails.taskId)
-                                            }
-                                            if (artifactResult.failed) {
-                                                failedPushCount.incrementAndGet()
                                             }
                                             artifactResult.artifacts.takeIf { it.isNotEmpty() }?.let { artifacts ->
                                                 jobWithArtifacts(jobDetails, artifacts)
@@ -405,7 +432,6 @@ class SearchViewModel(
                                     null
                                 }
                             } else {
-                                failedPushCount.incrementAndGet()
                                 logcat(LogPriority.WARN, TAG) {
                                     "getJobsForPush failed for push ID: ${pushResult.id}: " +
                                     (jobsResult as NetworkResult.Error).message
@@ -418,21 +444,37 @@ class SearchViewModel(
                     _pushes.value = pushesWithJobsAndArtifacts
                     syncLoadedStateDownloadStates()
                     if (pushesWithJobsAndArtifacts.isNotEmpty()) {
-                        userDataRepository.recordSearch(_selectedProject.value, emailToSearch)
+                        queryToRecord?.let { userDataRepository.recordSearch(project, it) }
                     }
                     logcat(TAG) { "Search finished, ${_pushes.value.size} pushes with artifacts found." }
-                    if (failedPushCount.get() > 0) {
-                        _errorMessage.value = "Some pushes could not be loaded."
-                    } else if (pushesWithJobsAndArtifacts.isEmpty()) {
-                        _errorMessage.value = "No APK builds found for this author."
-                        logcat(TAG) { "No APK builds found for author." }
+                    if (queryToRecord == null && !retriedRecentPushes && pushesWithJobsAndArtifacts.isEmpty()) {
+                        retriedRecentPushes = true
+                        requestToRun = {
+                            fenixRepository.getRecentPushes(
+                                project = project,
+                                count = 50,
+                                offset = 10,
+                            )
+                        }
+                        logcat(TAG) { "No usable APKs in the newest 10 pushes; searching the next 50." }
+                        continue@searchLoop
+                    }
+                    if (pushesWithJobsAndArtifacts.isEmpty()) {
+                        _errorMessage.value = "No push was found with a job that produced an APK."
+                        logcat(TAG) { _errorMessage.value.orEmpty() }
+                    } else if (pushesWithJobsAndArtifacts.size < fetchedPushCount) {
+                        _warningMessage.value =
+                            "Showing ${pushesWithJobsAndArtifacts.size} of $fetchedPushCount fetched pushes. " +
+                            "The remaining pushes did not contain a job that produced an APK."
                     }
                 }
 
-                is NetworkResult.Error -> {
-                    logcat(LogPriority.ERROR, TAG) { "Error fetching pushes: ${result.message}" }
-                    _errorMessage.value = "Error fetching pushes: ${result.message}"
+                    is NetworkResult.Error -> {
+                        logcat(LogPriority.ERROR, TAG) { "Error fetching pushes: ${result.message}" }
+                        _errorMessage.value = "Error fetching pushes: ${result.message}"
+                    }
                 }
+                break@searchLoop
             }
             _isLoading.value = false
         }

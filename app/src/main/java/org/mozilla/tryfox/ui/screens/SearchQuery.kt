@@ -6,6 +6,9 @@ sealed interface SearchQuery {
 
     data class Email(override val value: String) : SearchQuery
     data class Revision(override val value: String) : SearchQuery
+    data object RecentPushes : SearchQuery {
+        override val value = ""
+    }
 }
 
 /**
@@ -18,7 +21,7 @@ object SearchQueryClassifier {
     fun classify(input: String): Result<SearchQuery> {
         val value = input.trim()
         return when {
-            value.isBlank() -> Result.failure(IllegalArgumentException("Enter an email or revision."))
+            value.isBlank() -> Result.success(SearchQuery.RecentPushes)
             '@' !in value -> Result.success(SearchQuery.Revision(value))
             emailPattern.matches(value) -> Result.success(SearchQuery.Email(value))
             else -> Result.failure(IllegalArgumentException("Invalid search query."))

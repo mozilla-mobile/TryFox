@@ -13,8 +13,11 @@ class SearchQueryClassifierTest {
         assertEquals(SearchQuery.Revision("abc123"), SearchQueryClassifier.classify(" abc123 ").getOrThrow())
     }
 
-    @Test fun `rejects blank and malformed at input`() {
-        assertTrue(SearchQueryClassifier.classify(" ").isFailure)
+    @Test fun `classifies a blank query as recent pushes`() {
+        assertEquals(SearchQuery.RecentPushes, SearchQueryClassifier.classify(" ").getOrThrow())
+    }
+
+    @Test fun `rejects malformed email`() {
         assertTrue(SearchQueryClassifier.classify("person@mozilla").isFailure)
     }
 }
