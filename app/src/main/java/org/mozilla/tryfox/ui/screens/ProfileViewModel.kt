@@ -37,6 +37,7 @@ import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import org.mozilla.tryfox.ui.models.PushUiModel
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
+import java.util.Locale
 
 private fun bugComment(revisions: List<RevisionDetail>): String? {
     return revisions.firstOrNull { revision ->
@@ -80,6 +81,26 @@ internal fun filterRedundantUnsignedApkJobs(jobs: List<JobDetailsUiModel>): List
             ?.let { "signing-apk-$it" }
             ?.lowercase()
         signedEquivalent == null || signedEquivalent !in availableSignedJobNames
+    }
+}
+
+/** Orders displayed APK jobs by variant group, then app and job name. */
+internal fun orderApkJobs(jobs: List<JobDetailsUiModel>): List<JobDetailsUiModel> =
+    jobs.sortedWith(
+        compareBy<JobDetailsUiModel>(
+            { job -> apkJobCategory(job) },
+            { job -> job.appName.lowercase(Locale.ROOT) },
+            { job -> job.jobName.lowercase(Locale.ROOT) },
+            JobDetailsUiModel::taskId,
+        ),
+    )
+
+private fun apkJobCategory(job: JobDetailsUiModel): Int {
+    val name = job.jobName.lowercase(Locale.ROOT)
+    return when {
+        "perftest" in name || "simulation" in name -> 2
+        "firebase" in name -> 1
+        else -> 0
     }
 }
 
@@ -284,8 +305,8 @@ class SearchViewModel(
                                 loadJob(job)?.let(jobs::add)
                             }
                             val visibleJobs = filterRedundantUnsignedApkJobs(jobs)
-                            val signedJobs = visibleJobs.filter(JobDetailsUiModel::isSignedBuild)
-                            val unsignedJobs = visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild)
+                            val signedJobs = orderApkJobs(visibleJobs.filter(JobDetailsUiModel::isSignedBuild))
+                            val unsignedJobs = orderApkJobs(visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild))
                             if (signedJobs.isEmpty() && unsignedJobs.isEmpty()) {
                                 _errorMessage.value = "No APK builds found for this revision."
                             } else {
@@ -414,8 +435,8 @@ class SearchViewModel(
                                                     .map { it.revisions },
                                             ),
                                             author = pushResult.author,
-                                            jobs = visibleJobs.filter(JobDetailsUiModel::isSignedBuild),
-                                            unsignedJobs = visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild),
+                                            jobs = orderApkJobs(visibleJobs.filter(JobDetailsUiModel::isSignedBuild)),
+                                            unsignedJobs = orderApkJobs(visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild)),
                                             revision = pushResult.revision,
                                             pushTimestamp = pushResult.pushTimestamp,
                                         )
