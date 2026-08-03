@@ -31,6 +31,7 @@ camerax = "1.5.3"
 mlkitBarcodeScanning = "17.3.0"
 ktor = "3.5.0"
 zxing = "3.5.3"
+androidxWork = "2.9.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -81,6 +82,7 @@ ktor-server-core = { group = "io.ktor", name = "ktor-server-core", version.ref =
 ktor-server-content-negotiation = { group = "io.ktor", name = "ktor-server-content-negotiation", version.ref = "ktor" }
 ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
+androidx-work-runtime-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "androidxWork" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

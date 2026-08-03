@@ -7,6 +7,7 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -14,8 +15,10 @@
 
     <queries>
         <package android:name="org.mozilla.fenix" />
+        <package android:name="org.mozilla.fenix.debug" />
         <package android:name="org.mozilla.focus.nightly" />
         <package android:name="org.mozilla.focus" />
+        <package android:name="org.mozilla.focus.beta" />
         <package android:name="org.mozilla.firefox" />
         <package android:name="org.mozilla.firefox_beta" />
         <package android:name="org.mozilla.reference.browser" />
@@ -73,12 +76,8 @@
         </provider>
 
         <receiver
-            android:name=".InstallResultReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="org.mozilla.tryfox.INSTALL_COMPLETE" />
-            </intent-filter>
-        </receiver>
+            android:name=".install.InstallResultReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".lan.TryFoxLanReceiveNotificationReceiver"
@@ -89,6 +88,11 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
     </application>
 

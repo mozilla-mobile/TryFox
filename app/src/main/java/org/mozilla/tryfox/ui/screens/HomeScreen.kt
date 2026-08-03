@@ -12,7 +12,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
@@ -49,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.datetime.LocalDate
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.composables.ArchiveGroupCard
@@ -57,14 +57,12 @@ import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.parseDateToMillis
-import java.io.File
 
 /**
  * Composable function for the Home screen, which displays a list of available apps and allows users to interact with them.
  *
  * @param modifier The modifier to be applied to the component.
- * @param onNavigateToTreeherder Callback to navigate to the Treeherder search screen.
- * @param onNavigateToProfile Callback to navigate to the Profile screen.
+ * @param onNavigateToSearch Callback to navigate to the unified build search screen.
  * @param onNavigateToHistory Callback to navigate to the History screen.
  * @param homeViewModel The ViewModel for the Home screen.
  */
@@ -72,8 +70,7 @@ import java.io.File
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    onNavigateToTreeherder: () -> Unit,
-    onNavigateToProfile: () -> Unit,
+    onNavigateToSearch: () -> Unit,
     onNavigateToQrScanner: () -> Unit,
     onNavigateToReceiveFromDesktop: () -> Unit,
     onNavigateToHistory: () -> Unit,
@@ -81,6 +78,7 @@ fun HomeScreen(
 ) {
     val screenState by homeViewModel.homeScreenState.collectAsState()
     val isRefreshing by homeViewModel.isRefreshing.collectAsState()
+    val installStates by homeViewModel.installStates.collectAsState()
     val pullRefreshState = rememberPullRefreshState(isRefreshing, { homeViewModel.refreshData() })
 
     LaunchedEffect(Unit) {
@@ -123,13 +121,7 @@ fun HomeScreen(
                             contentDescription = null,
                         )
                     }
-                    IconButton(onClick = onNavigateToProfile) {
-                        Icon(
-                            imageVector = Icons.Filled.AccountCircle,
-                            contentDescription = stringResource(id = R.string.home_profile_button_description),
-                        )
-                    }
-                    IconButton(onClick = onNavigateToTreeherder) {
+                    IconButton(onClick = onNavigateToSearch) {
                         Icon(
                             imageVector = Icons.Filled.Search,
                             contentDescription = stringResource(
@@ -202,7 +194,9 @@ fun HomeScreen(
                             AppComponent(
                                 app = app,
                                 onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
-                                onInstallClick = { homeViewModel.installApk(it) },
+                                onInstallClick = homeViewModel::installHomeApk,
+                                installStates = installStates,
+                                onOpenInstalledApp = homeViewModel::openInstalledApp,
                                 onOpenAppClick = { homeViewModel.openApp(it) },
                                 onUninstallClick = { homeViewModel.uninstallApp(it) },
                                 onDateSelected = { appName, date ->
@@ -231,7 +225,9 @@ fun HomeScreen(
                             modifier = Modifier.align(Alignment.TopCenter),
                             tryFoxApp = tryFoxApp,
                             onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
-                            onInstallClick = { homeViewModel.installApk(it) },
+                            onInstallClick = homeViewModel::installHomeApk,
+                            installStates = installStates,
+                            onOpenInstalledApp = homeViewModel::openInstalledApp,
                             onDismiss = { homeViewModel.dismissTryFoxCard() },
                             onTryFoxCardHeightChange = { tryFoxCardHeight = it },
                         )
@@ -288,7 +284,9 @@ private fun TopBarActionIcon(
 fun AppComponent(
     app: AppUiModel,
     onDownloadClick: (ApkUiModel) -> Unit,
-    onInstallClick: (File) -> Unit,
+    onInstallClick: (ApkUiModel) -> Unit,
+    installStates: Map<String, InstallState>,
+    onOpenInstalledApp: (String) -> Unit,
     onOpenAppClick: (String) -> Unit,
     onUninstallClick: (String) -> Unit,
     onDateSelected: (String, LocalDate) -> Unit,
@@ -320,6 +318,8 @@ fun AppComponent(
         appState = appState,
         onDownloadClick = onDownloadClick,
         onInstallClick = onInstallClick,
+        installStates = installStates,
+        onOpenInstalledApp = onOpenInstalledApp,
         onOpenAppClick = {
             appState?.packageName?.let {
                 onOpenAppClick(it)

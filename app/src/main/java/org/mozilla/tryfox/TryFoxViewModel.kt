@@ -25,6 +25,8 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.SearchHistoryEntry
+import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.IntentManager
@@ -35,6 +37,8 @@ import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
+import org.mozilla.tryfox.ui.screens.isPerfAgainRetry
+import org.mozilla.tryfox.ui.screens.selectPreferredPushComment
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
 
@@ -122,6 +126,9 @@ class TryFoxViewModel(
     var selectedJobs by mutableStateOf<List<JobDetailsUiModel>>(emptyList())
         private set
 
+    var successfulSearch by mutableStateOf<SearchHistoryEntry?>(null)
+        private set
+
     val isLoadingJobArtifacts = mutableStateMapOf<String, Boolean>()
 
     var onInstallApk: ((File) -> Unit)? = null
@@ -129,7 +136,7 @@ class TryFoxViewModel(
     private val deviceSupportedAbis: List<String> by lazy { supportedAbis }
 
     init {
-        if (revision != null) {
+        if (!revision.isNullOrBlank() && '@' !in revision) {
             searchJobsAndArtifacts()
         }
         cacheManager.cacheState.onEach { state ->
@@ -191,6 +198,7 @@ class TryFoxViewModel(
     }
 
     fun searchJobsAndArtifacts() {
+        successfulSearch = null
         if (revision.isBlank()) {
             errorMessage = "Please enter a revision to search."
             return
@@ -211,27 +219,30 @@ class TryFoxViewModel(
             when (val revisionResult = fenixRepository.getPushByRevision(selectedProject, revision)) {
                 is NetworkResult.Success -> {
                     val pushData = revisionResult.data
-                    var foundComment: String? = null
                     val firstPushResult = pushData.results.firstOrNull()
 
                     if (firstPushResult != null) {
-                        for (revDetail in firstPushResult.revisions) {
-                            if (revDetail.comments.startsWith("Bug ")) {
-                                foundComment = revDetail.comments
-                                break
+                        val precedingPushRevisions = if (isPerfAgainRetry(firstPushResult.revisions)) {
+                            when (val authorPushes = fenixRepository.getPushesByAuthor(selectedProject, firstPushResult.author)) {
+                                is NetworkResult.Success -> {
+                                    val pushIndex = authorPushes.data.results.indexOfFirst { it.id == firstPushResult.id }
+                                    authorPushes.data.results
+                                        .take(pushIndex.coerceAtLeast(0))
+                                        .asReversed()
+                                        .map { it.revisions }
+                                }
+                                is NetworkResult.Error -> emptyList()
                             }
+                        } else {
+                            emptyList()
                         }
-                        if (foundComment == null) {
-                            foundComment = firstPushResult.revisions.firstOrNull()?.comments ?: "No comment"
-                        }
+                        relevantPushComment = selectPreferredPushComment(firstPushResult.revisions, precedingPushRevisions)
                         relevantPushAuthor = firstPushResult.author
                         relevantPushTimestamp = firstPushResult.pushTimestamp
                     } else {
                         relevantPushAuthor = null
                         relevantPushTimestamp = null
                     }
-                    relevantPushComment = foundComment
-
                     if (pushData.results.isEmpty()) {
                         errorMessage = "No push found for project: $selectedProject, revision: $revision"
                         isLoading = false
@@ -392,6 +403,14 @@ class TryFoxViewModel(
         }
 
         selectedJobs = selectedJobs.filter { it.artifacts.isNotEmpty() }
+        if (selectedJobs.isNotEmpty()) {
+            successfulSearch = SearchHistoryEntry(
+                project = selectedProject,
+                query = revision,
+                queryType = SearchHistoryQueryType.REVISION,
+                searchedAt = currentTimeMillisProvider(),
+            )
+        }
         infoLogger(
             TAG,
             "searchJobsAndArtifacts: finished in ${elapsedRealtimeProvider() - loadStartMs} ms with ${selectedJobs.size} job(s) shown",

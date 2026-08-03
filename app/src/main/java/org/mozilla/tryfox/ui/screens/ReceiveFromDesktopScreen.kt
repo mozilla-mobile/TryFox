@@ -12,12 +12,13 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -57,6 +58,7 @@ import org.mozilla.tryfox.lan.TryFoxLanReceiveService
 fun ReceiveFromDesktopScreen(
     onNavigateUp: () -> Unit,
     onNavigateToMessageHistory: () -> Unit,
+    onNavigateToTreeherderRevision: (project: String, revision: String) -> Unit,
     receiveFromDesktopViewModel: ReceiveFromDesktopViewModel,
     startReceiverOnEnter: Boolean = false,
     onStartReceiverOnEnterConsumed: () -> Unit = {},
@@ -159,106 +161,60 @@ fun ReceiveFromDesktopScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = 16.dp),
         ) {
-            if (permissionState != NotificationPermissionState.GRANTED) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(top = 16.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                if (permissionState != NotificationPermissionState.GRANTED) {
+                    Card(
+                        modifier = Modifier.clickable { requestOrOpenSettings() },
+                        shape = RoundedCornerShape(8.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    id = if (permissionState == NotificationPermissionState.BLOCKED) {
+                                        R.string.lan_receive_permission_card_blocked_title
+                                    } else {
+                                        R.string.lan_receive_permission_card_title
+                                    },
+                                ),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                text = stringResource(
+                                    id = if (permissionState == NotificationPermissionState.BLOCKED) {
+                                        R.string.lan_receive_permission_card_blocked_body
+                                    } else {
+                                        R.string.lan_receive_permission_card_body
+                                    },
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+
                 Card(
-                    modifier = Modifier.clickable { requestOrOpenSettings() },
                     shape = RoundedCornerShape(8.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    ),
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = stringResource(
-                                id = if (permissionState == NotificationPermissionState.BLOCKED) {
-                                    R.string.lan_receive_permission_card_blocked_title
-                                } else {
-                                    R.string.lan_receive_permission_card_title
-                                },
-                            ),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Text(
-                            text = stringResource(
-                                id = if (permissionState == NotificationPermissionState.BLOCKED) {
-                                    R.string.lan_receive_permission_card_blocked_body
-                                } else {
-                                    R.string.lan_receive_permission_card_body
-                                },
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-
-            Card(
-                shape = RoundedCornerShape(8.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = stringResource(id = R.string.lan_receive_state_label, state.status.toDisplayName()),
-                        style = MaterialTheme.typography.titleMedium,
-                    )
-                    if (state.endpoint != null) {
-                        Text(
-                            text = stringResource(id = R.string.lan_receive_endpoint_label, state.endpoint!!),
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                    if (state.errorMessage != null) {
-                        Text(
-                            text = stringResource(id = R.string.lan_receive_error_label, state.errorMessage!!),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-
-            if (state.status == LanReceiveStatus.LISTENING && state.qrPayloadJson != null) {
-                val qrCode = remember(state.qrPayloadJson) {
-                    qrCodeBitmap(state.qrPayloadJson!!, sizePx = 768)
-                }
-                Card(shape = RoundedCornerShape(8.dp)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Text(
-                            text = stringResource(id = R.string.lan_receive_qr_title),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        Image(
-                            bitmap = qrCode,
-                            contentDescription = stringResource(id = R.string.lan_receive_qr_description),
-                            modifier = Modifier.size(240.dp),
-                        )
-                    }
-                }
-            }
-
-            if (state.lastReceivedMessage != null) {
-                val lastMessage = state.lastReceivedMessage!!
-                Card(shape = RoundedCornerShape(8.dp)) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -266,59 +222,127 @@ fun ReceiveFromDesktopScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            text = stringResource(id = R.string.lan_receive_last_message_title),
+                            text = stringResource(id = R.string.lan_receive_state_label, state.status.toDisplayName()),
                             style = MaterialTheme.typography.titleMedium,
                         )
-                        Text(
-                            text = if (lastMessage.accepted) {
-                                stringResource(id = R.string.lan_receive_last_message_accepted)
-                            } else {
-                                stringResource(
-                                    id = R.string.lan_receive_last_message_rejected,
-                                    lastMessage.error ?: stringResource(id = R.string.common_unknown_error),
-                                )
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        lastMessage.revision?.let {
+                        if (state.endpoint != null) {
                             Text(
-                                text = stringResource(id = R.string.lan_receive_last_message_revision, it),
-                                style = MaterialTheme.typography.bodySmall,
+                                text = stringResource(id = R.string.lan_receive_endpoint_label, state.endpoint!!),
+                                style = MaterialTheme.typography.bodyMedium,
                             )
                         }
-                        lastMessage.author?.let {
+                        if (state.errorMessage != null) {
                             Text(
-                                text = stringResource(id = R.string.lan_receive_last_message_author, it),
-                                style = MaterialTheme.typography.bodySmall,
+                                text = stringResource(id = R.string.lan_receive_error_label, state.errorMessage!!),
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyMedium,
                             )
+                        }
+                    }
+                }
+
+                if (state.status == LanReceiveStatus.LISTENING && state.qrPayloadJson != null) {
+                    val qrCode = remember(state.qrPayloadJson) {
+                        qrCodeBitmap(state.qrPayloadJson!!, sizePx = 768)
+                    }
+                    Card(shape = RoundedCornerShape(8.dp)) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.lan_receive_qr_title),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Image(
+                                bitmap = qrCode,
+                                contentDescription = stringResource(id = R.string.lan_receive_qr_description),
+                                modifier = Modifier.size(240.dp),
+                            )
+                        }
+                    }
+                }
+
+                state.lastReceivedMessage?.let { lastMessage ->
+                    val project = lastMessage.repo?.takeIf { it.isNotBlank() } ?: "try"
+                    val canOpenTreeherder = !lastMessage.revision.isNullOrBlank()
+                    Card(
+                        modifier = Modifier.clickable(enabled = canOpenTreeherder) {
+                            onNavigateToTreeherderRevision(
+                                project,
+                                lastMessage.revision!!,
+                            )
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.lan_receive_last_message_title),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Text(
+                                text = if (lastMessage.accepted) {
+                                    stringResource(id = R.string.lan_receive_last_message_accepted)
+                                } else {
+                                    stringResource(
+                                        id = R.string.lan_receive_last_message_rejected,
+                                        lastMessage.error ?: stringResource(id = R.string.common_unknown_error),
+                                    )
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            lastMessage.revision?.let {
+                                Text(
+                                    text = stringResource(id = R.string.lan_receive_last_message_revision, it),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            lastMessage.author?.let {
+                                Text(
+                                    text = stringResource(id = R.string.lan_receive_last_message_author, it),
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            if (state.status == LanReceiveStatus.LISTENING || state.status == LanReceiveStatus.STARTING) {
-                Button(
-                    onClick = { context.startService(TryFoxLanReceiveService.stopIntent(context)) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(id = R.string.lan_receive_stop_button))
-                }
-            } else {
-                Button(
-                    onClick = requestStartReceiver,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(id = R.string.lan_receive_start_button))
-                }
-            }
-
-            OutlinedButton(
-                onClick = onNavigateToMessageHistory,
-                modifier = Modifier.fillMaxWidth(),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(stringResource(id = R.string.lan_receive_message_history_button))
+                if (state.status == LanReceiveStatus.LISTENING || state.status == LanReceiveStatus.STARTING) {
+                    Button(
+                        onClick = { context.startService(TryFoxLanReceiveService.stopIntent(context)) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(id = R.string.lan_receive_stop_button))
+                    }
+                } else {
+                    Button(
+                        onClick = requestStartReceiver,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(stringResource(id = R.string.lan_receive_start_button))
+                    }
+                }
+
+                OutlinedButton(
+                    onClick = onNavigateToMessageHistory,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(id = R.string.lan_receive_message_history_button))
+                }
             }
         }
     }

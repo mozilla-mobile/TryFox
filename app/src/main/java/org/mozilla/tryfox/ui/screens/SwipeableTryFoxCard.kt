@@ -20,6 +20,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.composables.TryFoxCard
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.AppUiModel
@@ -31,7 +32,9 @@ fun SwipeableTryFoxCard(
     modifier: Modifier = Modifier,
     tryFoxApp: AppUiModel,
     onDownloadClick: (ApkUiModel) -> Unit,
-    onInstallClick: (java.io.File) -> Unit,
+    onInstallClick: (ApkUiModel) -> Unit,
+    installStates: Map<String, InstallState>,
+    onOpenInstalledApp: (String) -> Unit,
     onDismiss: () -> Unit,
     onTryFoxCardHeightChange: (Dp) -> Unit,
 ) {
@@ -81,6 +84,8 @@ fun SwipeableTryFoxCard(
                     app = tryFoxApp,
                     onDownloadClick = onDownloadClick,
                     onInstallClick = onInstallClick,
+                    installStates = installStates,
+                    onOpenInstalledApp = onOpenInstalledApp,
                 )
             },
         )

@@ -1,5 +1,6 @@
 package org.mozilla.tryfox.di
 
+import androidx.work.WorkManager
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ import org.mozilla.tryfox.data.managers.DefaultIntentManager
 import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DefaultDownloadFileRepository
 import org.mozilla.tryfox.data.repositories.DefaultHistoryRepository
+import org.mozilla.tryfox.data.repositories.DefaultHomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.DefaultTreeherderRepository
 import org.mozilla.tryfox.data.repositories.DefaultUserDataRepository
@@ -31,12 +33,19 @@ import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
 import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.HistoryRepository
+import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.MozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.ReferenceBrowserReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.repositories.TryFoxReleaseRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
+import org.mozilla.tryfox.download.ApkDownloadCoordinator
+import org.mozilla.tryfox.download.ApkDownloadStore
+import org.mozilla.tryfox.download.DefaultApkDownloadCoordinator
+import org.mozilla.tryfox.download.DefaultApkDownloadStore
+import org.mozilla.tryfox.download.DownloadNotificationFactory
+import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.lan.DefaultLanMessageHistoryRepository
 import org.mozilla.tryfox.lan.LanMessageHistoryRepository
 import org.mozilla.tryfox.lan.LanReceiveIdentityManager
@@ -47,9 +56,10 @@ import org.mozilla.tryfox.network.MozillaArchivesApiService
 import org.mozilla.tryfox.network.TreeherderApiService
 import org.mozilla.tryfox.ui.screens.HistoryViewModel
 import org.mozilla.tryfox.ui.screens.HomeViewModel
-import org.mozilla.tryfox.ui.screens.ProfileViewModel
 import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopViewModel
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryViewModel
+import org.mozilla.tryfox.ui.screens.SearchHistoryViewModel
+import org.mozilla.tryfox.ui.screens.SearchViewModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
@@ -146,6 +156,7 @@ val repositoryModule = module {
     single<TreeherderRepository> { DefaultTreeherderRepository(get()) }
     single<MozillaArchiveRepository> { DefaultMozillaArchiveRepository(get()) }
     single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
+    single<HomeDataCacheRepository> { DefaultHomeDataCacheRepository(androidContext(), get(named("IODispatcher"))) }
     single<HistoryRepository> { DefaultHistoryRepository(androidContext(), get(named("IODispatcher"))) }
     single<LanMessageHistoryRepository> {
         DefaultLanMessageHistoryRepository(
@@ -164,6 +175,11 @@ val repositoryModule = module {
         )
     }
     single<IntentManager> { DefaultIntentManager(androidContext()) }
+    single { ApkInstallCoordinator(androidContext()) }
+    single<ApkDownloadStore> { DefaultApkDownloadStore(androidContext(), get(named("IODispatcher"))) }
+    single { DownloadNotificationFactory(androidContext()) }
+    single { WorkManager.getInstance(androidContext()) }
+    single<ApkDownloadCoordinator> { DefaultApkDownloadCoordinator(androidContext(), get(), get()) }
 
     single<ReleaseRepository>(named(FENIX)) { FenixReleaseRepository(get()) }
     single<ReleaseRepository>(named(FENIX_RELEASE)) { FenixReleaseReleaseRepository(get()) }
@@ -186,9 +202,10 @@ val viewModelModule = module {
             params.getOrNull(),
         )
     }
-    viewModel { HistoryViewModel(get(), get(), get(), get(), get(named("IODispatcher"))) }
+    viewModel { HistoryViewModel(get(), get(), get(), get(), get(), get(named("IODispatcher"))) }
     viewModel { ReceiveFromDesktopViewModel(get()) }
     viewModel { ReceiveMessageHistoryViewModel(get(), get(named("IODispatcher"))) }
+    viewModel { SearchHistoryViewModel(get()) }
     viewModel {
         val releaseRepositories = listOf(
             get<ReleaseRepository>(named(FENIX)),
@@ -205,10 +222,14 @@ val viewModelModule = module {
             get(),
             get(),
             get(),
+            get(),
             get(named("IODispatcher")),
+            get(),
         )
     }
-    viewModel { params -> ProfileViewModel(get(), get(), get(), get(), get(), get(), params.getOrNull()) }
+    viewModel { params ->
+        SearchViewModel(get(), get(), get(), get(), get(), get(), params.getOrNull(), project = params.getOrNull() ?: "try")
+    }
 }
 
 val appModules = listOf(dispatchersModule, networkModule, repositoryModule, viewModelModule)

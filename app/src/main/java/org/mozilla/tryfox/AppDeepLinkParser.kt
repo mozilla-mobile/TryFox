@@ -12,6 +12,7 @@ sealed interface AppDeepLinkDestination {
 
     data class Profile(
         val email: String,
+        val project: String = "try",
     ) : AppDeepLinkDestination
 }
 
@@ -61,7 +62,10 @@ object AppDeepLinkParser {
 
         val author = parameters["author"]?.takeIf { it.isNotBlank() }
         if (author != null) {
-            return AppDeepLinkDestination.Profile(email = author)
+            return AppDeepLinkDestination.Profile(
+                email = author,
+                project = parameters["repo"]?.takeIf { it.isNotBlank() } ?: DEFAULT_PROJECT,
+            )
         }
 
         return null

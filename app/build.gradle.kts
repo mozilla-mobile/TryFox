@@ -122,6 +122,7 @@ dependencies {
     // Additional Compose dependencies
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.work.runtime.ktx)
 
     // DataStore
     implementation(libs.androidx.datastore.preferences)

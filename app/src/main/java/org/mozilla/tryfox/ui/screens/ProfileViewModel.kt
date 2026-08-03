@@ -8,21 +8,27 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import logcat.LogPriority
 import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.RevisionDetail
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
-import org.mozilla.tryfox.data.managers.IntentManager
-import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
+import org.mozilla.tryfox.download.ApkDownloadCoordinator
+import org.mozilla.tryfox.download.ApkDownloadRequest
+import org.mozilla.tryfox.download.model.DownloadStatus
+import org.mozilla.tryfox.download.model.PersistedDownloadState
+import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
@@ -30,6 +36,72 @@ import org.mozilla.tryfox.ui.models.JobDetailsUiModel
 import org.mozilla.tryfox.ui.models.PushUiModel
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
+import java.util.Locale
+
+private fun bugComment(revisions: List<RevisionDetail>): String? {
+    return revisions.firstOrNull { revision ->
+        revision.comments.trimStart().startsWith("Bug ", ignoreCase = true) ||
+            revision.comments.trimStart().startsWith("[Bug ", ignoreCase = true)
+    }?.comments
+}
+
+internal fun selectPreferredPushComment(
+    revisions: List<RevisionDetail>,
+    precedingPushRevisions: List<List<RevisionDetail>> = emptyList(),
+): String {
+    val ownComment = bugComment(revisions) ?: revisions.firstOrNull()?.comments.orEmpty().ifBlank { "No comment" }
+    val isPerfAgainRetry = ownComment.contains("Pushed via `mach try perf-again`", ignoreCase = true)
+    return if (isPerfAgainRetry) {
+        precedingPushRevisions.firstNotNullOfOrNull(::bugComment) ?: ownComment
+    } else {
+        ownComment
+    }
+}
+
+internal fun isPerfAgainRetry(revisions: List<RevisionDetail>): Boolean {
+    val firstComment = revisions.firstOrNull()?.comments.orEmpty()
+    return firstComment.contains("Pushed via `mach try perf-again`", ignoreCase = true)
+}
+
+private val unsignedApkJobNamePattern = Regex("^build-apk-(.+)$", RegexOption.IGNORE_CASE)
+
+/** Removes an unsigned build only when its corresponding signed build has a displayable APK. */
+internal fun filterRedundantUnsignedApkJobs(jobs: List<JobDetailsUiModel>): List<JobDetailsUiModel> {
+    val availableSignedJobNames = jobs.asSequence()
+        .filter(JobDetailsUiModel::isSignedBuild)
+        .map { it.jobName.trim().lowercase() }
+        .toSet()
+
+    return jobs.filter { job ->
+        if (job.isSignedBuild) return@filter true
+        val signedEquivalent = unsignedApkJobNamePattern.matchEntire(job.jobName.trim())
+            ?.groupValues
+            ?.get(1)
+            ?.let { "signing-apk-$it" }
+            ?.lowercase()
+        signedEquivalent == null || signedEquivalent !in availableSignedJobNames
+    }
+}
+
+/** Orders displayed APK jobs by variant group, then app and job name. */
+internal fun orderApkJobs(jobs: List<JobDetailsUiModel>): List<JobDetailsUiModel> =
+    jobs.sortedWith(
+        compareBy<JobDetailsUiModel>(
+            { job -> apkJobCategory(job) },
+            { job -> job.appName.lowercase(Locale.ROOT) },
+            { job -> job.jobName.lowercase(Locale.ROOT) },
+            JobDetailsUiModel::taskId,
+        ),
+    )
+
+private fun apkJobCategory(job: JobDetailsUiModel): Int {
+    val name = job.jobName.lowercase(Locale.ROOT)
+    return when {
+        "perftest" in name || "simulation" in name -> 2
+        "firebase" in name -> 1
+        else -> 0
+    }
+}
 
 /**
  * ViewModel for the Profile screen, responsible for fetching pushes and artifacts by author, managing downloads, and handling user interactions.
@@ -40,23 +112,44 @@ import java.io.File
  * @param intentManager The manager for handling intents, such as APK installation.
  * @param authorEmail The initial author email to search for, can be null.
  */
-class ProfileViewModel(
+/**
+ * State holder for every Treeherder search.  The input is classified once at submission
+ * time; from that point on the presentation only consumes [pushes], regardless of whether
+ * the repository request was made by revision or by author email.
+ */
+class SearchViewModel(
     private val fenixRepository: TreeherderRepository,
-    private val downloadFileRepository: DownloadFileRepository,
     private val userDataRepository: UserDataRepository,
     private val cacheManager: CacheManager,
-    private val intentManager: IntentManager,
     private val historyRepository: HistoryRepository,
+    private val downloadCoordinator: ApkDownloadCoordinator,
+    private val installCoordinator: ApkInstallCoordinator,
     authorEmail: String?,
     private val currentTimeMillisProvider: () -> Long = System::currentTimeMillis,
+    project: String = "try",
 ) : ViewModel() {
 
+    private data class ArtifactLoadResult(
+        val artifacts: List<ArtifactUiModel>,
+        val failed: Boolean,
+    )
+
     companion object {
-        private const val TAG = "ProfileViewModel"
+        private const val TAG = "SearchViewModel"
+        private const val MAX_PARALLEL_ARTIFACT_REQUESTS = 6
+        private val apkJobNameHints = listOf("signing-apk", "android-apk", "apk-focus", "apk-fenix", "apk-reference-browser", "apk-geckoview")
+        private val nonAndroidPlatformHints = listOf("ios", "mac", "macos", "macosx", "win", "windows", "linux", "desktop")
+        private val androidProductHints = listOf("focus", "fenix", "reference-browser", "geckoview", "android")
     }
 
     private val _authorEmail = MutableStateFlow(authorEmail ?: "")
     val authorEmail: StateFlow<String> = _authorEmail.asStateFlow()
+
+    /** The shared search field value. Kept as an alias during the email API migration. */
+    val query: StateFlow<String> = _authorEmail.asStateFlow()
+
+    private val _selectedProject = MutableStateFlow(project)
+    val selectedProject: StateFlow<String> = _selectedProject.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -64,15 +157,42 @@ class ProfileViewModel(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    private val _warningMessage = MutableStateFlow<String?>(null)
+    val warningMessage: StateFlow<String?> = _warningMessage.asStateFlow()
+
     private val _pushes = MutableStateFlow<List<PushUiModel>>(emptyList())
     val pushes: StateFlow<List<PushUiModel>> = _pushes.asStateFlow()
+    private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
 
     val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
+    val searchHistory = userDataRepository.searchHistoryFlow
+    val installStates: StateFlow<Map<String, InstallState>> = installCoordinator.states
 
-    private val deviceSupportedAbis: List<String> by lazy { Build.SUPPORTED_ABIS.toList() }
+    private val deviceSupportedAbis: List<String> by lazy {
+        runCatching { Build.SUPPORTED_ABIS.toList() }.getOrDefault(emptyList())
+    }
 
     init {
-        logcat(LogPriority.DEBUG, TAG) { "Initializing ProfileViewModel for email: $authorEmail" }
+        logcat(LogPriority.DEBUG, TAG) { "Initializing SearchViewModel for query: $authorEmail" }
+        downloadCoordinator.downloads
+            .onEach { persistedDownloads ->
+                downloadStates.value = persistedDownloads
+                syncLoadedStateDownloadStates()
+            }
+            .launchIn(viewModelScope)
+
+        installCoordinator.successfulInstalls
+            .onEach { artifactKey ->
+                findArtifact(artifactKey)?.let { downloadedArtifact ->
+                    try {
+                        updateInstallTimestamp(downloadedArtifact)
+                    } catch (_: Exception) {
+                        // History is best-effort; installation has already succeeded.
+                    }
+                }
+            }
+            .launchIn(viewModelScope)
+
         cacheManager.cacheState.onEach { state ->
             if (state is CacheManagementState.IdleEmpty) {
                 val updatedPushes = _pushes.value.map {
@@ -84,100 +204,222 @@ class ProfileViewModel(
                                 },
                             )
                         },
+                        unsignedJobs = it.unsignedJobs.map { job ->
+                            job.copy(
+                                artifacts = job.artifacts.map { artifact ->
+                                    artifact.copy(downloadState = DownloadState.NotDownloaded)
+                                },
+                            )
+                        },
                     )
                 }
                 _pushes.value = updatedPushes
+                syncLoadedStateDownloadStates()
             }
         }.launchIn(viewModelScope)
 
-        if (authorEmail != null) {
-            searchByAuthor()
-        } else {
-            loadLastSearchedEmail()
-        }
-    }
-
-    private fun loadLastSearchedEmail() {
-        viewModelScope.launch {
-            val lastEmail = userDataRepository.lastSearchedEmailFlow.first()
-            if (lastEmail.isNotBlank()) {
-                _authorEmail.value = lastEmail
-                logcat(
-                    LogPriority.DEBUG,
-                    TAG,
-                ) { "Initial author email loaded from storage: ${_authorEmail.value}" }
-            }
-        }
+        // Screen navigation only supplies a prefill. Searches are submitted explicitly by
+        // the screen (including its intentional deep-link effect), never during creation.
     }
 
     fun updateAuthorEmail(email: String) {
         logcat(LogPriority.DEBUG, TAG) { "Updating author email to: $email" }
         _authorEmail.value = email
+        _errorMessage.value = null
+        _warningMessage.value = null
+    }
+
+    fun updateQuery(query: String) = updateAuthorEmail(query)
+
+    fun updateSelectedProject(project: String) {
+        _selectedProject.value = project
+        _warningMessage.value = null
+    }
+
+    fun setEmailFromDeepLinkAndSearch(project: String?, email: String) {
+        _selectedProject.value = project ?: "try"
+        _authorEmail.value = email
+        searchByAuthor()
+    }
+
+    /** Applies either kind of deep link to the same model and executes the matching request. */
+    fun setQueryFromDeepLinkAndSearch(project: String?, query: String) {
+        _selectedProject.value = project ?: "try"
+        _authorEmail.value = query
+        submitSearch()
+    }
+
+    /**
+     * The sole search entry point used by the shared screen. Query kind changes only the
+     * Treeherder operation; loading, errors, results and artifact actions stay shared.
+     */
+    fun submitSearch() {
+        when (val parsed = SearchQueryClassifier.classify(_authorEmail.value).getOrNull()) {
+            is SearchQuery.Email -> searchByAuthor()
+            is SearchQuery.Revision -> searchByRevision(parsed.value)
+            SearchQuery.RecentPushes -> searchRecentPushes()
+            null -> Unit
+        }
+    }
+
+    private fun searchByRevision(revision: String) {
+        if (revision.isBlank()) {
+            _errorMessage.value = "Please enter a revision to search."
+            return
+        }
+        viewModelScope.launch {
+            _isLoading.value = true
+            _errorMessage.value = null
+            _warningMessage.value = null
+            _pushes.value = emptyList()
+            when (val pushResult = fenixRepository.getPushByRevision(_selectedProject.value, revision)) {
+                is NetworkResult.Success -> {
+                    val push = pushResult.data.results.firstOrNull()
+                    if (push == null) {
+                        _errorMessage.value = "No push found for project: ${_selectedProject.value}, revision: $revision"
+                    } else {
+                        val jobsResult = fenixRepository.getJobsForPush(push.id)
+                        if (jobsResult is NetworkResult.Success) {
+                            val (signedCandidates, unsignedCandidates) = selectJobsBySigning(
+                                jobsResult.data.results.filter(::isAndroidApkCandidate),
+                            )
+                            val jobs = mutableListOf<JobDetailsUiModel>()
+                            for (job in signedCandidates + unsignedCandidates) {
+                                loadJob(job)?.let(jobs::add)
+                            }
+                            val visibleJobs = filterRedundantUnsignedApkJobs(jobs)
+                            val signedJobs = orderApkJobs(visibleJobs.filter(JobDetailsUiModel::isSignedBuild))
+                            val unsignedJobs = orderApkJobs(visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild))
+                            if (signedJobs.isEmpty() && unsignedJobs.isEmpty()) {
+                                _errorMessage.value = "No APK builds found for this revision."
+                            } else {
+                                val precedingRevisions = if (isPerfAgainRetry(push.revisions)) {
+                                    when (
+                                        val authorPushes = fenixRepository.getPushesByAuthor(
+                                            _selectedProject.value,
+                                            push.author,
+                                        )
+                                    ) {
+                                        is NetworkResult.Success -> {
+                                            val pushIndex = authorPushes.data.results.indexOfFirst { it.id == push.id }
+                                            authorPushes.data.results
+                                                .take(pushIndex.coerceAtLeast(0))
+                                                .asReversed()
+                                                .map { it.revisions }
+                                        }
+                                        is NetworkResult.Error -> emptyList()
+                                    }
+                                } else {
+                                    emptyList()
+                                }
+                                _pushes.value = listOf(
+                                    PushUiModel(
+                                        pushComment = selectPreferredPushComment(push.revisions, precedingRevisions),
+                                        author = push.author,
+                                        jobs = signedJobs,
+                                        unsignedJobs = unsignedJobs,
+                                        revision = push.revision,
+                                        pushTimestamp = push.pushTimestamp,
+                                    ),
+                                )
+                                syncLoadedStateDownloadStates()
+                                userDataRepository.recordSearch(_selectedProject.value, revision)
+                            }
+                        } else {
+                            _errorMessage.value = "Error fetching jobs: ${(jobsResult as NetworkResult.Error).message}"
+                        }
+                    }
+                }
+                is NetworkResult.Error -> {
+                    _errorMessage.value = "Error fetching revision details for ${_selectedProject.value}: ${pushResult.message}"
+                }
+            }
+            _isLoading.value = false
+        }
     }
 
     fun searchByAuthor() {
         val emailToSearch = _authorEmail.value
+        val projectToSearch = _selectedProject.value
         logcat(TAG) { "searchByAuthor called for email: $emailToSearch" }
         if (emailToSearch.isBlank()) {
             _errorMessage.value = "Please enter an author email to search."
             logcat(LogPriority.WARN, TAG) { "Search attempt with blank email" }
             return
         }
+        if (SearchQueryClassifier.classify(emailToSearch).getOrNull() !is SearchQuery.Email) {
+            return
+        }
+        searchPushes(
+            queryToRecord = emailToSearch,
+            project = projectToSearch,
+        ) { fenixRepository.getPushesByAuthor(projectToSearch, emailToSearch) }
+    }
+
+    private fun searchRecentPushes() {
+        val projectToSearch = _selectedProject.value
+        searchPushes(
+            queryToRecord = null,
+            project = projectToSearch,
+        ) { fenixRepository.getRecentPushes(projectToSearch) }
+    }
+
+    private fun searchPushes(
+        queryToRecord: String?,
+        project: String,
+        request: suspend () -> NetworkResult<org.mozilla.tryfox.data.TreeherderRevisionResponse>,
+    ) {
         viewModelScope.launch {
-            userDataRepository.saveLastSearchedEmail(emailToSearch)
             _isLoading.value = true
             _errorMessage.value = null
             _pushes.value = emptyList()
             logcat(LogPriority.DEBUG, TAG) { "Starting search..." }
+            val artifactSemaphore = Semaphore(MAX_PARALLEL_ARTIFACT_REQUESTS)
+            var requestToRun = request
+            var retriedRecentPushes = false
+            var fetchedPushCount = 0
 
-            when (val result = fenixRepository.getPushesByAuthor(emailToSearch)) {
-                is NetworkResult.Success -> {
+            searchLoop@ while (true) {
+                when (val result = requestToRun()) {
+                    is NetworkResult.Success -> {
+                    fetchedPushCount += result.data.results.size
                     logcat(
                         LogPriority.DEBUG,
                         TAG,
-                    ) { "getPushesByAuthor success, processing ${result.data.results.size} pushes" }
-                    val pushesWithJobsAndArtifacts = result.data.results.map { pushResult ->
+                    ) { "Push lookup succeeded; processing ${result.data.results.size} pushes" }
+                    val pushesWithJobsAndArtifacts = result.data.results.mapIndexed { pushIndex, pushResult ->
                         async {
                             val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
                             if (jobsResult is NetworkResult.Success) {
-                                val filteredJobs =
-                                    jobsResult.data.results.filter { it.isSignedBuild && !it.isTest }
-                                if (filteredJobs.isNotEmpty()) {
-                                    val jobsWithArtifacts = filteredJobs.map { jobDetails ->
+                                val (signedCandidates, unsignedCandidates) = selectJobsBySigning(
+                                    jobsResult.data.results.filter(::isAndroidApkCandidate),
+                                )
+                                val selectedJobs = signedCandidates + unsignedCandidates
+                                if (selectedJobs.isNotEmpty()) {
+                                    val jobsWithArtifacts = selectedJobs.map { jobDetails ->
                                         async {
-                                            val artifacts = fetchArtifacts(jobDetails.taskId)
-                                            if (artifacts.isNotEmpty()) {
-                                                JobDetailsUiModel(
-                                                    appName = jobDetails.appName,
-                                                    jobName = jobDetails.jobName,
-                                                    jobSymbol = jobDetails.jobSymbol,
-                                                    taskId = jobDetails.taskId,
-                                                    isSignedBuild = jobDetails.isSignedBuild,
-                                                    isTest = jobDetails.isTest,
-                                                    artifacts = artifacts,
-                                                )
-                                            } else {
-                                                null
+                                            val artifactResult = artifactSemaphore.withPermit {
+                                                fetchArtifacts(jobDetails.taskId)
+                                            }
+                                            artifactResult.artifacts.takeIf { it.isNotEmpty() }?.let { artifacts ->
+                                                jobWithArtifacts(jobDetails, artifacts)
                                             }
                                         }
                                     }.awaitAll().filterNotNull()
 
-                                    if (jobsWithArtifacts.isNotEmpty()) {
-                                        var determinedPushComment: String? = null
-                                        for (revDetail in pushResult.revisions) {
-                                            if (revDetail.comments.startsWith("Bug ")) {
-                                                determinedPushComment = revDetail.comments
-                                                break
-                                            }
-                                        }
-                                        if (determinedPushComment == null) {
-                                            determinedPushComment = pushResult.revisions.firstOrNull()?.comments
-                                                ?: "No comment"
-                                        }
+                                    val visibleJobs = filterRedundantUnsignedApkJobs(jobsWithArtifacts)
+                                    if (visibleJobs.isNotEmpty()) {
                                         PushUiModel(
-                                            pushComment = determinedPushComment,
+                                            pushComment = selectPreferredPushComment(
+                                                revisions = pushResult.revisions,
+                                                precedingPushRevisions = result.data.results
+                                                    .take(pushIndex)
+                                                    .asReversed()
+                                                    .map { it.revisions },
+                                            ),
                                             author = pushResult.author,
-                                            jobs = jobsWithArtifacts,
+                                            jobs = orderApkJobs(visibleJobs.filter(JobDetailsUiModel::isSignedBuild)),
+                                            unsignedJobs = orderApkJobs(visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild)),
                                             revision = pushResult.revision,
                                             pushTimestamp = pushResult.pushTimestamp,
                                         )
@@ -189,7 +431,7 @@ class ProfileViewModel(
                                     }
                                 } else {
                                     logcat(LogPriority.VERBOSE, TAG) {
-                                        "No signed, non-test jobs for push ID: ${pushResult.id}"
+                                        "No eligible, non-test APK jobs for push ID: ${pushResult.id}"
                                     }
                                     null
                                 }
@@ -204,23 +446,45 @@ class ProfileViewModel(
                     }.awaitAll().filterNotNull()
 
                     _pushes.value = pushesWithJobsAndArtifacts
+                    syncLoadedStateDownloadStates()
+                    if (pushesWithJobsAndArtifacts.isNotEmpty()) {
+                        queryToRecord?.let { userDataRepository.recordSearch(project, it) }
+                    }
                     logcat(TAG) { "Search finished, ${_pushes.value.size} pushes with artifacts found." }
+                    if (queryToRecord == null && !retriedRecentPushes && pushesWithJobsAndArtifacts.isEmpty()) {
+                        retriedRecentPushes = true
+                        requestToRun = {
+                            fenixRepository.getRecentPushes(
+                                project = project,
+                                count = 50,
+                                offset = 10,
+                            )
+                        }
+                        logcat(TAG) { "No usable APKs in the newest 10 pushes; searching the next 50." }
+                        continue@searchLoop
+                    }
                     if (pushesWithJobsAndArtifacts.isEmpty()) {
-                        _errorMessage.value = "No signed builds found for this author."
-                        logcat(TAG) { "No signed builds found for author." }
+                        _errorMessage.value = "No push was found with a job that produced an APK."
+                        logcat(TAG) { _errorMessage.value.orEmpty() }
+                    } else if (pushesWithJobsAndArtifacts.size < fetchedPushCount) {
+                        _warningMessage.value =
+                            "Showing ${pushesWithJobsAndArtifacts.size} of $fetchedPushCount fetched pushes. " +
+                            "The remaining pushes did not contain a job that produced an APK."
                     }
                 }
 
-                is NetworkResult.Error -> {
-                    logcat(LogPriority.ERROR, TAG) { "Error fetching pushes: ${result.message}" }
-                    _errorMessage.value = "Error fetching pushes: ${result.message}"
+                    is NetworkResult.Error -> {
+                        logcat(LogPriority.ERROR, TAG) { "Error fetching pushes: ${result.message}" }
+                        _errorMessage.value = "Error fetching pushes: ${result.message}"
+                    }
                 }
+                break@searchLoop
             }
             _isLoading.value = false
         }
     }
 
-    private suspend fun fetchArtifacts(taskId: String): List<ArtifactUiModel> {
+    private suspend fun fetchArtifacts(taskId: String): ArtifactLoadResult {
         logcat(LogPriority.DEBUG, TAG) { "fetchArtifacts called for taskId: $taskId" }
         return when (val artifactsResult = fenixRepository.getArtifactsForTask(taskId)) {
             is NetworkResult.Success -> {
@@ -231,24 +495,29 @@ class ProfileViewModel(
                     LogPriority.VERBOSE,
                     TAG,
                 ) { "Found ${filteredApks.size} APKs for taskId: $taskId" }
-                filteredApks.map { artifact ->
-                    val artifactFileName = artifact.name.substringAfterLast('/')
-                    val downloadedFile = getDownloadedFile(artifactFileName, taskId)
-                    val downloadState = if (downloadedFile != null) {
-                        DownloadState.Downloaded(downloadedFile)
-                    } else {
-                        DownloadState.NotDownloaded
+                // A task can expose several ABI variants.  Surface only the first variant
+                // matching Android's device ABI preference order.
+                val selectedArtifact = deviceSupportedAbis.asSequence().mapNotNull { preferredAbi ->
+                    filteredApks.firstOrNull { artifact ->
+                        artifact.abi.equals(preferredAbi, ignoreCase = true)
                     }
-                    val isCompatible =
-                        artifact.abi != null && deviceSupportedAbis.any { deviceAbi ->
-                            deviceAbi.equals(artifact.abi, ignoreCase = true)
-                        }
+                }.firstOrNull() ?: deviceSupportedAbis
+                    .takeIf { it.isEmpty() }
+                    ?.let { filteredApks.firstOrNull() }
+                val artifacts = selectedArtifact?.let { artifact -> listOf(artifact) }.orEmpty().map { artifact ->
+                    val artifactFileName = artifact.name.substringAfterLast('/')
+                    val uniqueKey = "$taskId/$artifactFileName"
+                    val downloadState = resolveDownloadState(
+                        artifactName = artifactFileName,
+                        taskId = taskId,
+                        uniqueKey = uniqueKey,
+                    )
                     ArtifactUiModel(
                         name = artifact.name,
                         taskId = taskId,
                         abi = AbiUiModel(
                             name = artifact.abi,
-                            isSupported = isCompatible,
+                            isSupported = true,
                         ),
                         downloadUrl = artifact.getDownloadUrl(taskId),
                         expires = artifact.expires,
@@ -256,24 +525,64 @@ class ProfileViewModel(
                         uniqueKey = "$taskId/${artifact.name.substringAfterLast('/')}",
                     )
                 }
+                ArtifactLoadResult(artifacts = artifacts, failed = false)
             }
 
             is NetworkResult.Error -> {
                 logcat(LogPriority.WARN, TAG) {
                     "fetchArtifacts error for taskId $taskId: ${artifactsResult.message}"
                 }
-                emptyList()
+                ArtifactLoadResult(artifacts = emptyList(), failed = true)
             }
         }
     }
 
+    private fun isAndroidApkCandidate(job: org.mozilla.tryfox.data.JobDetails): Boolean {
+        if (job.isTest) return false
+        val appName = job.appName.lowercase()
+        val jobName = job.jobName.lowercase()
+        val hasAndroidSource = jobName.contains("build-android") ||
+            androidProductHints.any { hint -> jobName.contains(hint) || appName == hint }
+        if (!hasAndroidSource || nonAndroidPlatformHints.any(jobName::contains)) return false
+        return apkJobNameHints.any(jobName::contains) || jobName.contains("apk")
+    }
+
+    /** Keeps the existing signing-job preference while loading unsigned candidates as a separate group. */
+    private fun selectJobsBySigning(
+        candidates: List<org.mozilla.tryfox.data.JobDetails>,
+    ): Pair<List<org.mozilla.tryfox.data.JobDetails>, List<org.mozilla.tryfox.data.JobDetails>> {
+        val signedCandidates = candidates.filter { it.isSignedBuild }
+        val preferredSignedCandidates = signedCandidates
+            .filter { it.jobName.contains("signing-apk", ignoreCase = true) }
+            .ifEmpty { signedCandidates }
+        return preferredSignedCandidates to candidates.filterNot { it.isSignedBuild }
+    }
+
+    private suspend fun loadJob(job: org.mozilla.tryfox.data.JobDetails): JobDetailsUiModel? {
+        val artifactResult = fetchArtifacts(job.taskId)
+        return artifactResult.artifacts.takeIf { it.isNotEmpty() }?.let { artifacts -> jobWithArtifacts(job, artifacts) }
+    }
+
+    private fun jobWithArtifacts(
+        job: org.mozilla.tryfox.data.JobDetails,
+        artifacts: List<ArtifactUiModel>,
+    ) = JobDetailsUiModel(
+        appName = job.appName,
+        jobName = job.jobName,
+        jobSymbol = job.jobSymbol,
+        taskId = job.taskId,
+        isSignedBuild = job.isSignedBuild,
+        isTest = job.isTest,
+        artifacts = artifacts,
+    )
+
     fun getDownloadedFile(artifactName: String, taskId: String): File? {
         if (taskId.isBlank()) return null
-        val taskSpecificDir = File(cacheManager.getCacheDir("treeherder"), taskId)
+        val taskSpecificDir = File(cacheManager.getCacheDir(TREEHERDER), taskId)
         val outputFile = File(taskSpecificDir, artifactName)
         val exists = outputFile.exists()
         logcat(
-            LogPriority.DEBUG,
+            LogPriority.VERBOSE,
             TAG,
         ) {
             "getDownloadedFile artifactName=$artifactName, taskId=$taskId, " +
@@ -320,7 +629,7 @@ class ProfileViewModel(
             logcat(
                 LogPriority.DEBUG,
                 TAG,
-            ) { "Starting download coroutine for ${artifactUiModel.name}" }
+            ) { "Enqueuing WorkManager download for ${artifactUiModel.name}" }
             val downloadedArtifact = findArtifact(artifactUiModel.uniqueKey)
             if (downloadedArtifact != null) {
                 try {
@@ -331,10 +640,7 @@ class ProfileViewModel(
             }
             updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.InProgress(0f))
 
-            val downloadUrl = artifactUiModel.downloadUrl
-            logcat(LogPriority.DEBUG, TAG) { "Download URL: $downloadUrl" }
-
-            val outputDir = File(cacheManager.getCacheDir("treeherder"), taskId)
+            val outputDir = File(cacheManager.getCacheDir(TREEHERDER), taskId)
             if (!outputDir.exists()) {
                 outputDir.mkdirs()
                 logcat(
@@ -345,95 +651,47 @@ class ProfileViewModel(
             val outputFile = File(outputDir, artifactFileName)
             logcat(LogPriority.DEBUG, TAG) { "Output file: ${outputFile.absolutePath}" }
 
-            var lastLoggedNumericProgress = 0f
-
-            logcat(TAG) { "Calling fenixRepository.downloadArtifact for ${artifactUiModel.name}" }
-            val result = downloadFileRepository.downloadFile(
-                downloadUrl = downloadUrl,
+            val request = ApkDownloadRequest(
+                uniqueKey = artifactUiModel.uniqueKey,
+                downloadUrl = artifactUiModel.downloadUrl,
                 outputFile = outputFile,
-                onProgress = { bytesDownloaded, totalBytes ->
-                    val currentProgressFloat = if (totalBytes > 0) {
-                        bytesDownloaded.toFloat() / totalBytes.toFloat()
-                    } else {
-                        0f
-                    }
-
-                    var shouldLog = false
-                    if (bytesDownloaded == 0L) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = 0f
-                    } else if (bytesDownloaded == totalBytes) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = currentProgressFloat
-                    } else if (currentProgressFloat - lastLoggedNumericProgress >= 0.02f) {
-                        shouldLog = true
-                        lastLoggedNumericProgress = currentProgressFloat
-                    }
-
-                    if (shouldLog) {
-                         logcat(LogPriority.VERBOSE, TAG) {
-                            "Download progress for ${artifactUiModel.name}: $bytesDownloaded / $totalBytes " +
-                            "($currentProgressFloat)"
-                        }
-                    }
-                    updateArtifactDownloadState(
-                        taskId,
-                        artifactUiModel.name,
-                        DownloadState.InProgress(currentProgressFloat),
-                    )
-                },
+                appName = TREEHERDER,
+                fileName = artifactFileName,
+                cacheRelativePath = "$TREEHERDER/$taskId/$artifactFileName",
             )
 
-            logcat(TAG) { "fenixRepository.downloadArtifact result for ${artifactUiModel.name}: $result" }
-            when (result) {
-                is NetworkResult.Success -> {
-                    updateArtifactDownloadState(
-                        taskId,
-                        artifactUiModel.name,
-                        DownloadState.Downloaded(result.data),
-                    )
-                    cacheManager.checkCacheStatus()
-                    logcat(TAG) { "Download success for ${artifactUiModel.name}. APK is ready to be installed." }
-                    installApk(result.data)
-                }
-
-                is NetworkResult.Error -> {
-                    val failureMessage = "Download failed for $artifactFileName: ${result.message}"
-                    if (result.cause != null) {
-                        logcat(
-                            LogPriority.ERROR,
-                            TAG,
-                        ) { "$failureMessage\n${result.cause.stackTraceToString()}" }
-                    } else {
-                        logcat(LogPriority.ERROR, TAG) { "$failureMessage (No cause available)" }
-                    }
-                    updateArtifactDownloadState(
-                        taskId,
-                        artifactUiModel.name,
-                        DownloadState.DownloadFailed(result.message),
-                    )
-                    cacheManager.checkCacheStatus()
-                }
-            }
-        }
-    }
-
-    fun installApk(file: File) {
-        val downloadedArtifact = findDownloadedArtifact(file)
-        if (downloadedArtifact == null) {
-            intentManager.installApk(file)
-            return
-        }
-
-        viewModelScope.launch {
             try {
-                updateInstallTimestamp(downloadedArtifact)
-            } catch (_: Exception) {
-                // History is best-effort; never block installation.
+                val workId = downloadCoordinator.enqueue(request)
+                logcat(LogPriority.DEBUG, TAG) {
+                    "Download enqueued uniqueKey=${artifactUiModel.uniqueKey} workId=$workId " +
+                        "outputPath=${outputFile.absolutePath}"
+                }
+                downloadStates.value = downloadCoordinator.downloads.value
+                syncLoadedStateDownloadStates()
+            } catch (e: Exception) {
+                logcat(LogPriority.ERROR, TAG) {
+                    "Failed to enqueue download for ${artifactUiModel.name}: ${e.message}"
+                }
+                updateArtifactDownloadState(
+                    taskId,
+                    artifactUiModel.name,
+                    DownloadState.DownloadFailed(e.message),
+                )
+                cacheManager.checkCacheStatus()
             }
-            intentManager.installApk(file)
         }
     }
+
+    fun installArtifact(artifactUiModel: ArtifactUiModel) {
+        val downloadState = artifactUiModel.downloadState as? DownloadState.Downloaded ?: return
+        installCoordinator.install(artifactUiModel.uniqueKey, downloadState.file)
+    }
+
+    fun cancelInstallConflict(artifactKey: String) = installCoordinator.cancelConflict(artifactKey)
+
+    fun confirmUninstallAndRetry(artifactKey: String) = installCoordinator.confirmUninstallAndRetry(artifactKey)
+
+    fun openInstalledApp(packageName: String) = installCoordinator.openInstalledApp(packageName)
 
     private fun updateArtifactDownloadState(
         taskIdToUpdate: String,
@@ -459,6 +717,14 @@ class ProfileViewModel(
                         job.updateArtifact(artifactNameToUpdate, newState)
                     }
                 },
+            unsignedJobs =
+                unsignedJobs.map { job: JobDetailsUiModel ->
+                    if (job.taskId != taskId) {
+                        job
+                    } else {
+                        job.updateArtifact(artifactNameToUpdate, newState)
+                    }
+                },
         )
 
     private fun JobDetailsUiModel.updateArtifact(
@@ -475,19 +741,76 @@ class ProfileViewModel(
             },
         )
 
-    private fun findDownloadedArtifact(file: File): DownloadedArtifact? =
-        _pushes.value.firstNotNullOfOrNull { push ->
-            push.jobs.firstNotNullOfOrNull { job ->
-                job.artifacts.firstOrNull { artifact ->
-                    val downloadState = artifact.downloadState
-                    downloadState is DownloadState.Downloaded && downloadState.file.absolutePath == file.absolutePath
-                }?.let { artifact -> DownloadedArtifact(push, job, artifact) }
+    private fun syncLoadedStateDownloadStates() {
+        val persistedDownloads = downloadStates.value
+        _pushes.value = _pushes.value.map { push ->
+            push.copy(
+                jobs = push.jobs.map { job ->
+                    job.copy(
+                        artifacts = job.artifacts.map { artifact ->
+                            artifact.copy(
+                                downloadState = resolveDownloadState(
+                                    artifactName = artifact.name.substringAfterLast('/'),
+                                    taskId = artifact.taskId,
+                                    uniqueKey = artifact.uniqueKey,
+                                ),
+                            )
+                        },
+                    )
+                },
+                unsignedJobs = push.unsignedJobs.map { job ->
+                    job.copy(
+                        artifacts = job.artifacts.map { artifact ->
+                            artifact.copy(
+                                downloadState = resolveDownloadState(
+                                    artifactName = artifact.name.substringAfterLast('/'),
+                                    taskId = artifact.taskId,
+                                    uniqueKey = artifact.uniqueKey,
+                                ),
+                            )
+                        },
+                    )
+                },
+            )
+        }
+    }
+
+    private fun resolveDownloadState(
+        artifactName: String,
+        taskId: String,
+        uniqueKey: String,
+    ): DownloadState {
+        val downloadedFile = getDownloadedFile(artifactName, taskId)
+        return downloadStates.value[uniqueKey]?.toDownloadState(downloadedFile)
+            ?: if (downloadedFile != null) {
+                DownloadState.Downloaded(downloadedFile)
+            } else {
+                DownloadState.NotDownloaded
             }
+    }
+
+    private fun PersistedDownloadState.toDownloadState(file: File?): DownloadState =
+        when (status) {
+            DownloadStatus.QUEUED,
+            DownloadStatus.RUNNING,
+                -> DownloadState.InProgress(
+                progress = progress ?: 0f,
+                isIndeterminate = totalBytes <= 0L,
+            )
+
+            DownloadStatus.SUCCEEDED -> if (file != null && file.exists()) {
+                DownloadState.Downloaded(file)
+            } else {
+                DownloadState.NotDownloaded
+            }
+
+            DownloadStatus.FAILED -> DownloadState.DownloadFailed(errorMessage)
+            DownloadStatus.CANCELED -> DownloadState.NotDownloaded
         }
 
     private fun findArtifact(uniqueKey: String): DownloadedArtifact? =
         _pushes.value.firstNotNullOfOrNull { push ->
-            push.jobs.firstNotNullOfOrNull { job ->
+            (push.jobs + push.unsignedJobs).firstNotNullOfOrNull { job ->
                 job.artifacts.firstOrNull { artifact ->
                     artifact.uniqueKey == uniqueKey
                 }?.let { artifact -> DownloadedArtifact(push, job, artifact) }

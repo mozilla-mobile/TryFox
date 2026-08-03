@@ -57,6 +57,7 @@ import logcat.LogPriority
 import logcat.logcat
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.DownloadState
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.composables.AppIcon
 import org.mozilla.tryfox.ui.composables.DownloadButton
 import org.mozilla.tryfox.ui.composables.ErrorState
@@ -77,6 +78,7 @@ fun HistoryScreen(
     historyViewModel: HistoryViewModel,
 ) {
     val historyItems by historyViewModel.historyItems.collectAsState()
+    val installStates by historyViewModel.installStates.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
 
     LaunchedEffect(historyItems.size) {
@@ -156,6 +158,8 @@ fun HistoryScreen(
                         onRevisionClick = onNavigateToTreeherderRevision,
                         onDownloadClick = { historyViewModel.download(historyItem) },
                         onInstallClick = { file -> historyViewModel.install(historyItem, file) },
+                        installState = installStates[historyItem.entry.uniqueKey] ?: InstallState.Idle,
+                        onOpenClick = historyViewModel::openInstalledApp,
                         onDeleteClick = { historyViewModel.delete(historyItem) },
                     )
                 }
@@ -170,6 +174,8 @@ private fun HistoryCard(
     onRevisionClick: (project: String, revision: String) -> Unit,
     onDownloadClick: () -> Unit,
     onInstallClick: (java.io.File) -> Unit,
+    installState: InstallState,
+    onOpenClick: (String) -> Unit,
     onDeleteClick: () -> Unit,
 ) {
     val entry = historyItem.entry
@@ -260,7 +266,14 @@ private fun HistoryCard(
                     downloadState = historyItem.downloadState,
                     onDownloadClick = onDownloadClick,
                     onInstallClick = onInstallClick,
+                    inProgressText = stringResource(id = R.string.download_button_download),
+                    installState = installState,
+                    onOpenClick = onOpenClick,
                 )
+            }
+
+            (installState as? InstallState.Failed)?.let { failure ->
+                ErrorState(errorMessage = failure.message)
             }
         }
     }

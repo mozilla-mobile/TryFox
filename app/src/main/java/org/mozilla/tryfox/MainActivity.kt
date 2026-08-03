@@ -6,27 +6,39 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kotlinx.coroutines.launch
+import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
+import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.screens.HistoryScreen
 import org.mozilla.tryfox.ui.screens.HomeScreen
-import org.mozilla.tryfox.ui.screens.ProfileScreen
 import org.mozilla.tryfox.ui.screens.QrCodeScannerScreen
 import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopScreen
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryScreen
-import org.mozilla.tryfox.ui.screens.TryFoxMainScreen
+import org.mozilla.tryfox.ui.screens.SearchHistoryViewModel
+import org.mozilla.tryfox.ui.screens.SearchScreen
+import org.mozilla.tryfox.ui.screens.SearchViewModel
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
 /**
@@ -59,7 +71,7 @@ sealed class NavScreen(val route: String) {
     data object TreeherderSearch : NavScreen(AppRoutes.TREEHERDER_SEARCH)
 
     /**
-     * Represents the Treeherder search screen with project and revision arguments.
+     * Represents the Treeherder search screen with project and query arguments.
      */
     data object TreeherderSearchWithArgs : NavScreen(AppRoutes.TREEHERDER_SEARCH_WITH_ARGS) {
         /**
@@ -70,20 +82,8 @@ sealed class NavScreen(val route: String) {
          */
         fun createRoute(project: String, revision: String) = AppRoutes.createTreeherderSearchRoute(
             project = project,
-            revision = revision,
+            query = revision,
         )
-    }
-
-    /**
-     * Represents the Profile screen.
-     */
-    data object Profile : NavScreen(AppRoutes.PROFILE)
-
-    /**
-     * Represents the Profile screen filtered by email.
-     */
-    data object ProfileByEmail : NavScreen(AppRoutes.PROFILE_BY_EMAIL) {
-        fun createRoute(email: String) = AppRoutes.createProfileByEmailRoute(email)
     }
 }
 
@@ -92,11 +92,30 @@ sealed class NavScreen(val route: String) {
  * This activity sets up the navigation host and handles deep links.
  */
 class MainActivity : ComponentActivity() {
+    private val installCoordinator: ApkInstallCoordinator by inject()
     private lateinit var navController: NavHostController
     private var receiveFromDesktopStartRequested by mutableStateOf(false)
+    private var pendingUninstallOperationId: String? = null
+    private val uninstallLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        pendingUninstallOperationId?.let { operationId ->
+            installCoordinator.onUninstallResult(operationId, result.resultCode == RESULT_OK)
+        }
+        pendingUninstallOperationId = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        lifecycleScope.launch {
+            installCoordinator.uninstallRequests.collect { request ->
+                pendingUninstallOperationId = request.operationId
+                uninstallLauncher.launch(
+                    Intent(Intent.ACTION_UNINSTALL_PACKAGE).apply {
+                        data = Uri.fromParts("package", request.packageName, null)
+                        putExtra(Intent.EXTRA_RETURN_RESULT, true)
+                    },
+                )
+            }
+        }
         enableEdgeToEdge()
         setContent {
             TryFoxTheme {
@@ -121,8 +140,30 @@ class MainActivity : ComponentActivity() {
     @Suppress("LongMethod")
     @Composable
     fun AppNavigation() {
+        val appSearchHistoryViewModel: SearchHistoryViewModel = koinViewModel()
+        val installStates by installCoordinator.states.collectAsState()
+        val installConflict = installStates.entries.firstOrNull { (_, state) -> state is InstallState.Conflict }
         val localNavController = rememberNavController()
         this@MainActivity.navController = localNavController
+
+        installConflict?.let { (artifactKey, state) ->
+            val conflict = state as InstallState.Conflict
+            AlertDialog(
+                onDismissRequest = { installCoordinator.cancelConflict(artifactKey) },
+                title = { Text(stringResource(id = R.string.install_conflict_title)) },
+                text = { Text(stringResource(R.string.install_conflict_message, conflict.packageName)) },
+                confirmButton = {
+                    Button(onClick = { installCoordinator.confirmUninstallAndRetry(artifactKey) }) {
+                        Text(stringResource(id = R.string.install_conflict_confirm))
+                    }
+                },
+                dismissButton = {
+                    Button(onClick = { installCoordinator.cancelConflict(artifactKey) }) {
+                        Text(stringResource(id = R.string.install_conflict_cancel))
+                    }
+                },
+            )
+        }
 
         LaunchedEffect(localNavController) {
             routeDeepLink(intent)
@@ -132,8 +173,7 @@ class MainActivity : ComponentActivity() {
             composable(NavScreen.Home.route) {
                 // Inject HomeViewModel using Koin in Composable
                 HomeScreen(
-                    onNavigateToTreeherder = { localNavController.navigate(NavScreen.TreeherderSearch.route) },
-                    onNavigateToProfile = { localNavController.navigate(NavScreen.Profile.route) },
+                    onNavigateToSearch = { localNavController.navigate(NavScreen.TreeherderSearch.route) },
                     onNavigateToQrScanner = { localNavController.navigate(NavScreen.QrScanner.route) },
                     onNavigateToReceiveFromDesktop = { localNavController.navigate(NavScreen.ReceiveFromDesktop.route) },
                     onNavigateToHistory = { localNavController.navigate(NavScreen.History.route) },
@@ -154,9 +194,7 @@ class MainActivity : ComponentActivity() {
             composable(NavScreen.QrScanner.route) {
                 QrCodeScannerScreen(
                     onNavigateUp = { localNavController.popBackStack() },
-                    onQrCodeScanned = { rawValue ->
-                        routeDeepLink(rawValue, popQrScanner = true)
-                    },
+                    onQrCodeScanned = { rawValue -> routeDeepLink(rawValue, popQrScanner = true) },
                 )
             }
             composable(NavScreen.ReceiveFromDesktop.route) {
@@ -164,6 +202,11 @@ class MainActivity : ComponentActivity() {
                     onNavigateUp = { localNavController.popBackStack() },
                     onNavigateToMessageHistory = {
                         localNavController.navigate(NavScreen.ReceiveMessageHistory.route)
+                    },
+                    onNavigateToTreeherderRevision = { project, revision ->
+                        localNavController.navigate(
+                            NavScreen.TreeherderSearchWithArgs.createRoute(project, revision),
+                        )
                     },
                     receiveFromDesktopViewModel = koinViewModel(),
                     startReceiverOnEnter = receiveFromDesktopStartRequested,
@@ -180,45 +223,32 @@ class MainActivity : ComponentActivity() {
                 )
             }
             composable(NavScreen.TreeherderSearch.route) {
+                val searchHistory by appSearchHistoryViewModel.searchHistory.collectAsState()
                 // mainActivityViewModel is already injected and passed as a parameter
-                TryFoxMainScreen(
-                    tryFoxViewModel = koinViewModel(),
+                SearchScreen(
+                    searchViewModel = koinViewModel<SearchViewModel> { parametersOf("", "try") },
                     deepLinkProject = null,
-                    deepLinkRevision = null,
+                    deepLinkQuery = null,
                     onNavigateUp = { localNavController.popBackStack() },
+                    searchHistory = searchHistory,
                 )
             }
             composable(
                 route = NavScreen.TreeherderSearchWithArgs.route,
                 arguments = listOf(
                     navArgument("project") { type = NavType.StringType },
-                    navArgument("revision") { type = NavType.StringType },
+                    navArgument("query") { type = NavType.StringType },
                 ),
             ) { backStackEntry ->
                 val project = backStackEntry.arguments?.getString("project")
-                val revision = backStackEntry.arguments?.getString("revision")
-                TryFoxMainScreen(
-                    tryFoxViewModel = koinViewModel { parametersOf(project, revision) },
+                val query = backStackEntry.arguments?.getString("query")?.let(Uri::decode).orEmpty()
+                val searchHistory by appSearchHistoryViewModel.searchHistory.collectAsState()
+                SearchScreen(
+                    searchViewModel = koinViewModel<SearchViewModel> { parametersOf("", project) },
                     deepLinkProject = project,
-                    deepLinkRevision = revision,
+                    deepLinkQuery = query,
                     onNavigateUp = { localNavController.popBackStack() },
-                )
-            }
-            composable(NavScreen.Profile.route) {
-                ProfileScreen(
-                    onNavigateUp = { localNavController.popBackStack() },
-                    profileViewModel = koinViewModel(),
-                )
-            }
-            composable(
-                route = NavScreen.ProfileByEmail.route,
-                arguments = listOf(navArgument("email") { type = NavType.StringType }),
-            ) { backStackEntry ->
-                val email = backStackEntry.arguments?.getString("email")?.let(Uri::decode)
-
-                ProfileScreen(
-                    onNavigateUp = { localNavController.popBackStack() },
-                    profileViewModel = koinViewModel { parametersOf(email) },
+                    searchHistory = searchHistory,
                 )
             }
         }
@@ -241,8 +271,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun routeDeepLink(rawValue: String?, popQrScanner: Boolean): Boolean {
-        val route = AppDeepLinkRouteMapper.routeFor(rawValue) ?: return false
+        when (val destination = AppDeepLinkParser.parse(rawValue)) {
+            is AppDeepLinkDestination.TreeherderSearch -> {
+                navigateToDeepLinkRoute(
+                    AppRoutes.createTreeherderSearchRoute(destination.project, destination.revision),
+                    popQrScanner,
+                )
+                return true
+            }
 
+            is AppDeepLinkDestination.Profile -> {
+                navigateToDeepLinkRoute(
+                    AppRoutes.createTreeherderSearchRoute(destination.project, destination.email),
+                    popQrScanner,
+                )
+                return true
+            }
+
+            null -> return false
+        }
+    }
+
+    private fun navigateToDeepLinkRoute(route: String, popQrScanner: Boolean) {
         navController.navigate(route) {
             launchSingleTop = true
             if (popQrScanner) {
@@ -251,6 +301,5 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        return true
     }
 }

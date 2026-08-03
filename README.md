@@ -30,12 +30,13 @@ Install the latest APK from [TryFox Releases](https://github.com/mozilla-mobile/
     -   `mozilla-central` (displayed as "central")
     -   `mozilla-beta` (displayed as "beta")
     -   `mozilla-release` (displayed as "release")
+    -   `autoland` (displayed as "autoland")
 -   **Search by Revision**: Enter a full revision hash to find associated builds for the selected project.
 -   **Automated CI Data Fetching**:
     1.  Queries Treeherder API for push details using the selected project and revision.
     2.  Displays relevant push comment from the revision (often a Bugzilla link).
     3.  Fetches all jobs associated with the push.
-    4.  Filters for relevant, signed, non-test build jobs (jobs containing "B" and "s", excluding "t" in their symbols).
+    4.  Filters for relevant Android APK build jobs, including signed and unsigned builds, while excluding test jobs.
     5.  For each job, retrieves its artifacts from Taskcluster.
 -   **Job and Artifact Display**:
     -   Lists build jobs with their app icon (e.g., Fenix, Focus), job name, job symbol, and Task ID.
