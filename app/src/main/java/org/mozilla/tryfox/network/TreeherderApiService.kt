@@ -24,6 +24,14 @@ interface TreeherderApiService {
         @Query("author") author: String,
     ): TreeherderRevisionResponse
 
+    @GET("project/{project}/push/")
+    suspend fun getRecentPushes(
+        @Path("project") project: String,
+        @Query("full") full: Boolean = true,
+        @Query("count") count: Int = 10,
+        @Query("offset") offset: Int = 0,
+    ): TreeherderRevisionResponse
+
     @GET("jobs/")
     suspend fun getJobsForPush(
         @Query("push_id") pushId: Int,

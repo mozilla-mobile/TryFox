@@ -80,6 +80,7 @@ private val projectDisplayToActualMap = mapOf(
     "central" to "mozilla-central",
     "beta" to "mozilla-beta",
     "release" to "mozilla-release",
+    "autoland" to "autoland",
 )
 
 internal const val TREEHERDER_LOADING_STATE_TAG = "treeherder_loading_state"
@@ -99,6 +100,7 @@ fun SearchScreen(
     val selectedProject by searchViewModel.selectedProject.collectAsState()
     val isLoading by searchViewModel.isLoading.collectAsState()
     val errorMessage by searchViewModel.errorMessage.collectAsState()
+    val warningMessage by searchViewModel.warningMessage.collectAsState()
     val pushes by searchViewModel.pushes.collectAsState()
     val installStates by searchViewModel.installStates.collectAsState()
     val activeInstallKey = installStates.entries.firstOrNull { (_, state) ->
@@ -120,11 +122,9 @@ fun SearchScreen(
     val showCurrentSearch = !isEditingDisplayedSearch
 
     fun submitSearch(queryToSubmit: String) {
-        if (SearchQueryClassifier.classify(queryToSubmit).isSuccess) {
-            hasSubmittedSearch = true
-            displayedQuery = queryToSubmit
-            searchViewModel.submitSearch()
-        }
+        hasSubmittedSearch = true
+        displayedQuery = queryToSubmit
+        searchViewModel.submitSearch()
     }
 
     LaunchedEffect(deepLinkProject, deepLinkQuery) {
@@ -229,6 +229,18 @@ fun SearchScreen(
                     }
                 }
 
+                warningMessage?.let {
+                    item {
+                        AnimatedVisibility(
+                            visible = showCurrentSearch,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically(),
+                        ) {
+                            WarningState(warningMessage = it)
+                        }
+                    }
+                }
+
                 if (isLoading) {
                     item {
                         AnimatedVisibility(
@@ -284,6 +296,7 @@ fun SearchSection(
             selectedProject = projectDisplayToActualMap.entries.first { it.value == selectedProject }.key,
             projectLabel = { it },
             onProjectSelected = { displayProject -> onProjectSelected(projectDisplayToActualMap.getValue(displayProject)) },
+            enabled = !isLoading,
             modifier = Modifier.height(52.dp),
         )
         SearchInputRow(
@@ -393,7 +406,7 @@ internal fun SearchInputRow(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onSearchClick(); keyboardController?.hide() }),
         )
-        Button(onClick = { onSearchClick(); keyboardController?.hide() }, enabled = !isLoading && query.isNotBlank(), modifier = Modifier.size(52.dp), shape = RoundedCornerShape(24.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), contentPadding = PaddingValues(0.dp)) {
+        Button(onClick = { onSearchClick(); keyboardController?.hide() }, enabled = !isLoading, modifier = Modifier.size(52.dp), shape = RoundedCornerShape(24.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), contentPadding = PaddingValues(0.dp)) {
             if (isLoading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
             else Icon(Icons.Default.Search, contentDescription = stringResource(R.string.profile_screen_search_button_description))
         }
@@ -425,7 +438,7 @@ fun LoadingState(candidateCount: Int) {
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
-                    text = "Loading signed APKs",
+                    text = stringResource(R.string.search_loading_apk_builds),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                 )
@@ -456,6 +469,21 @@ fun ErrorState(errorMessage: String) {
             text = errorMessage,
             modifier = Modifier.padding(16.dp),
             color = MaterialTheme.colorScheme.onErrorContainer,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
+fun WarningState(warningMessage: String) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = warningMessage,
+            modifier = Modifier.padding(16.dp),
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
             style = MaterialTheme.typography.bodyMedium,
         )
     }

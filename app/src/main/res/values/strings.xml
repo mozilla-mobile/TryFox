@@ -15,6 +15,7 @@
     <string name="treeherder_apks_revision_placeholder">Email address or revision...</string>
     <string name="treeherder_apks_search_button_description">Search</string>
     <string name="treeherder_apks_loading_message">Searching for jobs and artifacts...</string>
+    <string name="search_loading_apk_builds">Loading APK builds</string>
     <string name="abi_chip_unknown_abi_name">Unknown</string>
     <string name="abi_chip_warning_unsupported_abi_description">Warning: Unsupported ABI</string>
     <string name="app_card_download_failed_message">Download failed: %1$s</string>
