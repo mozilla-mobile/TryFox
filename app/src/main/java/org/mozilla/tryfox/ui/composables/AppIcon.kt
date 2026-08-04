@@ -31,7 +31,31 @@ fun AppIcon(
     modifier: Modifier = Modifier,
     useSearchResultVariant: Boolean = false,
 ) {
-    val (iconResId, contentDescResId) = when {
+    val (iconResId, contentDescResId) = appIconResources(appName, useSearchResultVariant)
+    val isPaddedSearchResultForeground = useSearchResultVariant && appName in setOf(FENIX, FENIX_NIGHTLY, FENIX_BETA, FOCUS_BETA, FOCUS_NIGHTLY)
+    if (isPaddedSearchResultForeground) {
+        Box(modifier = modifier.clipToBounds()) {
+            Image(
+                painter = painterResource(id = iconResId),
+                contentDescription = stringResource(id = contentDescResId),
+                modifier = Modifier.fillMaxSize().scale(PADDED_FOREGROUND_ICON_SCALE),
+            )
+        }
+    } else {
+        Image(
+            painter = painterResource(id = iconResId),
+            contentDescription = stringResource(id = contentDescResId),
+            modifier = modifier,
+        )
+    }
+    Spacer(modifier = Modifier.width(8.dp))
+}
+
+internal fun appIconResources(
+    appName: String,
+    useSearchResultVariant: Boolean,
+): Pair<Int, Int> =
+    when {
         appName == REFERENCE_BROWSER -> R.drawable.ic_reference_browser to R.string.app_icon_reference_browser_description
         appName == FENIX -> {
             (if (useSearchResultVariant) R.drawable.ic_fenix_debug_foreground else R.drawable.ic_fenix_nightly) to
@@ -59,29 +83,5 @@ fun AppIcon(
                 R.string.app_icon_focus_description
         }
         appName == FOCUS_RELEASE -> R.drawable.ic_focus to R.string.app_icon_focus_description
-        else -> {
-            println("Titouan - Error - $appName")
-            null to null
-        }
+        else -> R.drawable.unknown_app to R.string.app_icon_generic_description
     }
-
-    if (iconResId != null && contentDescResId != null) {
-        val isPaddedSearchResultForeground = useSearchResultVariant && appName in setOf(FENIX, FENIX_NIGHTLY, FENIX_BETA, FOCUS_BETA)
-        if (isPaddedSearchResultForeground) {
-            Box(modifier = modifier.clipToBounds()) {
-                Image(
-                    painter = painterResource(id = iconResId),
-                    contentDescription = stringResource(id = contentDescResId),
-                    modifier = Modifier.fillMaxSize().scale(PADDED_FOREGROUND_ICON_SCALE),
-                )
-            }
-        } else {
-            Image(
-                painter = painterResource(id = iconResId),
-                contentDescription = stringResource(id = contentDescResId),
-                modifier = modifier,
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-    }
-}

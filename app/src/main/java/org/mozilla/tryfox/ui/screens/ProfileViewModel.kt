@@ -64,6 +64,19 @@ internal fun isPerfAgainRetry(revisions: List<RevisionDetail>): Boolean {
 }
 
 private val unsignedApkJobNamePattern = Regex("^build-apk-(.+)$", RegexOption.IGNORE_CASE)
+private val apkJobNameHints = listOf("signing-apk", "android-apk", "apk-focus", "apk-fenix", "apk-reference-browser", "apk-geckoview")
+private val nonAndroidPlatformHints = listOf("ios", "mac", "macos", "macosx", "win", "windows", "linux", "desktop")
+private val androidProductHints = listOf("focus", "fenix", "reference-browser", "geckoview", "roam", "android")
+
+internal fun isAndroidApkCandidate(job: org.mozilla.tryfox.data.JobDetails): Boolean {
+    if (job.isTest) return false
+    val appName = job.appName.lowercase()
+    val jobName = job.jobName.lowercase()
+    val hasAndroidSource = jobName.contains("build-android") ||
+        androidProductHints.any { hint -> jobName.contains(hint) || appName == hint }
+    if (!hasAndroidSource || nonAndroidPlatformHints.any(jobName::contains)) return false
+    return apkJobNameHints.any(jobName::contains) || jobName.contains("apk")
+}
 
 /** Removes an unsigned build only when its corresponding signed build has a displayable APK. */
 internal fun filterRedundantUnsignedApkJobs(jobs: List<JobDetailsUiModel>): List<JobDetailsUiModel> {
@@ -137,9 +150,6 @@ class SearchViewModel(
     companion object {
         private const val TAG = "SearchViewModel"
         private const val MAX_PARALLEL_ARTIFACT_REQUESTS = 6
-        private val apkJobNameHints = listOf("signing-apk", "android-apk", "apk-focus", "apk-fenix", "apk-reference-browser", "apk-geckoview")
-        private val nonAndroidPlatformHints = listOf("ios", "mac", "macos", "macosx", "win", "windows", "linux", "desktop")
-        private val androidProductHints = listOf("focus", "fenix", "reference-browser", "geckoview", "android")
     }
 
     private val _authorEmail = MutableStateFlow(authorEmail ?: "")
@@ -535,16 +545,6 @@ class SearchViewModel(
                 ArtifactLoadResult(artifacts = emptyList(), failed = true)
             }
         }
-    }
-
-    private fun isAndroidApkCandidate(job: org.mozilla.tryfox.data.JobDetails): Boolean {
-        if (job.isTest) return false
-        val appName = job.appName.lowercase()
-        val jobName = job.jobName.lowercase()
-        val hasAndroidSource = jobName.contains("build-android") ||
-            androidProductHints.any { hint -> jobName.contains(hint) || appName == hint }
-        if (!hasAndroidSource || nonAndroidPlatformHints.any(jobName::contains)) return false
-        return apkJobNameHints.any(jobName::contains) || jobName.contains("apk")
     }
 
     /** Keeps the existing signing-job preference while loading unsigned candidates as a separate group. */
