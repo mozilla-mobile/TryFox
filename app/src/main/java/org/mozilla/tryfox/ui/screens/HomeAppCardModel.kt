@@ -3,16 +3,18 @@ package org.mozilla.tryfox.ui.screens
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
+import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 
 /** The three product cards shown on Home. */
 enum class HomeAppFamily(val appNames: List<String>, val defaultAppName: String) {
-    Fenix(listOf(FENIX_RELEASE, FENIX_BETA, FENIX), FENIX),
-    Focus(listOf(FOCUS_RELEASE, FOCUS_BETA, FOCUS), FOCUS_BETA),
+    Fenix(listOf(FENIX_RELEASE, FENIX_BETA, FENIX, FENIX_DEBUG), FENIX),
+    Focus(listOf(FOCUS_RELEASE, FOCUS_BETA, FOCUS, FOCUS_DEBUG), FOCUS_BETA),
     ReferenceBrowser(listOf(REFERENCE_BROWSER), REFERENCE_BROWSER),
 }
 
@@ -28,8 +30,13 @@ internal fun homeAppCards(
     apps: Map<String, AppUiModel>,
     selectedAppNames: Map<HomeAppFamily, String>,
 ): List<HomeAppCardUiModel> = HomeAppFamily.entries.mapNotNull { family ->
-    val familyApps = family.appNames.mapNotNull { name -> apps[name]?.let { name to it } }.toMap()
+    val familyApps = family.appNames.mapNotNull { name ->
+        apps[name]?.takeUnless { name.isDebugFlavor && it.installedVersion == null }?.let { name to it }
+    }.toMap()
     if (familyApps.isEmpty()) return@mapNotNull null
     val selected = selectedAppNames[family].takeIf { it in familyApps } ?: family.defaultAppName
     HomeAppCardUiModel(family, selected, familyApps)
 }
+
+private val String.isDebugFlavor: Boolean
+    get() = this == FENIX_DEBUG || this == FOCUS_DEBUG

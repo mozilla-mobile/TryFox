@@ -46,9 +46,11 @@ import org.mozilla.tryfox.ui.models.NightlyBuildOption
 import org.mozilla.tryfox.ui.models.newVersionAvailable
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
+import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
@@ -221,9 +223,11 @@ class HomeViewModel(
             FENIX to mozillaPackageManager.fenix,
             FENIX_RELEASE to mozillaPackageManager.fenixRelease,
             FENIX_BETA to mozillaPackageManager.fenixBeta,
+            FENIX_DEBUG to mozillaPackageManager.fenixDebug,
             FOCUS to mozillaPackageManager.focus,
             FOCUS_RELEASE to mozillaPackageManager.focusRelease,
             FOCUS_BETA to mozillaPackageManager.focusBeta,
+            FOCUS_DEBUG to mozillaPackageManager.fenixDebug,
             REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
             TRYFOX to mozillaPackageManager.tryfox,
         )

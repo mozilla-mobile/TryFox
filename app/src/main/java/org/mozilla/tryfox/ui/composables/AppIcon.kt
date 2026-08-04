@@ -15,10 +15,12 @@ import androidx.compose.ui.unit.dp
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_NIGHTLY
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
+import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_NIGHTLY
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
@@ -32,8 +34,9 @@ fun AppIcon(
     useSearchResultVariant: Boolean = false,
 ) {
     val (iconResId, contentDescResId) = appIconResources(appName, useSearchResultVariant)
-    val isPaddedSearchResultForeground = useSearchResultVariant && appName in setOf(FENIX, FENIX_NIGHTLY, FENIX_BETA, FOCUS_BETA, FOCUS_NIGHTLY)
-    if (isPaddedSearchResultForeground) {
+    val isPaddedForeground = appName == FENIX_DEBUG ||
+        (useSearchResultVariant && appName in setOf(FENIX, FENIX_NIGHTLY, FENIX_BETA, FOCUS_BETA, FOCUS_NIGHTLY))
+    if (isPaddedForeground) {
         Box(modifier = modifier.clipToBounds()) {
             Image(
                 painter = painterResource(id = iconResId),
@@ -69,6 +72,8 @@ internal fun appIconResources(
             (if (useSearchResultVariant) R.drawable.ic_fenix_beta_foreground else R.drawable.ic_firefox_beta) to
                 R.string.app_icon_firefox_description
         }
+        appName == FENIX_DEBUG -> R.drawable.ic_fenix_debug_foreground to R.string.app_icon_firefox_description
+        appName == FOCUS_DEBUG -> R.drawable.ic_firefox to R.string.app_icon_firefox_description
         appName == FENIX_RELEASE -> R.drawable.ic_firefox to R.string.app_icon_firefox_description
         appName == FOCUS -> {
             (if (useSearchResultVariant) R.drawable.ic_focus_debug_foreground_v2 else R.drawable.ic_focus) to
