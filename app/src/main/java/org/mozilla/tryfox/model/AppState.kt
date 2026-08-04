@@ -24,6 +24,10 @@ data class AppState(
     val isFromTryFox: Boolean
         get() = installingPackageName == TRYFOX_PACKAGE
 
+    /** Whether the app was installed from a source other than Play Store or TryFox. */
+    val isSideloaded: Boolean
+        get() = isInstalled && !isFromPlayStore && !isFromTryFox
+
     val formattedInstallDate: String?
         get() = installDateMillis?.let {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())

@@ -89,7 +89,20 @@ fun CurrentInstallState(
             Icon(
                 painter = painterResource(id = R.drawable.ic_tryfox_black),
                 contentDescription = stringResource(id = R.string.app_icon_tryfox_description),
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable { showMetadataSheet = true },
+            )
+        }
+
+        if (appState != null && appState.isSideloaded) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                painter = painterResource(id = R.drawable.ic_usb_c_cable),
+                contentDescription = stringResource(id = R.string.install_metadata_source_sideloaded),
+                modifier = Modifier
+                    .size(24.dp)
+                    .clickable { showMetadataSheet = true },
             )
         }
 
