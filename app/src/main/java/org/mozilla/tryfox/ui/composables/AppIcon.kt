@@ -34,7 +34,8 @@ fun AppIcon(
     useSearchResultVariant: Boolean = false,
 ) {
     val (iconResId, contentDescResId) = appIconResources(appName, useSearchResultVariant)
-    val isPaddedForeground = appName == FENIX_DEBUG ||
+    val isPaddedForeground = appName in setOf(FENIX_DEBUG, FOCUS_NIGHTLY, FOCUS_BETA) ||
+        (appName == FOCUS && !useSearchResultVariant) ||
         (useSearchResultVariant && appName in setOf(FENIX, FENIX_NIGHTLY, FENIX_BETA, FOCUS_BETA, FOCUS_NIGHTLY))
     if (isPaddedForeground) {
         Box(modifier = modifier.clipToBounds()) {
@@ -73,19 +74,17 @@ internal fun appIconResources(
                 R.string.app_icon_firefox_description
         }
         appName == FENIX_DEBUG -> R.drawable.ic_fenix_debug_foreground to R.string.app_icon_firefox_description
-        appName == FOCUS_DEBUG -> R.drawable.ic_firefox to R.string.app_icon_firefox_description
+        appName == FOCUS_DEBUG -> R.drawable.ic_focus_debug_foreground_v2 to R.string.app_icon_focus_description
         appName == FENIX_RELEASE -> R.drawable.ic_firefox to R.string.app_icon_firefox_description
         appName == FOCUS -> {
-            (if (useSearchResultVariant) R.drawable.ic_focus_debug_foreground_v2 else R.drawable.ic_focus) to
+            (if (useSearchResultVariant) R.drawable.ic_focus_debug_foreground_v2 else R.drawable.ic_focus_nightly_foreground) to
                 R.string.app_icon_focus_description
         }
         appName == FOCUS_NIGHTLY -> {
-            (if (useSearchResultVariant) R.drawable.ic_focus_nightly_foreground else R.drawable.ic_focus) to
-                R.string.app_icon_focus_description
+            R.drawable.ic_focus_nightly_foreground to R.string.app_icon_focus_description
         }
         appName == FOCUS_BETA -> {
-            (if (useSearchResultVariant) R.drawable.ic_focus_beta_foreground else R.drawable.ic_focus) to
-                R.string.app_icon_focus_description
+            R.drawable.ic_focus_beta_foreground to R.string.app_icon_focus_description
         }
         appName == FOCUS_RELEASE -> R.drawable.ic_focus to R.string.app_icon_focus_description
         else -> R.drawable.unknown_app to R.string.app_icon_generic_description
