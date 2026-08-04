@@ -64,9 +64,11 @@ import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.models.NightlyBuildOption
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
+import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.parseDateToLocalDate
 import org.mozilla.tryfox.util.parseDateToMillis
@@ -92,6 +94,7 @@ internal fun HomeAppCard(
     val title = cardTitle(card.family)
     val tag = card.family.name.lowercase()
     val isNightly = app.name == FENIX || app.name == FOCUS
+    val isDebug = app.name == FENIX_DEBUG || app.name == FOCUS_DEBUG
     val isVersionSelectable = app.name in setOf(FENIX_RELEASE, FENIX_BETA, FOCUS_RELEASE, FOCUS_BETA)
     val selectedApk = (app.apks as? ApksResult.Success)?.apks
         ?.let { apks -> apks.firstOrNull { it.abi.isSupported } ?: apks.firstOrNull() }
@@ -156,6 +159,7 @@ internal fun HomeAppCard(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     when {
+                        isDebug -> Unit
                         app.apks is ApksResult.Loading -> CircularProgressIndicator(modifier = Modifier.size(28.dp))
                         app.apks is ApksResult.Error -> Text(app.apks.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                         selectedApk != null && isNightly -> NightlyDetails(
@@ -176,7 +180,7 @@ internal fun HomeAppCard(
                         else -> Text(stringResource(R.string.home_no_apks_available), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-                if (selectedApk != null || app.apks is ApksResult.Loading) {
+                if (!isDebug && (selectedApk != null || app.apks is ApksResult.Loading)) {
                     Spacer(Modifier.width(12.dp))
                     DownloadButton(
                         downloadState = selectedApk?.downloadState ?: DownloadState.NotDownloaded,
@@ -307,5 +311,6 @@ private fun NightlyBuildPickerDialog(
 private fun flavorLabel(appName: String): String = when (appName) {
     FENIX, FOCUS -> "Nightly"
     FENIX_BETA, FOCUS_BETA -> "Beta"
+    FENIX_DEBUG, FOCUS_DEBUG -> "Debug"
     else -> "Release"
 }

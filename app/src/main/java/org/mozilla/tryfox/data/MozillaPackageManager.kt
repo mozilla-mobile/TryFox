@@ -23,6 +23,9 @@ interface MozillaPackageManager {
      */
     val fenixBeta: AppState
 
+    /** The [AppState] for Firefox Debug. */
+    val fenixDebug: AppState
+
     /**
      * The [AppState] for Focus Nightly.
      */

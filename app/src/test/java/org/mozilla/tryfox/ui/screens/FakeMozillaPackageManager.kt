@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.emptyFlow
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.util.FENIX_BETA_PACKAGE
+import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
 import org.mozilla.tryfox.util.FENIX_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE_PACKAGE
 import org.mozilla.tryfox.util.FOCUS_NIGHTLY_PACKAGE
@@ -25,6 +26,9 @@ class FakeMozillaPackageManager(
 
     override val fenixBeta: AppState
         get() = apps[FENIX_BETA_PACKAGE] ?: AppState("Firefox Beta", FENIX_BETA_PACKAGE, null, null)
+
+    override val fenixDebug: AppState
+        get() = apps[FENIX_DEBUG_PACKAGE] ?: AppState("Firefox Debug", FENIX_DEBUG_PACKAGE, null, null)
 
     override val focus: AppState
         get() = apps[FOCUS_NIGHTLY_PACKAGE] ?: AppState("Focus Nightly", FOCUS_NIGHTLY_PACKAGE, null, null)

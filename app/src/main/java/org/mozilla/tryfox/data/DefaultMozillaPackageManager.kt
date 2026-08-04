@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.callbackFlow
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_BETA_PACKAGE
+import org.mozilla.tryfox.util.FENIX_DEBUG
+import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
 import org.mozilla.tryfox.util.FENIX_NIGHTLY
 import org.mozilla.tryfox.util.FENIX_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE
@@ -81,6 +83,7 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
         FENIX_NIGHTLY_PACKAGE to FENIX_NIGHTLY,
         FENIX_RELEASE_PACKAGE to FENIX_RELEASE,
         FENIX_BETA_PACKAGE to FENIX_BETA,
+        FENIX_DEBUG_PACKAGE to FENIX_DEBUG,
         FOCUS_NIGHTLY_PACKAGE to FOCUS,
         FOCUS_BETA_PACKAGE to FOCUS_BETA,
         FOCUS_RELEASE_PACKAGE to FOCUS_RELEASE,
@@ -96,6 +99,9 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
 
     override val fenixBeta: AppState
         get() = getAppState(FENIX_BETA_PACKAGE)
+
+    override val fenixDebug: AppState
+        get() = getAppState(FENIX_DEBUG_PACKAGE)
 
     override val focus: AppState
         get() = getAppState(FOCUS_NIGHTLY_PACKAGE)
