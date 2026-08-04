@@ -84,6 +84,15 @@ fun CurrentInstallState(
             )
         }
 
+        if (appState != null && appState.isInstalled && appState.isFromTryFox) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                painter = painterResource(id = R.drawable.ic_tryfox_black),
+                contentDescription = stringResource(id = R.string.app_icon_tryfox_description),
+                modifier = Modifier.size(24.dp),
+            )
+        }
+
         if (appState != null && appState.isInstalled) {
             Spacer(modifier = Modifier.width(8.dp))
             Text(

@@ -20,6 +20,10 @@ data class AppState(
     val isFromPlayStore: Boolean
         get() = installingPackageName == PLAY_STORE_PACKAGE
 
+    /** Whether the app was installed by TryFox. */
+    val isFromTryFox: Boolean
+        get() = installingPackageName == TRYFOX_PACKAGE
+
     val formattedInstallDate: String?
         get() = installDateMillis?.let {
             val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
@@ -28,5 +32,6 @@ data class AppState(
 
     companion object {
         const val PLAY_STORE_PACKAGE = "com.android.vending"
+        const val TRYFOX_PACKAGE = "org.mozilla.tryfox"
     }
 }
