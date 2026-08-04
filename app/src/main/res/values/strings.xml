@@ -33,6 +33,7 @@
     <string name="app_icon_focus_description">Focus Icon</string>
     <string name="app_icon_reference_browser_description">Reference Browser Icon</string>
     <string name="app_icon_generic_description">App Icon</string>
+    <string name="app_icon_tryfox_description">TryFox Icon</string>
     <string name="bin_button_confirm_clear_cache_description">Confirm Clear Cache</string>
     <string name="bin_button_clear_cache_description">Clear Cache</string>
     <string name="bin_button_tooltip_clear_downloaded_apks">Clear downloaded apks</string>
