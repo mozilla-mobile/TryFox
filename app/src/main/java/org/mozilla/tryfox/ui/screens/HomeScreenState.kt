@@ -20,5 +20,6 @@ sealed class HomeScreenState {
         val tryfoxApp: AppUiModel?,
         val cacheManagementState: CacheManagementState,
         val isDownloadingAnyFile: Boolean,
+        val selectedAppNames: Map<HomeAppFamily, String> = HomeAppFamily.entries.associateWith { it.defaultAppName },
     ) : HomeScreenState()
 }

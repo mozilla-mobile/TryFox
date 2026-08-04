@@ -7,6 +7,14 @@
     <string name="home_receive_from_desktop_button_description">Receive from desktop</string>
     <string name="home_fetching_nightly_builds">Fetching latest nightly builds...</string>
     <string name="home_loading_initial_data">Loading initial app data...</string> <!-- Added -->
+    <string name="home_app_title_fenix">Firefox Android</string>
+    <string name="home_app_subtitle_fenix">Fenix</string>
+    <string name="home_app_title_focus">Focus for Android</string>
+    <string name="home_app_subtitle_focus">Privacy Browser</string>
+    <string name="home_app_title_reference_browser">Reference Browser</string>
+    <string name="home_app_subtitle_reference_browser">GeckoView Reference</string>
+    <string name="home_no_apks_available">No APKs available</string>
+    <string name="home_select_build">Select build</string>
     <string name="common_unknown_error">An unknown error occurred.</string>
     <string name="common_back_button_description">Back</string>
     <string name="treeherder_apks_search_artifacts_title">Search builds</string>
@@ -78,6 +86,7 @@
     <string name="app_name_fenix_beta">Fenix Beta</string>
     <string name="app_name_focus">Focus Nightly</string>
     <string name="app_name_focus_release">Focus Release</string>
+    <string name="app_name_focus_beta">Focus Beta</string>
     <string name="app_name_reference_browser">Reference Browser</string>
     <string name="unsupported_abi">Unsupported ABI</string>
     <string name="clear_date_selection">Clear date selection</string>

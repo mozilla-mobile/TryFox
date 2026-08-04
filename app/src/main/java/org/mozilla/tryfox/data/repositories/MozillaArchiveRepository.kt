@@ -32,7 +32,13 @@ interface MozillaArchiveRepository {
 
     suspend fun getFocusReleaseBuilds(): NetworkResult<List<MozillaArchiveApk>>
 
+    suspend fun getFocusBetaBuilds(): NetworkResult<List<MozillaArchiveApk>>
+
     suspend fun getFocusReleaseVersions(): NetworkResult<List<String>>
 
+    suspend fun getFocusBetaVersions(): NetworkResult<List<String>>
+
     suspend fun getFocusReleaseBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>>
+
+    suspend fun getFocusBetaBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>>
 }

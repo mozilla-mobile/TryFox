@@ -16,6 +16,9 @@ class FakeMozillaArchiveRepository(
     private val focusReleases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
     private val focusReleaseVersions: NetworkResult<List<String>> = NetworkResult.Success(emptyList()),
     private val focusReleasesByVersion: Map<String, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
+    private val focusBetaReleases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
+    private val focusBetaVersions: NetworkResult<List<String>> = NetworkResult.Success(emptyList()),
+    private val focusBetaReleasesByVersion: Map<String, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
 ) : MozillaArchiveRepository {
 
     override suspend fun getFenixNightlyBuilds(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> {
@@ -52,4 +55,11 @@ class FakeMozillaArchiveRepository(
     override suspend fun getFocusReleaseBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> {
         return focusReleasesByVersion[version] ?: focusReleases
     }
+
+    override suspend fun getFocusBetaBuilds(): NetworkResult<List<MozillaArchiveApk>> = focusBetaReleases
+
+    override suspend fun getFocusBetaVersions(): NetworkResult<List<String>> = focusBetaVersions
+
+    override suspend fun getFocusBetaBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> =
+        focusBetaReleasesByVersion[version] ?: focusBetaReleases
 }

@@ -31,6 +31,7 @@ import org.mozilla.tryfox.data.repositories.FenixBetaReleaseRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseReleaseRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
 import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
+import org.mozilla.tryfox.data.repositories.FocusBetaReleaseRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
@@ -64,6 +65,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
@@ -185,6 +187,7 @@ val repositoryModule = module {
     single<ReleaseRepository>(named(FENIX_RELEASE)) { FenixReleaseReleaseRepository(get()) }
     single<ReleaseRepository>(named(FENIX_BETA)) { FenixBetaReleaseRepository(get()) }
     single<ReleaseRepository>(named(FOCUS)) { FocusNightlyRepository(get()) }
+    single<ReleaseRepository>(named(FOCUS_BETA)) { FocusBetaReleaseRepository(get()) }
     single<ReleaseRepository>(named(FOCUS_RELEASE)) { FocusReleaseRepository(get()) }
     single<ReleaseRepository>(named(REFERENCE_BROWSER)) { ReferenceBrowserReleaseRepository() }
     single<ReleaseRepository>(named(TRYFOX)) { TryFoxReleaseRepository(get()) }
@@ -212,6 +215,7 @@ val viewModelModule = module {
             get<ReleaseRepository>(named(FENIX_RELEASE)),
             get<ReleaseRepository>(named(FENIX_BETA)),
             get<ReleaseRepository>(named(FOCUS)),
+            get<ReleaseRepository>(named(FOCUS_BETA)),
             get<ReleaseRepository>(named(FOCUS_RELEASE)),
             get<ReleaseRepository>(named(REFERENCE_BROWSER)),
             get<ReleaseRepository>(named(TRYFOX)),

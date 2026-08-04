@@ -19,45 +19,10 @@ class HomeScreenTest {
     val composeTestRule = createAndroidComposeRule<MainActivity>()
 
     @Test
-    fun homeScreen_showsFenixNightlyCard() {
-        // --- Fenix (Nightly) Card ---
-        val fenixTitleTag = "app_title_text_fenix"
-
-        // Assert Fenix text (found by tag) is displayed
-        composeTestRule.onNodeWithTag(fenixTitleTag, useUnmergedTree = true).assertIsDisplayed()
-    }
-
-    @Test
-    fun homeScreen_showsFenixBetaCard() {
-        // --- Fenix Beta Card ---
-        val betaTitleTag = "app_title_text_fenix-beta"
-
-        // Assert Beta text (found by tag) is displayed
-        composeTestRule.onNodeWithTag(betaTitleTag, useUnmergedTree = true).assertIsDisplayed()
-    }
-
-    @Test
-    fun homeScreen_showsFenixReleaseCard() {
-        // --- Fenix Release Card ---
-        val releaseTitleTag = "app_title_text_fenix-release"
-
-        // Assert Release text (found by tag) is displayed
-        composeTestRule.onNodeWithTag(releaseTitleTag, useUnmergedTree = true).assertIsDisplayed()
-    }
-
-    @Test
-    fun homeScreen_showsAllThreeFenixVariants() {
-        // --- Fenix (Nightly) Card ---
-        val fenixTitleTag = "app_title_text_fenix"
-        composeTestRule.onNodeWithTag(fenixTitleTag, useUnmergedTree = true).assertIsDisplayed()
-
-        // --- Fenix Beta Card ---
-        val betaTitleTag = "app_title_text_fenix-beta"
-        composeTestRule.onNodeWithTag(betaTitleTag, useUnmergedTree = true).assertIsDisplayed()
-
-        // --- Fenix Release Card ---
-        val releaseTitleTag = "app_title_text_fenix-release"
-        composeTestRule.onNodeWithTag(releaseTitleTag, useUnmergedTree = true).assertIsDisplayed()
+    fun homeScreen_showsThreeGroupedAppCards() {
+        composeTestRule.onNodeWithTag("home_app_card_fenix", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("home_app_card_focus", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("home_app_card_referencebrowser", useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test
