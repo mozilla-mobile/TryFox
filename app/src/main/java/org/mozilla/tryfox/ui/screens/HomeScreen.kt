@@ -1,6 +1,5 @@
 package org.mozilla.tryfox.ui.screens
 
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,17 +45,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import kotlinx.datetime.LocalDate
 import org.mozilla.tryfox.R
-import org.mozilla.tryfox.install.InstallState
-import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
-import org.mozilla.tryfox.ui.composables.ArchiveGroupCard
 import org.mozilla.tryfox.ui.composables.BinButton
-import org.mozilla.tryfox.ui.models.ApkUiModel
-import org.mozilla.tryfox.ui.models.ApksResult
-import org.mozilla.tryfox.ui.models.AppUiModel
-import org.mozilla.tryfox.util.parseDateToMillis
 
 /**
  * Composable function for the Home screen, which displays a list of available apps and allows users to interact with them.
@@ -174,39 +165,37 @@ fun HomeScreen(
 
                 is HomeScreenState.Loaded -> {
                     val tryFoxApp = currentScreenState.tryfoxApp
-                    val otherApps = currentScreenState.apps.values.toList()
-
-                    val targetSpacerHeight = if (tryFoxApp != null) tryFoxCardHeight + 4.dp else 0.dp
-                    val animatedSpacerHeight by animateDpAsState(targetValue = targetSpacerHeight, label = "tryFoxSpacerHeight")
+                    val cards = homeAppCards(
+                        apps = currentScreenState.apps,
+                        selectedAppNames = currentScreenState.selectedAppNames,
+                    )
 
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(horizontal = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Top,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        item {
-                            Spacer(modifier = Modifier.height(animatedSpacerHeight))
-                        }
+                        item { Spacer(modifier = Modifier.height(if (tryFoxApp != null) tryFoxCardHeight + 4.dp else 0.dp)) }
 
-                        items(otherApps) { app ->
-                            AppComponent(
-                                app = app,
+                        items(cards, key = { it.family }) { card ->
+                            HomeAppCard(
+                                card = card,
+                                onFlavorSelected = { appName ->
+                                    homeViewModel.selectHomeAppFlavor(card.family, appName)
+                                },
                                 onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
                                 onInstallClick = homeViewModel::installHomeApk,
                                 installStates = installStates,
                                 onOpenInstalledApp = homeViewModel::openInstalledApp,
-                                onOpenAppClick = { homeViewModel.openApp(it) },
-                                onUninstallClick = { homeViewModel.uninstallApp(it) },
                                 onDateSelected = { appName, date ->
                                     homeViewModel.onDateSelected(
                                         appName,
                                         date,
                                     )
                                 },
-                                dateValidator = homeViewModel.getDateValidator(app.name),
-                                onClearDate = { appName -> homeViewModel.onClearDate(appName) },
+                                dateValidator = homeViewModel.getDateValidator(card.selectedApp.name),
                                 onReleaseVersionSelected = { appName, version ->
                                     homeViewModel.onReleaseVersionSelected(appName, version)
                                 },
@@ -267,82 +256,4 @@ private fun TopBarActionIcon(
     ) {
         icon()
     }
-}
-
-/**
- * Composable function for displaying a single app component, which includes information about the app and actions that can be performed.
- *
- * @param app The UI model for the app.
- * @param onDownloadClick Callback for when the download button is clicked.
- * @param onInstallClick Callback for when the install button is clicked.
- * @param onOpenAppClick Callback for when the open app button is clicked.
- * @param onDateSelected Callback for when a date is selected in the date picker.
- * @param dateValidator A function to validate the selectable dates in the date picker.
- * @param onClearDate Callback for when the selected date is cleared.
- */
-@Composable
-fun AppComponent(
-    app: AppUiModel,
-    onDownloadClick: (ApkUiModel) -> Unit,
-    onInstallClick: (ApkUiModel) -> Unit,
-    installStates: Map<String, InstallState>,
-    onOpenInstalledApp: (String) -> Unit,
-    onOpenAppClick: (String) -> Unit,
-    onUninstallClick: (String) -> Unit,
-    onDateSelected: (String, LocalDate) -> Unit,
-    dateValidator: (LocalDate) -> Boolean,
-    onClearDate: (String) -> Unit,
-    onReleaseVersionSelected: (String, String) -> Unit,
-    onBuildSelected: (String, String) -> Unit,
-    onDismissBuildPicker: (String) -> Unit,
-) {
-    val apksResult = app.apks
-
-    val appState = if (app.installedVersion != null) {
-        AppState(
-            name = app.name,
-            packageName = app.packageName,
-            version = app.installedVersion,
-            versionCode = app.installedVersionCode,
-            installDateMillis = app.installedDate?.let { parseDateToMillis(it) },
-            installingPackageName = app.installingPackageName,
-            splitNames = app.splitNames,
-        )
-    } else {
-        null
-    }
-
-    ArchiveGroupCard(
-        modifier = Modifier.padding(vertical = 8.dp),
-        apks = (apksResult as? ApksResult.Success)?.apks ?: emptyList(),
-        appState = appState,
-        onDownloadClick = onDownloadClick,
-        onInstallClick = onInstallClick,
-        installStates = installStates,
-        onOpenInstalledApp = onOpenInstalledApp,
-        onOpenAppClick = {
-            appState?.packageName?.let {
-                onOpenAppClick(it)
-            }
-        },
-        onUninstallClick = {
-            appState?.packageName?.let {
-                onUninstallClick(it)
-            }
-        },
-        onDateSelected = { date -> onDateSelected(app.name, date) },
-        userPickedDate = app.userPickedDate,
-        selectedReleaseVersion = app.selectedReleaseVersion,
-        availableReleaseVersions = app.availableReleaseVersions,
-        onReleaseVersionSelected = { version -> onReleaseVersionSelected(app.name, version) },
-        appName = app.name,
-        errorMessage = (apksResult as? ApksResult.Error)?.message,
-        isLoading = apksResult is ApksResult.Loading,
-        dateValidator = dateValidator,
-        onClearDate = { onClearDate(app.name) },
-        pendingBuildOptions = app.pendingBuildOptions,
-        onBuildSelected = { buildId -> onBuildSelected(app.name, buildId) },
-        onDismissBuildPicker = { onDismissBuildPicker(app.name) },
-    )
-    Spacer(modifier = Modifier.height(16.dp))
 }

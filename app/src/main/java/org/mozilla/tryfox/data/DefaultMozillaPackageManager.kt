@@ -21,6 +21,8 @@ import org.mozilla.tryfox.util.FENIX_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FENIX_RELEASE_PACKAGE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_BETA
+import org.mozilla.tryfox.util.FOCUS_BETA_PACKAGE
 import org.mozilla.tryfox.util.FOCUS_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.FOCUS_RELEASE_PACKAGE
@@ -80,6 +82,7 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
         FENIX_RELEASE_PACKAGE to FENIX_RELEASE,
         FENIX_BETA_PACKAGE to FENIX_BETA,
         FOCUS_NIGHTLY_PACKAGE to FOCUS,
+        FOCUS_BETA_PACKAGE to FOCUS_BETA,
         FOCUS_RELEASE_PACKAGE to FOCUS_RELEASE,
         REFERENCE_BROWSER_PACKAGE to REFERENCE_BROWSER,
         TRYFOX_PACKAGE to TRYFOX,
@@ -99,6 +102,9 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
 
     override val focusRelease: AppState
         get() = getAppState(FOCUS_RELEASE_PACKAGE)
+
+    override val focusBeta: AppState
+        get() = getAppState(FOCUS_BETA_PACKAGE)
 
     override val referenceBrowser: AppState
         get() = getAppState(REFERENCE_BROWSER_PACKAGE)

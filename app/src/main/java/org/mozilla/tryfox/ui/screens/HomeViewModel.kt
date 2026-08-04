@@ -48,6 +48,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
@@ -147,6 +148,14 @@ class HomeViewModel(
         launchRefresh(hydrateCache = false)
     }
 
+    fun selectHomeAppFlavor(family: HomeAppFamily, appName: String) {
+        if (appName !in family.appNames) return
+        _homeScreenState.update { state ->
+            if (state !is HomeScreenState.Loaded) state
+            else state.copy(selectedAppNames = state.selectedAppNames + (family to appName))
+        }
+    }
+
     private fun launchRefresh(hydrateCache: Boolean) {
         viewModelScope.launch(ioDispatcher) {
             markRefreshStarted()
@@ -214,6 +223,7 @@ class HomeViewModel(
             FENIX_BETA to mozillaPackageManager.fenixBeta,
             FOCUS to mozillaPackageManager.focus,
             FOCUS_RELEASE to mozillaPackageManager.focusRelease,
+            FOCUS_BETA to mozillaPackageManager.focusBeta,
             REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
             TRYFOX to mozillaPackageManager.tryfox,
         )

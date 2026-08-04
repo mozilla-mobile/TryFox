@@ -15,6 +15,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import retrofit2.HttpException
 
@@ -71,11 +72,19 @@ class DefaultMozillaArchiveRepository(
     }
 
     override suspend fun getFocusReleaseBuilds(): NetworkResult<List<MozillaArchiveApk>> {
+        return getFocusReleaseBuilds(ReleaseType.Release)
+    }
+
+    override suspend fun getFocusBetaBuilds(): NetworkResult<List<MozillaArchiveApk>> {
+        return getFocusReleaseBuilds(ReleaseType.Beta)
+    }
+
+    private suspend fun getFocusReleaseBuilds(releaseType: ReleaseType): NetworkResult<List<MozillaArchiveApk>> {
         return try {
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
             val latestReleaseVersion = mozillaArchiveHtmlParser.parseFenixReleasesFromHtml(
                 releasesHtml,
-                ReleaseType.Release,
+                releaseType,
             )
 
             if (latestReleaseVersion.isEmpty()) {
@@ -86,8 +95,8 @@ class DefaultMozillaArchiveRepository(
                 version = latestReleaseVersion,
                 archiveBaseUrl = RELEASES_FOCUS_BASE_URL,
                 archiveAppName = FOCUS,
-                resultAppName = FOCUS_RELEASE,
-                releaseType = ReleaseType.Release,
+                resultAppName = if (releaseType == ReleaseType.Release) FOCUS_RELEASE else FOCUS_BETA,
+                releaseType = releaseType,
             )
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch or parse Focus releases: ${e.message}", e)
@@ -110,9 +119,17 @@ class DefaultMozillaArchiveRepository(
     }
 
     override suspend fun getFocusReleaseVersions(): NetworkResult<List<String>> {
+        return getFocusReleaseVersions(ReleaseType.Release)
+    }
+
+    override suspend fun getFocusBetaVersions(): NetworkResult<List<String>> {
+        return getFocusReleaseVersions(ReleaseType.Beta)
+    }
+
+    private suspend fun getFocusReleaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
         return try {
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
-            val releaseVersions = mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, ReleaseType.Release)
+            val releaseVersions = mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
 
             if (releaseVersions.isEmpty()) {
                 return NetworkResult.Error("No Focus release versions found", null)
@@ -146,6 +163,14 @@ class DefaultMozillaArchiveRepository(
     }
 
     override suspend fun getFocusReleaseBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> {
+        return getFocusReleaseBuildsForVersion(version, ReleaseType.Release)
+    }
+
+    override suspend fun getFocusBetaBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> {
+        return getFocusReleaseBuildsForVersion(version, ReleaseType.Beta)
+    }
+
+    private suspend fun getFocusReleaseBuildsForVersion(version: String, releaseType: ReleaseType): NetworkResult<List<MozillaArchiveApk>> {
         return try {
             if (version.isEmpty()) {
                 return NetworkResult.Error("No version provided", null)
@@ -155,8 +180,8 @@ class DefaultMozillaArchiveRepository(
                 version = version,
                 archiveBaseUrl = RELEASES_FOCUS_BASE_URL,
                 archiveAppName = FOCUS,
-                resultAppName = FOCUS_RELEASE,
-                releaseType = ReleaseType.Release,
+                resultAppName = if (releaseType == ReleaseType.Release) FOCUS_RELEASE else FOCUS_BETA,
+                releaseType = releaseType,
             )
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch Focus release $version: ${e.message}", e)

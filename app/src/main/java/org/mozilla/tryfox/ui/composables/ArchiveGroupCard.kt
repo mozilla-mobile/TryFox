@@ -73,6 +73,7 @@ import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.FeatureFlags
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
@@ -132,7 +133,7 @@ fun ArchiveGroupCard(
         val dateFromApk = firstApk?.date ?: ""
         // Release, beta and Focus release all pick a specific version from a dropdown.
         val hasReleaseVersionPicker =
-            appName == FENIX_RELEASE || appName == FOCUS_RELEASE || appName == FENIX_BETA
+            appName == FENIX_RELEASE || appName == FOCUS_RELEASE || appName == FENIX_BETA || appName == FOCUS_BETA
         val isDatePickerEnabled = appName != REFERENCE_BROWSER && !hasReleaseVersionPicker
 
         Column(modifier = Modifier.padding(ArchiveGroupCardTokens.ColumnPadding)) {
@@ -571,6 +572,7 @@ private fun getFriendlyAppName(appName: String): String =
         FENIX_RELEASE -> stringResource(R.string.app_name_fenix_release)
         FENIX_BETA -> stringResource(R.string.app_name_fenix_beta)
         FOCUS -> stringResource(id = R.string.app_name_focus)
+        FOCUS_BETA -> stringResource(id = R.string.app_name_focus_beta)
         FOCUS_RELEASE -> stringResource(id = R.string.app_name_focus_release)
         REFERENCE_BROWSER -> stringResource(R.string.app_name_reference_browser)
         else -> appName

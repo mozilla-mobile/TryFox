@@ -222,4 +222,20 @@ class MozillaArchiveRepositoryImplTest {
         assertTrue(result is NetworkResult.Error)
         assertEquals("Failed to fetch or parse focus builds: $errorMessage", (result as NetworkResult.Error).message)
     }
+
+    @Test
+    fun `getFocusBetaVersions returns beta versions only in newest-first order`() = runTest {
+        val releasesHtml = """
+            <a href="146.0/">146.0/</a>
+            <a href="147.0b2/">147.0b2/</a>
+            <a href="147.0b7/">147.0b7/</a>
+        """.trimIndent()
+        whenever(mockMozillaArchivesApiService.getHtmlPage(eq(DefaultMozillaArchiveRepository.RELEASES_FOCUS_BASE_URL)))
+            .thenReturn(releasesHtml)
+
+        val result = repository.getFocusBetaVersions()
+
+        assertTrue(result is NetworkResult.Success)
+        assertEquals(listOf("147.0b7", "147.0b2"), (result as NetworkResult.Success).data)
+    }
 }
