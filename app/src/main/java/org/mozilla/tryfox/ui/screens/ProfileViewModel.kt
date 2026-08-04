@@ -38,30 +38,26 @@ import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
 import java.util.Locale
 
-private fun bugComment(revisions: List<RevisionDetail>): String? {
-    return revisions.firstOrNull { revision ->
-        revision.comments.trimStart().startsWith("Bug ", ignoreCase = true) ||
-            revision.comments.trimStart().startsWith("[Bug ", ignoreCase = true)
+private fun RevisionDetail.isTryTriggeringCommit(): Boolean =
+    comments.trimStart().startsWith("Fuzzy query=", ignoreCase = true) ||
+        comments.contains("Pushed via `mach try", ignoreCase = true)
+
+private fun firstRealCommitComment(revisions: List<RevisionDetail>): String? =
+    revisions.firstOrNull { revision ->
+        revision.comments.isNotBlank() && !revision.isTryTriggeringCommit()
     }?.comments
-}
 
 internal fun selectPreferredPushComment(
     revisions: List<RevisionDetail>,
     precedingPushRevisions: List<List<RevisionDetail>> = emptyList(),
-): String {
-    val ownComment = bugComment(revisions) ?: revisions.firstOrNull()?.comments.orEmpty().ifBlank { "No comment" }
-    val isPerfAgainRetry = ownComment.contains("Pushed via `mach try perf-again`", ignoreCase = true)
-    return if (isPerfAgainRetry) {
-        precedingPushRevisions.firstNotNullOfOrNull(::bugComment) ?: ownComment
-    } else {
-        ownComment
-    }
-}
+): String =
+    firstRealCommitComment(revisions)
+        ?: precedingPushRevisions.firstNotNullOfOrNull(::firstRealCommitComment)
+        ?: revisions.firstOrNull()?.comments.orEmpty().ifBlank { "No comment" }
 
-internal fun isPerfAgainRetry(revisions: List<RevisionDetail>): Boolean {
-    val firstComment = revisions.firstOrNull()?.comments.orEmpty()
-    return firstComment.contains("Pushed via `mach try perf-again`", ignoreCase = true)
-}
+/** True when a Try-generated push needs an earlier push to provide a useful title. */
+internal fun needsPrecedingRealCommit(revisions: List<RevisionDetail>): Boolean =
+    firstRealCommitComment(revisions) == null && revisions.any(RevisionDetail::isTryTriggeringCommit)
 
 private val unsignedApkJobNamePattern = Regex("^build-apk-(.+)$", RegexOption.IGNORE_CASE)
 private val apkJobNameHints = listOf("signing-apk", "android-apk", "apk-focus", "apk-fenix", "apk-reference-browser", "apk-geckoview")
@@ -303,7 +299,7 @@ class SearchViewModel(
                             if (signedJobs.isEmpty() && unsignedJobs.isEmpty()) {
                                 _errorMessage.value = "No APK builds found for this revision."
                             } else {
-                                val precedingRevisions = if (isPerfAgainRetry(push.revisions)) {
+                                val precedingRevisions = if (needsPrecedingRealCommit(push.revisions)) {
                                     when (
                                         val authorPushes = fenixRepository.getPushesByAuthor(
                                             _selectedProject.value,
