@@ -37,7 +37,7 @@ import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
 import org.mozilla.tryfox.ui.models.JobDetailsUiModel
-import org.mozilla.tryfox.ui.screens.isPerfAgainRetry
+import org.mozilla.tryfox.ui.screens.needsPrecedingRealCommit
 import org.mozilla.tryfox.ui.screens.selectPreferredPushComment
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
@@ -222,7 +222,7 @@ class TryFoxViewModel(
                     val firstPushResult = pushData.results.firstOrNull()
 
                     if (firstPushResult != null) {
-                        val precedingPushRevisions = if (isPerfAgainRetry(firstPushResult.revisions)) {
+                        val precedingPushRevisions = if (needsPrecedingRealCommit(firstPushResult.revisions)) {
                             when (val authorPushes = fenixRepository.getPushesByAuthor(selectedProject, firstPushResult.author)) {
                                 is NetworkResult.Success -> {
                                     val pushIndex = authorPushes.data.results.indexOfFirst { it.id == firstPushResult.id }
