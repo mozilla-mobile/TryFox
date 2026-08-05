@@ -522,10 +522,6 @@ fun LoadingState(candidateCount: Int) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(36.dp),
-                strokeWidth = 3.dp,
-            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(6.dp),
