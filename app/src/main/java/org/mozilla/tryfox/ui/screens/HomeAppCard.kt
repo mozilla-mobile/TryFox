@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.datetime.Clock
@@ -98,6 +99,7 @@ internal fun HomeAppCard(
     val appState = app.toAppState()
     val title = cardTitle(card.family)
     val tag = card.family.name.lowercase()
+    val flavorAppNames = card.family.appNames.filter { it in card.appsByName }
     val isNightly = app.name == FENIX || app.name == FOCUS
     val isDebug = app.name == FENIX_DEBUG || app.name == FOCUS_DEBUG
     val isVersionSelectable = app.name in setOf(FENIX_RELEASE, FENIX_BETA, FOCUS_RELEASE, FOCUS_BETA)
@@ -141,17 +143,31 @@ internal fun HomeAppCard(
                 modifier = Modifier.testTag("home_install_status_$tag").padding(top = 8.dp),
             )
 
-            if (card.family.appNames.size > 1) {
+            if (flavorAppNames.size > 1) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    card.family.appNames.forEach { appName ->
+                    flavorAppNames.forEach { appName ->
+                        val isInstalled = card.appsByName[appName]?.installedVersion != null
+                        val installedStateDescription = stringResource(R.string.installed_chip_label)
                         FilterChip(
                             selected = appName == app.name,
                             onClick = { onFlavorSelected(appName) },
                             label = { Text(flavorLabel(appName)) },
-                            modifier = Modifier.testTag("home_flavor_${tag}_$appName"),
+                            border = BorderStroke(
+                                width = if (isInstalled) 2.dp else 1.dp,
+                                color = if (isInstalled) {
+                                    MaterialTheme.colorScheme.primary
+                                } else {
+                                    MaterialTheme.colorScheme.outlineVariant
+                                },
+                            ),
+                            modifier = Modifier
+                                .testTag("home_flavor_${tag}_$appName")
+                                .semantics {
+                                    if (isInstalled) stateDescription = installedStateDescription
+                                },
                         )
                     }
                 }
