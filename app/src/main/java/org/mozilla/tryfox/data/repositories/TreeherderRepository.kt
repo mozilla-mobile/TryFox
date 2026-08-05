@@ -12,7 +12,12 @@ interface TreeherderRepository {
     suspend fun getPushesByAuthor(author: String): NetworkResult<TreeherderRevisionResponse>
 
     /** Looks up an author's pushes in the selected Treeherder project. */
-    suspend fun getPushesByAuthor(project: String, author: String): NetworkResult<TreeherderRevisionResponse> =
+    suspend fun getPushesByAuthor(
+        project: String,
+        author: String,
+        count: Int = 10,
+        offset: Int = 0,
+    ): NetworkResult<TreeherderRevisionResponse> =
         getPushesByAuthor(author)
 
     /** Gets the most recent pushes for a project, as shown by Treeherder without a query. */

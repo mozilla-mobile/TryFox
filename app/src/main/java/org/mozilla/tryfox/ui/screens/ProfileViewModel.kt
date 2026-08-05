@@ -3,8 +3,11 @@ package org.mozilla.tryfox.ui.screens
 import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -18,6 +21,7 @@ import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.RevisionDetail
+import org.mozilla.tryfox.data.RevisionResult
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.repositories.HistoryRepository
@@ -147,7 +151,33 @@ class SearchViewModel(
     companion object {
         private const val TAG = "SearchViewModel"
         private const val MAX_PARALLEL_ARTIFACT_REQUESTS = 6
+        private const val PUSH_PAGE_SIZE = 10
     }
+
+    private sealed interface PaginatedSearch {
+        val project: String
+        val queryToRecord: String?
+
+        data class Author(
+            override val project: String,
+            val email: String,
+        ) : PaginatedSearch {
+            override val queryToRecord: String = email
+        }
+
+        data class Recent(override val project: String) : PaginatedSearch {
+            override val queryToRecord: String? = null
+        }
+    }
+
+    private data class PaginationSession(
+        val search: PaginatedSearch,
+        var nextOffset: Int = 0,
+        var hasMore: Boolean = true,
+        var fetchedPushCount: Int = 0,
+        var hasRecordedSearch: Boolean = false,
+        val loadedPushIds: MutableSet<Int> = mutableSetOf(),
+    )
 
     private val _authorEmail = MutableStateFlow(authorEmail ?: "")
     val authorEmail: StateFlow<String> = _authorEmail.asStateFlow()
@@ -160,6 +190,15 @@ class SearchViewModel(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _isLoadingMore = MutableStateFlow(false)
+    val isLoadingMore: StateFlow<Boolean> = _isLoadingMore.asStateFlow()
+
+    private val _canLoadMore = MutableStateFlow(false)
+    val canLoadMore: StateFlow<Boolean> = _canLoadMore.asStateFlow()
+
+    private val _loadMoreError = MutableStateFlow<String?>(null)
+    val loadMoreError: StateFlow<String?> = _loadMoreError.asStateFlow()
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
@@ -174,6 +213,9 @@ class SearchViewModel(
     val cacheState: StateFlow<CacheManagementState> = cacheManager.cacheState
     val searchHistory = userDataRepository.searchHistoryFlow
     val installStates: StateFlow<Map<String, InstallState>> = installCoordinator.states
+
+    private var paginationSession: PaginationSession? = null
+    private var activeSearchJob: Job? = null
 
     private val deviceSupportedAbis: List<String> by lazy {
         runCatching { Build.SUPPORTED_ABIS.toList() }.getOrDefault(emptyList())
@@ -275,12 +317,19 @@ class SearchViewModel(
             return
         }
         val projectToSearch = _selectedProject.value
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-            _warningMessage.value = null
-            _pushes.value = emptyList()
-            when (val pushResult = fenixRepository.getPushByRevision(projectToSearch, revision)) {
+        // A revision search is deliberately non-paginated and invalidates any prior session.
+        activeSearchJob?.cancel()
+        paginationSession = null
+        _isLoadingMore.value = false
+        _canLoadMore.value = false
+        _loadMoreError.value = null
+        activeSearchJob = viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _errorMessage.value = null
+                _warningMessage.value = null
+                _pushes.value = emptyList()
+                when (val pushResult = fenixRepository.getPushByRevision(projectToSearch, revision)) {
                 is NetworkResult.Success -> {
                     val push = pushResult.data.results.firstOrNull()
                     if (push == null) {
@@ -342,8 +391,12 @@ class SearchViewModel(
                 is NetworkResult.Error -> {
                     _errorMessage.value = "Error fetching revision details for $projectToSearch: ${pushResult.message}"
                 }
+                }
+            } finally {
+                if (activeSearchJob === currentCoroutineContext()[Job]) {
+                    _isLoading.value = false
+                }
             }
-            _isLoading.value = false
         }
     }
 
@@ -359,139 +412,211 @@ class SearchViewModel(
         if (SearchQueryClassifier.classify(emailToSearch).getOrNull() !is SearchQuery.Email) {
             return
         }
-        searchPushes(
-            queryToRecord = emailToSearch,
-            project = projectToSearch,
-        ) { fenixRepository.getPushesByAuthor(projectToSearch, emailToSearch) }
+        startPaginatedSearch(PaginatedSearch.Author(projectToSearch, emailToSearch))
     }
 
     private fun searchRecentPushes() {
-        val projectToSearch = _selectedProject.value
-        searchPushes(
-            queryToRecord = null,
-            project = projectToSearch,
-        ) { fenixRepository.getRecentPushes(projectToSearch) }
+        startPaginatedSearch(PaginatedSearch.Recent(_selectedProject.value))
     }
 
-    private fun searchPushes(
-        queryToRecord: String?,
-        project: String,
-        request: suspend () -> NetworkResult<org.mozilla.tryfox.data.TreeherderRevisionResponse>,
-    ) {
-        viewModelScope.launch {
-            _isLoading.value = true
-            _errorMessage.value = null
-            _pushes.value = emptyList()
-            logcat(LogPriority.DEBUG, TAG) { "Starting search..." }
-            val artifactSemaphore = Semaphore(MAX_PARALLEL_ARTIFACT_REQUESTS)
-            var requestToRun = request
-            var retriedRecentPushes = false
-            var fetchedPushCount = 0
-
-            searchLoop@ while (true) {
-                when (val result = requestToRun()) {
-                    is NetworkResult.Success -> {
-                    fetchedPushCount += result.data.results.size
-                    logcat(
-                        LogPriority.DEBUG,
-                        TAG,
-                    ) { "Push lookup succeeded; processing ${result.data.results.size} pushes" }
-                    val pushesWithJobsAndArtifacts = result.data.results.mapIndexed { pushIndex, pushResult ->
-                        async {
-                            val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
-                            if (jobsResult is NetworkResult.Success) {
-                                val (signedCandidates, unsignedCandidates) = selectJobsBySigning(
-                                    jobsResult.data.results.filter(::isAndroidApkCandidate),
-                                )
-                                val selectedJobs = signedCandidates + unsignedCandidates
-                                if (selectedJobs.isNotEmpty()) {
-                                    val jobsWithArtifacts = selectedJobs.map { jobDetails ->
-                                        async {
-                                            val artifactResult = artifactSemaphore.withPermit {
-                                                fetchArtifacts(jobDetails.taskId)
-                                            }
-                                            artifactResult.artifacts.takeIf { it.isNotEmpty() }?.let { artifacts ->
-                                                jobWithArtifacts(jobDetails, artifacts)
-                                            }
-                                        }
-                                    }.awaitAll().filterNotNull()
-
-                                    val visibleJobs = filterRedundantUnsignedApkJobs(jobsWithArtifacts)
-                                    if (visibleJobs.isNotEmpty()) {
-                                        PushUiModel(
-                                            project = project,
-                                            pushComment = selectPreferredPushComment(
-                                                revisions = pushResult.revisions,
-                                                precedingPushRevisions = result.data.results
-                                                    .take(pushIndex)
-                                                    .asReversed()
-                                                    .map { it.revisions },
-                                            ),
-                                            author = pushResult.author,
-                                            jobs = orderApkJobs(visibleJobs.filter(JobDetailsUiModel::isSignedBuild)),
-                                            unsignedJobs = orderApkJobs(visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild)),
-                                            revision = pushResult.revision,
-                                            pushTimestamp = pushResult.pushTimestamp,
-                                        )
-                                    } else {
-                                        logcat(LogPriority.VERBOSE, TAG) {
-                                            "No jobs with artifacts for push ID: ${pushResult.id}"
-                                        }
-                                        null
-                                    }
-                                } else {
-                                    logcat(LogPriority.VERBOSE, TAG) {
-                                        "No eligible, non-test APK jobs for push ID: ${pushResult.id}"
-                                    }
-                                    null
-                                }
-                            } else {
-                                logcat(LogPriority.WARN, TAG) {
-                                    "getJobsForPush failed for push ID: ${pushResult.id}: " +
-                                    (jobsResult as NetworkResult.Error).message
-                                }
-                                null
-                            }
-                        }
-                    }.awaitAll().filterNotNull()
-
-                    _pushes.value = pushesWithJobsAndArtifacts
-                    syncLoadedStateDownloadStates()
-                    if (pushesWithJobsAndArtifacts.isNotEmpty()) {
-                        queryToRecord?.let { userDataRepository.recordSearch(project, it) }
-                    }
-                    logcat(TAG) { "Search finished, ${_pushes.value.size} pushes with artifacts found." }
-                    if (queryToRecord == null && !retriedRecentPushes && pushesWithJobsAndArtifacts.isEmpty()) {
-                        retriedRecentPushes = true
-                        requestToRun = {
-                            fenixRepository.getRecentPushes(
-                                project = project,
-                                count = 50,
-                                offset = 10,
-                            )
-                        }
-                        logcat(TAG) { "No usable APKs in the newest 10 pushes; searching the next 50." }
-                        continue@searchLoop
-                    }
-                    if (pushesWithJobsAndArtifacts.isEmpty()) {
-                        _errorMessage.value = "No push was found with a job that produced an APK."
-                        logcat(TAG) { _errorMessage.value.orEmpty() }
-                    } else if (pushesWithJobsAndArtifacts.size < fetchedPushCount) {
-                        _warningMessage.value =
-                            "Showing ${pushesWithJobsAndArtifacts.size} of $fetchedPushCount fetched pushes. " +
-                            "The remaining pushes did not contain a job that produced an APK."
-                    }
+    private fun startPaginatedSearch(search: PaginatedSearch) {
+        activeSearchJob?.cancel()
+        activeSearchJob = viewModelScope.launch {
+            try {
+                _isLoading.value = true
+                _isLoadingMore.value = false
+                _errorMessage.value = null
+                _loadMoreError.value = null
+                _warningMessage.value = null
+                _pushes.value = emptyList()
+                paginationSession = PaginationSession(search)
+                _canLoadMore.value = true
+                loadPagesUntilResultsOrExhausted(paginationSession!!, isInitialLoad = true)
+            } finally {
+                if (activeSearchJob === currentCoroutineContext()[Job]) {
+                    _isLoading.value = false
                 }
-
-                    is NetworkResult.Error -> {
-                        logcat(LogPriority.ERROR, TAG) { "Error fetching pushes: ${result.message}" }
-                        _errorMessage.value = "Error fetching pushes: ${result.message}"
-                    }
-                }
-                break@searchLoop
             }
-            _isLoading.value = false
         }
+    }
+
+    /** Called by the final result card when the user reaches the end of a paginated search. */
+    fun loadMorePushes() {
+        val session = paginationSession ?: return
+        if (!session.hasMore || _isLoading.value || _isLoadingMore.value) return
+        activeSearchJob = viewModelScope.launch {
+            try {
+                _isLoadingMore.value = true
+                _loadMoreError.value = null
+                loadPagesUntilResultsOrExhausted(session, isInitialLoad = false)
+            } finally {
+                if (activeSearchJob === currentCoroutineContext()[Job]) {
+                    _isLoadingMore.value = false
+                }
+            }
+        }
+    }
+
+    fun retryLoadMorePushes() = loadMorePushes()
+
+    private suspend fun loadPagesUntilResultsOrExhausted(
+        session: PaginationSession,
+        isInitialLoad: Boolean,
+    ) {
+        if (!session.hasMore || paginationSession !== session) return
+        val requestedCount = requestedPushCount(session.search, session.nextOffset)
+        logcat(LogPriority.DEBUG, TAG) {
+            "Requesting ${session.search::class.simpleName} push page: " +
+                "project=${session.search.project}, offset=${session.nextOffset}, count=$requestedCount"
+        }
+        when (val response = requestPushPage(session.search, session.nextOffset, requestedCount)) {
+            is NetworkResult.Error -> {
+                val message = "Error fetching pushes: ${response.message}"
+                logcat(LogPriority.ERROR, TAG) { message }
+                if (isInitialLoad && _pushes.value.isEmpty()) _errorMessage.value = message else _loadMoreError.value = message
+            }
+
+            is NetworkResult.Success -> {
+                if (paginationSession !== session) return
+                val rawPushes = response.data.results
+                logcat(LogPriority.DEBUG, TAG) {
+                    "Received ${rawPushes.size} pushes at offset=${session.nextOffset}: " +
+                        rawPushes.joinToString { "${it.id}:${it.revision.take(12)}" }
+                }
+                val newPushes = rawPushes.filter { session.loadedPushIds.add(it.id) }
+                // Author-filtered Treeherder responses ignore offset. For those searches we
+                // request a growing prefix and advance by only the newly observed pushes.
+                session.nextOffset += newPushes.size
+                session.hasMore = rawPushes.size == requestedCount
+                _canLoadMore.value = session.hasMore
+                session.fetchedPushCount += newPushes.size
+                logcat(LogPriority.DEBUG, TAG) {
+                    "Page contains ${newPushes.size} new pushes; hasMore=${session.hasMore}; " +
+                        "loaded IDs=${session.loadedPushIds.size}"
+                }
+                if (rawPushes.isNotEmpty() && newPushes.isEmpty()) {
+                    session.hasMore = false
+                    _canLoadMore.value = false
+                    logcat(LogPriority.WARN, TAG) {
+                        "Treeherder returned only previously loaded pushes at offset=${session.nextOffset - rawPushes.size}; " +
+                            "ending pagination."
+                    }
+                    updatePaginationWarning(session)
+                    return
+                }
+                val displayablePushes = buildPushUiModels(session.search.project, newPushes, rawPushes)
+                logcat(LogPriority.DEBUG, TAG) {
+                    "Page produced ${displayablePushes.size} displayable pushes: " +
+                        displayablePushes.joinToString { it.revision.orEmpty().take(12) }
+                }
+                if (displayablePushes.isNotEmpty()) {
+                    _pushes.value += displayablePushes
+                    syncLoadedStateDownloadStates()
+                    if (!session.hasRecordedSearch) {
+                        session.search.queryToRecord?.let { userDataRepository.recordSearch(session.search.project, it) }
+                        session.hasRecordedSearch = true
+                    }
+                }
+                updatePaginationWarning(session)
+                if (_pushes.value.isEmpty() && !session.hasMore) {
+                    _errorMessage.value = "No push was found with a job that produced an APK."
+                }
+            }
+        }
+    }
+
+    private fun requestedPushCount(search: PaginatedSearch, offset: Int): Int = when (search) {
+        is PaginatedSearch.Author -> offset + PUSH_PAGE_SIZE
+        is PaginatedSearch.Recent -> PUSH_PAGE_SIZE
+    }
+
+    private suspend fun requestPushPage(
+        search: PaginatedSearch,
+        offset: Int,
+        count: Int,
+    ) = when (search) {
+        is PaginatedSearch.Author -> fenixRepository.getPushesByAuthor(
+            project = search.project,
+            author = search.email,
+            count = count,
+            // Treeherder ignores this parameter when author is supplied.
+            offset = 0,
+        )
+        is PaginatedSearch.Recent -> fenixRepository.getRecentPushes(
+            project = search.project,
+            count = count,
+            offset = offset,
+        )
+    }
+
+    private fun updatePaginationWarning(session: PaginationSession) {
+        if (_pushes.value.size < session.fetchedPushCount) {
+            _warningMessage.value =
+                "Showing ${_pushes.value.size} of ${session.fetchedPushCount} fetched pushes. " +
+                "The remaining pushes did not contain a job that produced an APK."
+        } else {
+            _warningMessage.value = null
+        }
+    }
+
+    private suspend fun buildPushUiModels(
+        project: String,
+        pushes: List<RevisionResult>,
+        pagePushes: List<RevisionResult>,
+    ): List<PushUiModel> = coroutineScope {
+        val artifactSemaphore = Semaphore(MAX_PARALLEL_ARTIFACT_REQUESTS)
+        pushes.map { pushResult ->
+            async {
+                val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
+                if (jobsResult !is NetworkResult.Success) {
+                    logcat(LogPriority.WARN, TAG) {
+                        "Push ${pushResult.id} job lookup failed: ${(jobsResult as NetworkResult.Error).message}"
+                    }
+                    return@async null
+                }
+                val candidates = jobsResult.data.results.filter(::isAndroidApkCandidate)
+                logcat(LogPriority.DEBUG, TAG) {
+                    "Push ${pushResult.id}:${pushResult.revision.take(12)} has " +
+                        "${jobsResult.data.results.size} jobs and ${candidates.size} APK candidates: " +
+                        candidates.joinToString { "${it.jobName} (${it.jobSymbol}, ${it.taskId})" }
+                }
+                val (signedCandidates, unsignedCandidates) = selectJobsBySigning(
+                    candidates,
+                )
+                val jobsWithArtifacts = (signedCandidates + unsignedCandidates).map { jobDetails ->
+                    async {
+                        val artifactResult = artifactSemaphore.withPermit { fetchArtifacts(jobDetails.taskId) }
+                        artifactResult.artifacts.takeIf { it.isNotEmpty() }?.let { jobWithArtifacts(jobDetails, it) }
+                    }
+                }.awaitAll().filterNotNull()
+                val visibleJobs = filterRedundantUnsignedApkJobs(jobsWithArtifacts)
+                if (visibleJobs.isEmpty()) {
+                    logcat(LogPriority.DEBUG, TAG) {
+                        "Push ${pushResult.id} produced no visible jobs after artifact resolution. " +
+                            "Candidates=${candidates.size}, jobsWithArtifacts=${jobsWithArtifacts.size}"
+                    }
+                }
+                visibleJobs.takeIf { it.isNotEmpty() }?.let {
+                    logcat(LogPriority.DEBUG, TAG) {
+                        "Push ${pushResult.id} is displayable with ${visibleJobs.size} jobs: " +
+                            visibleJobs.joinToString { "${it.jobName} (${it.artifacts.size} APKs)" }
+                    }
+                    val index = pagePushes.indexOfFirst { pagePush -> pagePush.id == pushResult.id }
+                    PushUiModel(
+                        project = project,
+                        pushComment = selectPreferredPushComment(
+                            revisions = pushResult.revisions,
+                            precedingPushRevisions = pagePushes.take(index.coerceAtLeast(0)).asReversed().map { it.revisions },
+                        ),
+                        author = pushResult.author,
+                        jobs = orderApkJobs(visibleJobs.filter(JobDetailsUiModel::isSignedBuild)),
+                        unsignedJobs = orderApkJobs(visibleJobs.filterNot(JobDetailsUiModel::isSignedBuild)),
+                        revision = pushResult.revision,
+                        pushTimestamp = pushResult.pushTimestamp,
+                    )
+                }
+            }
+        }.awaitAll().filterNotNull()
     }
 
     private suspend fun fetchArtifacts(taskId: String): ArtifactLoadResult {
