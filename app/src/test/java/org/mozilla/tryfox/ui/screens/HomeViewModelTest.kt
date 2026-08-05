@@ -478,6 +478,25 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `refresh retains the selected home app flavor`() = runTest {
+        val repository = CountingReleaseRepository(
+            testFenixAppName,
+            NetworkResult.Success(emptyList()),
+        )
+        viewModel = createViewModel(listOf(repository))
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        viewModel.selectHomeAppFlavor(HomeAppFamily.Fenix, FENIX_RELEASE)
+
+        viewModel.refreshData()
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertEquals(FENIX_RELEASE, state.selectedAppNames[HomeAppFamily.Fenix])
+    }
+
+    @Test
     fun `date selection is retained when cache refresh finishes later`() = runTest {
         val cachedApk = createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi)
         val selectedApk = createTestParsedNightlyApk(
