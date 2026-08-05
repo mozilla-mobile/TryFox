@@ -1,5 +1,6 @@
 package org.mozilla.tryfox.data.repositories
 
+import kotlinx.coroutines.CancellationException
 import org.mozilla.tryfox.data.ArtifactsResponse
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.TreeherderJobsResponse
@@ -17,6 +18,9 @@ class DefaultTreeherderRepository(
     private suspend fun <T> safeApiCall(apiCall: suspend () -> T): NetworkResult<T> {
         return try {
             NetworkResult.Success(apiCall.invoke())
+        } catch (e: CancellationException) {
+            // Cancellation is lifecycle control flow, not a failed Treeherder request.
+            throw e
         } catch (e: Exception) {
             NetworkResult.Error(e.message ?: "Unknown error", e)
         }
@@ -33,8 +37,20 @@ class DefaultTreeherderRepository(
         return getPushesByAuthor(project = "try", author = author)
     }
 
-    override suspend fun getPushesByAuthor(project: String, author: String): NetworkResult<TreeherderRevisionResponse> {
-        return safeApiCall { treeherderApiService.getPushByAuthor(project = project, author = author) }
+    override suspend fun getPushesByAuthor(
+        project: String,
+        author: String,
+        count: Int,
+        offset: Int,
+    ): NetworkResult<TreeherderRevisionResponse> {
+        return safeApiCall {
+            treeherderApiService.getPushByAuthor(
+                project = project,
+                author = author,
+                count = count,
+                offset = offset,
+            )
+        }
     }
 
     override suspend fun getRecentPushes(

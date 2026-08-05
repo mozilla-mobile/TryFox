@@ -21,6 +21,7 @@ interface TreeherderApiService {
         @Path("project") project: String,
         @Query("full") full: Boolean = true,
         @Query("count") count: Int = 10,
+        @Query("offset") offset: Int = 0,
         @Query("author") author: String,
     ): TreeherderRevisionResponse
 

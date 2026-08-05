@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,7 +19,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -52,8 +54,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -66,6 +70,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.SearchHistory
 import org.mozilla.tryfox.data.SearchHistoryEntry
@@ -84,7 +90,10 @@ private val projectDisplayToActualMap = mapOf(
 )
 
 internal const val TREEHERDER_LOADING_STATE_TAG = "treeherder_loading_state"
+internal const val TREEHERDER_LOADING_MORE_TAG = "treeherder_loading_more"
+internal const val TREEHERDER_LOAD_MORE_ERROR_TAG = "treeherder_load_more_error"
 internal const val TREEHERDER_SEARCH_HISTORY_TAG = "treeherder_search_history"
+private const val TREEHERDER_LOAD_MORE_END_KEY = "treeherder_load_more_end"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -99,7 +108,10 @@ fun SearchScreen(
     val query by searchViewModel.query.collectAsState()
     val selectedProject by searchViewModel.selectedProject.collectAsState()
     val isLoading by searchViewModel.isLoading.collectAsState()
+    val isLoadingMore by searchViewModel.isLoadingMore.collectAsState()
+    val canLoadMore by searchViewModel.canLoadMore.collectAsState()
     val errorMessage by searchViewModel.errorMessage.collectAsState()
+    val loadMoreError by searchViewModel.loadMoreError.collectAsState()
     val warningMessage by searchViewModel.warningMessage.collectAsState()
     val pushes by searchViewModel.pushes.collectAsState()
     val installStates by searchViewModel.installStates.collectAsState()
@@ -120,6 +132,44 @@ fun SearchScreen(
         query != displayedQuery
     val showSearchHistory = !hasSubmittedSearch || isEditingDisplayedSearch
     val showCurrentSearch = !isEditingDisplayedSearch
+    val resultsListState = rememberLazyListState()
+    var hasUserScrolledSinceLastLoad by remember { mutableStateOf(false) }
+    val currentShowCurrentSearch by rememberUpdatedState(showCurrentSearch)
+    val currentIsLoadingMore by rememberUpdatedState(isLoadingMore)
+    val loadMoreEndKey by rememberUpdatedState(
+        TREEHERDER_LOAD_MORE_END_KEY.takeIf {
+            canLoadMore && !isLoadingMore && loadMoreError == null && showCurrentSearch
+        },
+    )
+
+    LaunchedEffect(isLoadingMore) {
+        if (isLoadingMore) hasUserScrolledSinceLastLoad = false
+    }
+
+    LaunchedEffect(resultsListState) {
+        snapshotFlow { resultsListState.isScrollInProgress }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect {
+                if (!currentIsLoadingMore) hasUserScrolledSinceLastLoad = true
+            }
+    }
+
+    LaunchedEffect(resultsListState) {
+        snapshotFlow {
+            loadMoreEndKey?.let { key ->
+                resultsListState.layoutInfo.visibleItemsInfo.any { it.key == key }
+            } ?: false
+        }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect {
+                if (currentShowCurrentSearch && hasUserScrolledSinceLastLoad) {
+                    hasUserScrolledSinceLastLoad = false
+                    searchViewModel.loadMorePushes()
+                }
+            }
+    }
 
     fun submitSearch(queryToSubmit: String) {
         hasSubmittedSearch = true
@@ -195,6 +245,7 @@ fun SearchScreen(
             }
 
             LazyColumn(
+                state = resultsListState,
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -252,22 +303,64 @@ fun SearchScreen(
                         }
                     }
                 } else if (pushes.isNotEmpty()) {
-                    items(pushes.size) { index ->
+                    itemsIndexed(
+                        items = pushes,
+                        key = { _, push -> "search_push_${push.revision ?: push.pushTimestamp}" },
+                    ) { _, push ->
                         AnimatedVisibility(
                             visible = showCurrentSearch,
                             enter = fadeIn() + expandVertically(),
                             exit = fadeOut() + shrinkVertically(),
                         ) {
                             PushResultCard(
-                                push = pushes[index],
+                                push = push,
                                 onDownloadClick = searchViewModel::downloadArtifact,
                                 onInstallClick = searchViewModel::installArtifact,
                                 onOpenClick = searchViewModel::openInstalledApp,
                                 installStates = installStates,
                                 activeInstallKey = activeInstallKey,
-                                testTag = "search_push_${pushes[index].revision}",
+                                testTag = "search_push_${push.revision}",
                             )
                         }
+                    }
+
+                    if (isLoadingMore) {
+                        item { LoadingMoreFooter() }
+                    }
+
+                    loadMoreError?.let { message ->
+                        item {
+                            LoadMoreErrorFooter(
+                                errorMessage = message,
+                                onRetry = searchViewModel::retryLoadMorePushes,
+                            )
+                        }
+                    }
+
+                    if (canLoadMore && !isLoadingMore && loadMoreError == null) {
+                        item {
+                            LoadMoreButtonFooter(
+                                message = "More builds are available.",
+                                onLoadMore = searchViewModel::loadMorePushes,
+                            )
+                        }
+                    }
+                } else if (canLoadMore) {
+                    item {
+                        if (isLoadingMore) {
+                            LoadingMoreFooter()
+                        } else {
+                            LoadMoreButtonFooter(
+                                message = "No compatible APK builds were found in this page.",
+                                onLoadMore = searchViewModel::loadMorePushes,
+                            )
+                        }
+                    }
+                }
+
+                if (canLoadMore) {
+                    item(key = TREEHERDER_LOAD_MORE_END_KEY) {
+                        Spacer(modifier = Modifier.height(1.dp))
                     }
                 }
             }
@@ -486,5 +579,59 @@ fun WarningState(warningMessage: String) {
             color = MaterialTheme.colorScheme.onTertiaryContainer,
             style = MaterialTheme.typography.bodyMedium,
         )
+    }
+}
+
+@Composable
+private fun LoadingMoreFooter() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        CircularProgressIndicator(modifier = Modifier.size(24.dp).testTag(TREEHERDER_LOADING_MORE_TAG))
+    }
+}
+
+@Composable
+private fun LoadMoreErrorFooter(
+    errorMessage: String,
+    onRetry: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+        modifier = Modifier.fillMaxWidth().testTag(TREEHERDER_LOAD_MORE_ERROR_TAG),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Button(onClick = onRetry, modifier = Modifier.align(Alignment.End)) {
+                Text("Retry")
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadMoreButtonFooter(
+    message: String,
+    onLoadMore: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(text = message, style = MaterialTheme.typography.bodyMedium)
+            Button(onClick = onLoadMore, modifier = Modifier.align(Alignment.End)) {
+                Text("Load more")
+            }
+        }
     }
 }
