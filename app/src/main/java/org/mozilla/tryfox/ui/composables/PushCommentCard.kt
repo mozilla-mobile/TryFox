@@ -41,6 +41,7 @@ import kotlinx.datetime.format.FormatStringsInDatetimeFormats
 import kotlinx.datetime.format.byUnicodePattern
 import kotlinx.datetime.toLocalDateTime
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
+import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 import java.util.regex.Pattern
 
 // Helper data class to store link information
@@ -111,7 +112,8 @@ fun PushCommentCard(
     revision: String,
     pushTimestamp: Long,
 ) {
-    val annotatedString = rememberLinkedPushComment(comment)
+    val displayComment = remember(comment) { comment.withoutTrailingReviewerDirective() }
+    val annotatedString = rememberLinkedPushComment(displayComment)
 
     Card(
         modifier = Modifier
