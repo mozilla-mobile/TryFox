@@ -95,6 +95,8 @@ class HomeViewModel(
     private var installedTryBuild: InstalledTryBuild? = null
     private var initialLoadStarted = false
     private var tryFoxCardDismissed = false
+    @Volatile
+    private var selectedHomeAppNames = HomeAppFamily.entries.associateWith { it.defaultAppName }
     private val appMutationVersions = mutableMapOf<String, Long>()
     private val appsLock = Any()
     private val refreshMutex = Mutex()
@@ -183,9 +185,10 @@ class HomeViewModel(
 
     fun selectHomeAppFlavor(family: HomeAppFamily, appName: String) {
         if (appName !in family.appNames) return
+        selectedHomeAppNames = selectedHomeAppNames + (family to appName)
         _homeScreenState.update { state ->
             if (state !is HomeScreenState.Loaded) state
-            else state.copy(selectedAppNames = state.selectedAppNames + (family to appName))
+            else state.copy(selectedAppNames = selectedHomeAppNames)
         }
     }
 
@@ -290,6 +293,7 @@ class HomeViewModel(
             tryfoxApp = tryFoxApp,
             cacheManagementState = currentCacheState,
             isDownloadingAnyFile = false,
+            selectedAppNames = selectedHomeAppNames,
         ).applyDownloadStates(downloadStates.value)
     }
 
