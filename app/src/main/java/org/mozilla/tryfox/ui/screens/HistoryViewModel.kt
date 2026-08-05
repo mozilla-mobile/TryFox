@@ -25,6 +25,7 @@ import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.install.InstallState
+import org.mozilla.tryfox.install.TryBuildProvenance
 import org.mozilla.tryfox.ui.models.HistoryItemUiModel
 import org.mozilla.tryfox.util.TREEHERDER
 import java.io.File
@@ -143,7 +144,15 @@ class HistoryViewModel(
     }
 
     fun install(historyItem: HistoryItemUiModel, file: File) {
-        installCoordinator?.install(historyItem.entry.uniqueKey, file) ?: run {
+        installCoordinator?.install(
+            historyItem.entry.uniqueKey,
+            file,
+            TryBuildProvenance(
+                project = historyItem.entry.project,
+                revision = historyItem.entry.revision,
+                commitMessage = historyItem.entry.commitMessage,
+            ),
+        ) ?: run {
             viewModelScope.launch {
                 try {
                     historyRepository.upsertHistoryEntry(

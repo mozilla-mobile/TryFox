@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.Data
+import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import kotlinx.coroutines.CancellationException
@@ -29,6 +30,12 @@ class ApkDownloadWorker(
     private val cacheManager: CacheManager by inject()
     private val downloadStore: ApkDownloadStore by inject()
     private val notificationFactory: DownloadNotificationFactory by inject()
+
+    /** Required before [doWork] when the request is scheduled as expedited work. */
+    override suspend fun getForegroundInfo(): ForegroundInfo {
+        val request = inputData.toRequest()
+        return notificationFactory.createForegroundInfo(request?.appName.orEmpty())
+    }
 
     override suspend fun doWork(): Result {
         val request = inputData.toRequest() ?: return Result.failure()

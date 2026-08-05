@@ -29,6 +29,7 @@ import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.install.InstallState
+import org.mozilla.tryfox.install.TryBuildProvenance
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
@@ -273,16 +274,17 @@ class SearchViewModel(
             _errorMessage.value = "Please enter a revision to search."
             return
         }
+        val projectToSearch = _selectedProject.value
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             _warningMessage.value = null
             _pushes.value = emptyList()
-            when (val pushResult = fenixRepository.getPushByRevision(_selectedProject.value, revision)) {
+            when (val pushResult = fenixRepository.getPushByRevision(projectToSearch, revision)) {
                 is NetworkResult.Success -> {
                     val push = pushResult.data.results.firstOrNull()
                     if (push == null) {
-                        _errorMessage.value = "No push found for project: ${_selectedProject.value}, revision: $revision"
+                        _errorMessage.value = "No push found for project: $projectToSearch, revision: $revision"
                     } else {
                         val jobsResult = fenixRepository.getJobsForPush(push.id)
                         if (jobsResult is NetworkResult.Success) {
@@ -302,7 +304,7 @@ class SearchViewModel(
                                 val precedingRevisions = if (needsPrecedingRealCommit(push.revisions)) {
                                     when (
                                         val authorPushes = fenixRepository.getPushesByAuthor(
-                                            _selectedProject.value,
+                                            projectToSearch,
                                             push.author,
                                         )
                                     ) {
@@ -320,6 +322,7 @@ class SearchViewModel(
                                 }
                                 _pushes.value = listOf(
                                     PushUiModel(
+                                        project = projectToSearch,
                                         pushComment = selectPreferredPushComment(push.revisions, precedingRevisions),
                                         author = push.author,
                                         jobs = signedJobs,
@@ -329,7 +332,7 @@ class SearchViewModel(
                                     ),
                                 )
                                 syncLoadedStateDownloadStates()
-                                userDataRepository.recordSearch(_selectedProject.value, revision)
+                                userDataRepository.recordSearch(projectToSearch, revision)
                             }
                         } else {
                             _errorMessage.value = "Error fetching jobs: ${(jobsResult as NetworkResult.Error).message}"
@@ -337,7 +340,7 @@ class SearchViewModel(
                     }
                 }
                 is NetworkResult.Error -> {
-                    _errorMessage.value = "Error fetching revision details for ${_selectedProject.value}: ${pushResult.message}"
+                    _errorMessage.value = "Error fetching revision details for $projectToSearch: ${pushResult.message}"
                 }
             }
             _isLoading.value = false
@@ -416,6 +419,7 @@ class SearchViewModel(
                                     val visibleJobs = filterRedundantUnsignedApkJobs(jobsWithArtifacts)
                                     if (visibleJobs.isNotEmpty()) {
                                         PushUiModel(
+                                            project = project,
                                             pushComment = selectPreferredPushComment(
                                                 revisions = pushResult.revisions,
                                                 precedingPushRevisions = result.data.results
@@ -680,7 +684,14 @@ class SearchViewModel(
 
     fun installArtifact(artifactUiModel: ArtifactUiModel) {
         val downloadState = artifactUiModel.downloadState as? DownloadState.Downloaded ?: return
-        installCoordinator.install(artifactUiModel.uniqueKey, downloadState.file)
+        val provenance = findArtifact(artifactUiModel.uniqueKey)?.let { downloadedArtifact ->
+            TryBuildProvenance(
+                project = downloadedArtifact.push.project,
+                revision = downloadedArtifact.push.revision ?: return@let null,
+                commitMessage = downloadedArtifact.push.pushComment,
+            )
+        }
+        installCoordinator.install(artifactUiModel.uniqueKey, downloadState.file, provenance)
     }
 
     fun cancelInstallConflict(artifactKey: String) = installCoordinator.cancelConflict(artifactKey)
@@ -844,7 +855,7 @@ class SearchViewModel(
     ): TreeherderInstallHistoryEntry {
         val artifactFileName = artifact.name.substringAfterLast('/')
         return TreeherderInstallHistoryEntry(
-            project = "try",
+            project = push.project,
             revision = push.revision ?: "unknown_revision",
             commitMessage = push.pushComment,
             author = push.author,

@@ -23,6 +23,7 @@ import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DefaultDownloadFileRepository
 import org.mozilla.tryfox.data.repositories.DefaultHistoryRepository
 import org.mozilla.tryfox.data.repositories.DefaultHomeDataCacheRepository
+import org.mozilla.tryfox.data.repositories.DefaultInstalledTryBuildRepository
 import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.DefaultTreeherderRepository
 import org.mozilla.tryfox.data.repositories.DefaultUserDataRepository
@@ -30,11 +31,12 @@ import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.repositories.FenixBetaReleaseRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseReleaseRepository
 import org.mozilla.tryfox.data.repositories.FenixReleaseRepository
-import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusBetaReleaseRepository
+import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
+import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
 import org.mozilla.tryfox.data.repositories.MozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.ReferenceBrowserReleaseRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
@@ -160,6 +162,7 @@ val repositoryModule = module {
     single<UserDataRepository> { DefaultUserDataRepository(androidContext()) }
     single<HomeDataCacheRepository> { DefaultHomeDataCacheRepository(androidContext(), get(named("IODispatcher"))) }
     single<HistoryRepository> { DefaultHistoryRepository(androidContext(), get(named("IODispatcher"))) }
+    single<InstalledTryBuildRepository> { DefaultInstalledTryBuildRepository(androidContext()) }
     single<LanMessageHistoryRepository> {
         DefaultLanMessageHistoryRepository(
             androidContext(),
@@ -177,7 +180,7 @@ val repositoryModule = module {
         )
     }
     single<IntentManager> { DefaultIntentManager(androidContext()) }
-    single { ApkInstallCoordinator(androidContext()) }
+    single { ApkInstallCoordinator(androidContext(), get()) }
     single<ApkDownloadStore> { DefaultApkDownloadStore(androidContext(), get(named("IODispatcher"))) }
     single { DownloadNotificationFactory(androidContext()) }
     single { WorkManager.getInstance(androidContext()) }
@@ -228,6 +231,7 @@ val viewModelModule = module {
             get(),
             get(),
             get(named("IODispatcher")),
+            get(),
             get(),
         )
     }

@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.core.content.pm.PackageInfoCompat
 import kotlinx.coroutines.CoroutineScope
@@ -19,13 +20,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import logcat.LogPriority
 import logcat.logcat
+import org.mozilla.tryfox.data.InstalledTryBuild
+import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
+import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Owns PackageInstaller sessions started from unified search. */
 @Suppress("NestedBlockDepth", "TooManyFunctions")
-class ApkInstallCoordinator(private val context: Context) {
-    private data class Operation(val artifactKey: String, val file: File, val packageName: String)
+class ApkInstallCoordinator(
+    private val context: Context,
+    private val installedTryBuildRepository: InstalledTryBuildRepository,
+) {
+    private data class Operation(
+        val artifactKey: String,
+        val file: File,
+        val packageName: String,
+        val versionName: String?,
+        val versionCode: Long,
+        val provenance: TryBuildProvenance?,
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val packageInstaller = context.packageManager.packageInstaller
@@ -40,11 +54,11 @@ class ApkInstallCoordinator(private val context: Context) {
     private val _successfulInstalls = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val successfulInstalls: SharedFlow<String> = _successfulInstalls.asSharedFlow()
 
-    fun install(artifactKey: String, file: File) {
+    fun install(artifactKey: String, file: File, provenance: TryBuildProvenance? = null) {
         if (activeOperationId != null) return
         activeOperationId = artifactKey
         _states.value = _states.value + (artifactKey to InstallState.Installing)
-        scope.launch { prepareAndInstall(artifactKey, file) }
+        scope.launch { prepareAndInstall(artifactKey, file, provenance) }
     }
 
     fun cancelConflict(artifactKey: String) {
@@ -83,11 +97,17 @@ class ApkInstallCoordinator(private val context: Context) {
         context.startActivity(launchIntent)
     }
 
-    fun onInstallResult(intent: Intent) {
+    suspend fun onInstallResult(intent: Intent) {
         val artifactKey = intent.getStringExtra(EXTRA_ARTIFACT_KEY) ?: return
-        val operation = operations[artifactKey] ?: return
+        val inMemoryOperation = operations[artifactKey]
         val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, PackageInstaller.STATUS_FAILURE)
         val statusMessage = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE).orEmpty()
+        if (status == PackageInstaller.STATUS_SUCCESS) {
+            val operation = inMemoryOperation ?: intent.toResultOperation(artifactKey) ?: return
+            succeed(artifactKey, operation)
+            return
+        }
+        val operation = inMemoryOperation ?: return
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 @Suppress("DEPRECATION")
@@ -100,7 +120,6 @@ class ApkInstallCoordinator(private val context: Context) {
                 }
             }
 
-            PackageInstaller.STATUS_SUCCESS -> succeed(artifactKey)
             PackageInstaller.STATUS_FAILURE_CONFLICT -> {
                 if (statusMessage.contains(SHARED_USER_SIGNATURE_FAILURE)) {
                     logcat(LogPriority.WARN, TAG) {
@@ -128,7 +147,7 @@ class ApkInstallCoordinator(private val context: Context) {
         }
     }
 
-    private fun prepareAndInstall(artifactKey: String, file: File) {
+    private fun prepareAndInstall(artifactKey: String, file: File, provenance: TryBuildProvenance?) {
         if (!file.isFile) {
             fail(artifactKey, "The downloaded APK is no longer available.")
             return
@@ -139,9 +158,9 @@ class ApkInstallCoordinator(private val context: Context) {
             fail(artifactKey, "The downloaded file is not a valid APK.")
             return
         }
-        val operation = Operation(artifactKey, file, packageName)
-        operations[artifactKey] = operation
         val incomingVersion = archive.let(PackageInfoCompat::getLongVersionCode)
+        val operation = Operation(artifactKey, file, packageName, archive.versionName, incomingVersion, provenance)
+        operations[artifactKey] = operation
         val installedVersion = installedVersion(packageName)
         if (installedVersion != null && installedVersion > incomingVersion) {
             conflict(artifactKey, packageName)
@@ -171,7 +190,7 @@ class ApkInstallCoordinator(private val context: Context) {
                         session.fsync(output)
                     }
                 }
-                session.commit(statusReceiver(operation.artifactKey))
+                session.commit(statusReceiver(operation))
             }
         } catch (e: Exception) {
             sessionId?.let(packageInstaller::abandonSession)
@@ -180,10 +199,24 @@ class ApkInstallCoordinator(private val context: Context) {
         }
     }
 
-    private fun statusReceiver(artifactKey: String) = PendingIntent.getBroadcast(
+    private fun statusReceiver(operation: Operation) = PendingIntent.getBroadcast(
         context,
         requestCodes.incrementAndGet(),
-        Intent(context, InstallResultReceiver::class.java).putExtra(EXTRA_ARTIFACT_KEY, artifactKey),
+        Intent(context, InstallResultReceiver::class.java)
+            .setData(
+                Uri.Builder()
+                    .scheme("tryfox")
+                    .authority("install-result")
+                    .appendPath(operation.artifactKey)
+                    .build(),
+            )
+            .putExtra(EXTRA_ARTIFACT_KEY, operation.artifactKey)
+            .putExtra(EXTRA_PACKAGE_NAME, operation.packageName)
+            .putExtra(EXTRA_VERSION_NAME, operation.versionName)
+            .putExtra(EXTRA_VERSION_CODE, operation.versionCode)
+            .putExtra(EXTRA_PROJECT, operation.provenance?.project)
+            .putExtra(EXTRA_REVISION, operation.provenance?.revision)
+            .putExtra(EXTRA_COMMIT_MESSAGE, operation.provenance?.commitMessage),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
     ).intentSender
 
@@ -191,12 +224,54 @@ class ApkInstallCoordinator(private val context: Context) {
         _states.value = _states.value + (artifactKey to InstallState.Conflict(packageName))
     }
 
-    private fun succeed(artifactKey: String) {
-        val packageName = operations[artifactKey]?.packageName ?: return
+    private suspend fun succeed(artifactKey: String, operation: Operation) {
+        val packageName = operation.packageName
+        operation.provenance
+            ?.takeIf { packageName == FENIX_DEBUG_PACKAGE }
+            ?.let { provenance ->
+                try {
+                    installedTryBuildRepository.save(
+                        InstalledTryBuild(
+                            packageName = packageName,
+                            project = provenance.project,
+                            revision = provenance.revision,
+                            commitMessage = provenance.commitMessage,
+                            versionName = operation.versionName,
+                            versionCode = operation.versionCode,
+                        ),
+                    )
+                } catch (exception: Exception) {
+                    logcat(LogPriority.ERROR, TAG) {
+                        "Could not persist Try build provenance for package=$packageName: ${exception.message}"
+                    }
+                }
+            }
         activeOperationId = null
         operations.remove(artifactKey)
         _states.value = _states.value + (artifactKey to InstallState.Installed(packageName))
         _successfulInstalls.tryEmit(artifactKey)
+    }
+
+    private fun Intent.toResultOperation(artifactKey: String): Operation? {
+        val packageName = getStringExtra(EXTRA_PACKAGE_NAME)?.takeIf(String::isNotBlank) ?: return null
+        val versionCode = getLongExtra(EXTRA_VERSION_CODE, UNKNOWN_VERSION_CODE)
+        if (versionCode == UNKNOWN_VERSION_CODE) return null
+        val project = getStringExtra(EXTRA_PROJECT)
+        val revision = getStringExtra(EXTRA_REVISION)
+        val commitMessage = getStringExtra(EXTRA_COMMIT_MESSAGE)
+        val provenance = if (project != null && revision != null && commitMessage != null) {
+            TryBuildProvenance(project, revision, commitMessage)
+        } else {
+            null
+        }
+        return Operation(
+            artifactKey = artifactKey,
+            file = File(""),
+            packageName = packageName,
+            versionName = getStringExtra(EXTRA_VERSION_NAME),
+            versionCode = versionCode,
+            provenance = provenance,
+        )
     }
 
     private fun fail(artifactKey: String, message: String) {
@@ -230,6 +305,13 @@ class ApkInstallCoordinator(private val context: Context) {
     private companion object {
         const val TAG = "ApkInstallCoordinator"
         const val EXTRA_ARTIFACT_KEY = "org.mozilla.tryfox.install.ARTIFACT_KEY"
+        const val EXTRA_PACKAGE_NAME = "org.mozilla.tryfox.install.PACKAGE_NAME"
+        const val EXTRA_VERSION_NAME = "org.mozilla.tryfox.install.VERSION_NAME"
+        const val EXTRA_VERSION_CODE = "org.mozilla.tryfox.install.VERSION_CODE"
+        const val EXTRA_PROJECT = "org.mozilla.tryfox.install.PROJECT"
+        const val EXTRA_REVISION = "org.mozilla.tryfox.install.REVISION"
+        const val EXTRA_COMMIT_MESSAGE = "org.mozilla.tryfox.install.COMMIT_MESSAGE"
+        const val UNKNOWN_VERSION_CODE = Long.MIN_VALUE
         const val SHARED_USER_SIGNATURE_FAILURE = "INSTALL_FAILED_SHARED_USER_INCOMPATIBLE"
         const val SHARED_USER_SIGNATURE_USER_MESSAGE =
             "This build is signed differently from an installed Firefox app. Android cannot install them together. " +
