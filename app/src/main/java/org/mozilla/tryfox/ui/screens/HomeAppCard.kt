@@ -58,6 +58,8 @@ import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.ui.composables.AppIcon
+import org.mozilla.tryfox.ui.composables.rememberLinkedPushComment
+import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 import org.mozilla.tryfox.ui.composables.CurrentInstallState
 import org.mozilla.tryfox.ui.composables.DownloadButton
 import org.mozilla.tryfox.ui.models.ApkUiModel
@@ -220,8 +222,10 @@ internal fun HomeAppCard(
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.labelMedium,
                     )
+                    val commitTitle = build.commitMessage.withoutTrailingReviewerDirective()
+                        .lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
                     Text(
-                        text = build.commitMessage.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty(),
+                        text = rememberLinkedPushComment(commitTitle),
                         modifier = Modifier.padding(top = 4.dp),
                         style = MaterialTheme.typography.bodyMedium,
                     )

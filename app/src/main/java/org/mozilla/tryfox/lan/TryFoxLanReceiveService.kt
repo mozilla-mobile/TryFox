@@ -34,6 +34,7 @@ import org.mozilla.tryfox.EXTRA_NAVIGATION_ROUTE
 import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
 import org.mozilla.tryfox.MainActivity
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import java.io.IOException
 
@@ -462,7 +463,10 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
             when {
                 !message.title.isNullOrBlank() -> message.title
                 !message.pushComment.isNullOrBlank() ->
-                    getString(R.string.lan_receive_message_notification_title_comment, message.pushComment)
+                    getString(
+                        R.string.lan_receive_message_notification_title_comment,
+                        message.pushComment.withoutTrailingReviewerDirective(),
+                    )
                 !message.revision.isNullOrBlank() ->
                     getString(R.string.lan_receive_message_notification_title_revision, message.revision)
                 !message.author.isNullOrBlank() ->

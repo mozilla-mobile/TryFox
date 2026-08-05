@@ -55,6 +55,7 @@ import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_NIGHTLY
 import org.mozilla.tryfox.util.FOCUS_RELEASE
+import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 import java.util.Locale
 
 @Suppress("LongParameterList")
@@ -68,7 +69,10 @@ internal fun PushResultCard(
     activeInstallKey: String?,
     testTag: String,
 ) {
-    val commitTitle = remember(push.pushComment) { push.pushComment.lineSequence().firstOrNull().orEmpty().trim().ifBlank { "Revision ${push.revision?.take(12).orEmpty()}" } }
+    val commitTitle = remember(push.pushComment) {
+        push.pushComment.withoutTrailingReviewerDirective().lineSequence().firstOrNull().orEmpty().trim()
+            .ifBlank { "Revision ${push.revision?.take(12).orEmpty()}" }
+    }
     Card(modifier = Modifier.fillMaxWidth().testTag(testTag), elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(rememberLinkedPushComment(commitTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)

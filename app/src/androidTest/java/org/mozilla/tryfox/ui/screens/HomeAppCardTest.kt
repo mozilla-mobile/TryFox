@@ -29,7 +29,7 @@ class HomeAppCardTest {
             packageName = FENIX_DEBUG_PACKAGE,
             project = "mozilla-central",
             revision = "abcdef123456",
-            commitMessage = "Fix the Fenix Debug build\n\nIgnored commit description",
+            commitMessage = "Bug 123456: Fix the Fenix Debug build\n\nIgnored commit description",
             versionName = "145.0a1",
             versionCode = 42L,
         )
@@ -72,7 +72,7 @@ class HomeAppCardTest {
             }
         }
 
-        composeTestRule.onNodeWithText("Fix the Fenix Debug build").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Bug 123456: Fix the Fenix Debug build").assertIsDisplayed()
         composeTestRule.onNodeWithTag("home_try_build_revision").performClick()
 
         assertEquals("mozilla-central", openedProject)
