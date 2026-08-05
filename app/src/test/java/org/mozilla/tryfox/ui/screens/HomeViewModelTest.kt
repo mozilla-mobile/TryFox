@@ -31,6 +31,7 @@ import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.FakeMozillaArchiveRepository
 import org.mozilla.tryfox.data.FakeReferenceBrowserReleaseRepository
 import org.mozilla.tryfox.data.FakeTryFoxReleaseRepository
+import org.mozilla.tryfox.data.InstalledTryBuild
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.FakeCacheManager
@@ -44,6 +45,7 @@ import org.mozilla.tryfox.data.repositories.FocusNightlyRepository
 import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.HomeDataSnapshot
+import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
@@ -56,6 +58,8 @@ import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.util.FENIX
+import org.mozilla.tryfox.util.FENIX_DEBUG
+import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_RELEASE
@@ -189,6 +193,7 @@ class HomeViewModelTest {
         releaseRepositories: List<ReleaseRepository> = emptyList(),
         mozillaPackageManager: MozillaPackageManager = FakeMozillaPackageManager(),
         homeDataCacheRepository: HomeDataCacheRepository = FakeHomeDataCacheRepository(),
+        installedTryBuildRepository: InstalledTryBuildRepository = FakeInstalledTryBuildRepository(),
     ) = HomeViewModel(
         releaseRepositories = releaseRepositories,
         downloadCoordinator = fakeDownloadCoordinator,
@@ -197,6 +202,7 @@ class HomeViewModelTest {
         intentManager = intentManager,
         ioDispatcher = mainCoroutineRule.testDispatcher,
         homeDataCacheRepository = homeDataCacheRepository,
+        installedTryBuildRepository = installedTryBuildRepository,
         supportedAbis = listOf("arm64-v8a", "x86_64", "armeabi-v7a"),
     )
 
@@ -211,6 +217,71 @@ class HomeViewModelTest {
             writes += snapshot
             this.snapshot = snapshot
         }
+    }
+
+    private class FakeInstalledTryBuildRepository(
+        build: InstalledTryBuild? = null,
+    ) : InstalledTryBuildRepository {
+        private val state = MutableStateFlow(build)
+        override val installedTryBuild = state.asStateFlow()
+
+        override suspend fun save(build: InstalledTryBuild) {
+            state.value = build
+        }
+    }
+
+    @Test
+    fun `shows Try build provenance only when Fenix Debug version matches`() = runTest {
+        val build = InstalledTryBuild(
+            packageName = FENIX_DEBUG_PACKAGE,
+            project = "try",
+            revision = "abc123",
+            commitMessage = "Bug 123: debug build",
+            versionName = "145.0a1",
+            versionCode = 42L,
+        )
+        val packageManager = FakeMozillaPackageManager(
+            mapOf(
+                FENIX_DEBUG_PACKAGE to AppState(
+                    "Firefox Debug",
+                    FENIX_DEBUG_PACKAGE,
+                    "145.0a1",
+                    1L,
+                    versionCode = 42L,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            mozillaPackageManager = packageManager,
+            installedTryBuildRepository = FakeInstalledTryBuildRepository(build),
+        )
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        val apps = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps
+        assertEquals(build, apps.getValue(FENIX_DEBUG).installedTryBuild)
+
+        val mismatchedPackageManager = FakeMozillaPackageManager(
+            mapOf(
+                FENIX_DEBUG_PACKAGE to AppState(
+                    "Firefox Debug",
+                    FENIX_DEBUG_PACKAGE,
+                    "145.0a1",
+                    1L,
+                    versionCode = 43L,
+                ),
+            ),
+        )
+        val mismatchedViewModel = createViewModel(
+            mozillaPackageManager = mismatchedPackageManager,
+            installedTryBuildRepository = FakeInstalledTryBuildRepository(build),
+        )
+        mismatchedViewModel.initialLoad()
+        advanceUntilIdle()
+
+        val mismatchedApps = (mismatchedViewModel.homeScreenState.value as HomeScreenState.Loaded).apps
+        assertNull(mismatchedApps.getValue(FENIX_DEBUG).installedTryBuild)
     }
 
     private class CountingReleaseRepository(

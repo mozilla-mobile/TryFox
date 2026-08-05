@@ -2,6 +2,7 @@ package org.mozilla.tryfox.ui.screens
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,8 +16,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarToday
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -39,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -82,6 +84,7 @@ internal fun HomeAppCard(
     onDownloadClick: (ApkUiModel) -> Unit,
     onInstallClick: (ApkUiModel) -> Unit,
     onOpenInstalledApp: (String) -> Unit,
+    onOpenTryBuild: (String, String) -> Unit,
     onDateSelected: (String, LocalDate) -> Unit,
     dateValidator: (LocalDate) -> Boolean,
     onReleaseVersionSelected: (String, String) -> Unit,
@@ -146,7 +149,7 @@ internal fun HomeAppCard(
                             selected = appName == app.name,
                             onClick = { onFlavorSelected(appName) },
                             label = { Text(flavorLabel(appName)) },
-                            modifier = Modifier.testTag("home_flavor_${tag}_${appName}"),
+                            modifier = Modifier.testTag("home_flavor_${tag}_$appName"),
                         )
                     }
                 }
@@ -196,6 +199,34 @@ internal fun HomeAppCard(
                     )
                 }
             }
+
+            app.installedTryBuild?.let { build ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
+                        .clip(MaterialTheme.shapes.medium)
+                        .background(MaterialTheme.colorScheme.surfaceContainer)
+                        .clickable { onOpenTryBuild(build.project, build.revision) }
+                        .semantics { contentDescription = "Open Try build revision ${build.revision}" }
+                        .testTag("home_try_build_revision")
+                        .padding(12.dp),
+                ) {
+                    Text(
+                        text = stringResource(
+                            R.string.home_try_build_revision_label,
+                            build.revision.take(SHORT_REVISION_LENGTH),
+                        ),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Text(
+                        text = build.commitMessage.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty(),
+                        modifier = Modifier.padding(top = 4.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            }
         }
     }
 
@@ -207,6 +238,8 @@ internal fun HomeAppCard(
         )
     }
 }
+
+private const val SHORT_REVISION_LENGTH = 12
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

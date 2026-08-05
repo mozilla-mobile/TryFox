@@ -18,6 +18,7 @@ import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import org.mozilla.tryfox.data.DownloadState
+import org.mozilla.tryfox.data.InstalledTryBuild
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
@@ -26,8 +27,10 @@ import org.mozilla.tryfox.data.repositories.CachedHomeApk
 import org.mozilla.tryfox.data.repositories.CachedHomeApp
 import org.mozilla.tryfox.data.repositories.DateAwareReleaseRepository
 import org.mozilla.tryfox.data.repositories.EmptyHomeDataCacheRepository
+import org.mozilla.tryfox.data.repositories.EmptyInstalledTryBuildRepository
 import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.HomeDataSnapshot
+import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.data.repositories.VersionAwareReleaseRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
@@ -75,6 +78,7 @@ class HomeViewModel(
     private val installCoordinator: ApkInstallCoordinator? = null,
     private val ioDispatcher: CoroutineDispatcher,
     private val homeDataCacheRepository: HomeDataCacheRepository = EmptyHomeDataCacheRepository,
+    private val installedTryBuildRepository: InstalledTryBuildRepository = EmptyInstalledTryBuildRepository,
     private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
 ) : ViewModel() {
 
@@ -88,6 +92,7 @@ class HomeViewModel(
     private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
     private var currentAppsByName: Map<String, AppUiModel> = emptyMap()
     private var cachedAppsByName: Map<String, AppUiModel> = emptyMap()
+    private var installedTryBuild: InstalledTryBuild? = null
     private var initialLoadStarted = false
     private var tryFoxCardDismissed = false
     private val appMutationVersions = mutableMapOf<String, Long>()
@@ -127,6 +132,8 @@ class HomeViewModel(
                                         installedDate = appState.formattedInstallDate,
                                         installingPackageName = appState.installingPackageName,
                                         splitNames = appState.splitNames,
+                                        installedTryBuild = app.name.takeIf { it == FENIX_DEBUG }
+                                            ?.let { matchingInstalledTryBuild(appState) },
                                     )
                                 } else {
                                     app
@@ -138,6 +145,30 @@ class HomeViewModel(
                     }
                 }
             }.launchIn(viewModelScope)
+
+        installedTryBuildRepository.installedTryBuild
+            .onEach { build ->
+                installedTryBuild = build
+                _homeScreenState.update { currentState ->
+                    if (currentState !is HomeScreenState.Loaded) return@update currentState
+                    currentState.copy(
+                        apps = currentState.apps.mapValues { (_, app) ->
+                            if (app.name == FENIX_DEBUG) {
+                                app.copy(
+                                    installedTryBuild = matchingInstalledTryBuild(
+                                        app.packageName,
+                                        app.installedVersion,
+                                        app.installedVersionCode,
+                                    ),
+                                )
+                            } else {
+                                app
+                            }
+                        },
+                    )
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
     fun initialLoad() {
@@ -243,6 +274,8 @@ class HomeViewModel(
                 installedDate = appState.formattedInstallDate,
                 installingPackageName = appState.installingPackageName,
                 splitNames = appState.splitNames,
+                installedTryBuild = appName.takeIf { it == FENIX_DEBUG }
+                    ?.let { matchingInstalledTryBuild(appState) },
                 apks = ApksResult.Loading,
             )
         }
@@ -315,6 +348,7 @@ class HomeViewModel(
         installedDate = appState?.formattedInstallDate,
         installingPackageName = appState?.installingPackageName,
         splitNames = appState?.splitNames.orEmpty(),
+        installedTryBuild = appState?.takeIf { appName == FENIX_DEBUG }?.let(::matchingInstalledTryBuild),
         apks = ApksResult.Success(apks.map { it.toUiModel() }),
         selectedReleaseVersion = selectedReleaseVersion,
         availableReleaseVersions = availableReleaseVersions,
@@ -389,6 +423,7 @@ class HomeViewModel(
             installedDate = appState?.formattedInstallDate,
             installingPackageName = appState?.installingPackageName,
             splitNames = appState?.splitNames ?: emptyList(),
+            installedTryBuild = appState?.takeIf { repository.appName == FENIX_DEBUG }?.let(::matchingInstalledTryBuild),
             apks = apksResult,
             selectedReleaseVersion = selectedReleaseVersion,
             availableReleaseVersions = availableReleaseVersions,
@@ -687,6 +722,23 @@ class HomeViewModel(
 
     fun openInstalledApp(packageName: String) {
         installCoordinator?.openInstalledApp(packageName) ?: mozillaPackageManager.launchApp(packageName)
+    }
+
+    private fun matchingInstalledTryBuild(appState: AppState): InstalledTryBuild? =
+        matchingInstalledTryBuild(appState.packageName, appState.version, appState.versionCode)
+
+    private fun matchingInstalledTryBuild(
+        packageName: String,
+        versionName: String?,
+        versionCode: Long?,
+    ): InstalledTryBuild? {
+        val build = installedTryBuild ?: return null
+        if (versionName == null || build.versionName == null) return null
+        return build.takeIf {
+            packageName == it.packageName &&
+                versionName == it.versionName &&
+                versionCode == it.versionCode
+        }
     }
 
     fun dismissTryFoxCard() {

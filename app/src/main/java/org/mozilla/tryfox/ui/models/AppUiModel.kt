@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.ui.models
 
 import kotlinx.datetime.LocalDate
+import org.mozilla.tryfox.data.InstalledTryBuild
 import org.mozilla.tryfox.util.Version
 
 sealed class ApksResult {
@@ -26,6 +27,7 @@ data class AppUiModel(
     val installedDate: String?,
     val installingPackageName: String? = null,
     val splitNames: List<String> = emptyList(),
+    val installedTryBuild: InstalledTryBuild? = null,
     val apks: ApksResult,
     val userPickedDate: LocalDate? = null,
     val selectedReleaseVersion: String? = null,

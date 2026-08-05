@@ -65,6 +65,7 @@ fun HomeScreen(
     onNavigateToQrScanner: () -> Unit,
     onNavigateToReceiveFromDesktop: () -> Unit,
     onNavigateToHistory: () -> Unit,
+    onNavigateToTryBuild: (String, String) -> Unit = { _, _ -> },
     homeViewModel: HomeViewModel = viewModel(),
 ) {
     val screenState by homeViewModel.homeScreenState.collectAsState()
@@ -189,6 +190,7 @@ fun HomeScreen(
                                 onInstallClick = homeViewModel::installHomeApk,
                                 installStates = installStates,
                                 onOpenInstalledApp = homeViewModel::openInstalledApp,
+                                onOpenTryBuild = onNavigateToTryBuild,
                                 onDateSelected = { appName, date ->
                                     homeViewModel.onDateSelected(
                                         appName,

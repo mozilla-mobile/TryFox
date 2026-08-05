@@ -8,8 +8,8 @@ import org.mozilla.tryfox.util.FENIX_BETA_PACKAGE
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
 import org.mozilla.tryfox.util.FENIX_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE_PACKAGE
-import org.mozilla.tryfox.util.FOCUS_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FOCUS_BETA_PACKAGE
+import org.mozilla.tryfox.util.FOCUS_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FOCUS_RELEASE_PACKAGE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER_PACKAGE
 import org.mozilla.tryfox.util.TRYFOX_PACKAGE

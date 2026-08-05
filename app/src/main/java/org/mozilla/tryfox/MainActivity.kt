@@ -177,6 +177,11 @@ class MainActivity : ComponentActivity() {
                     onNavigateToQrScanner = { localNavController.navigate(NavScreen.QrScanner.route) },
                     onNavigateToReceiveFromDesktop = { localNavController.navigate(NavScreen.ReceiveFromDesktop.route) },
                     onNavigateToHistory = { localNavController.navigate(NavScreen.History.route) },
+                    onNavigateToTryBuild = { project, revision ->
+                        localNavController.navigate(
+                            NavScreen.TreeherderSearchWithArgs.createRoute(project, revision),
+                        )
+                    },
                     homeViewModel = koinViewModel(),
                 )
             }
