@@ -107,6 +107,7 @@ fun SearchScreen(
     val errorMessage by searchViewModel.errorMessage.collectAsState()
     val loadMoreError by searchViewModel.loadMoreError.collectAsState()
     val warningMessage by searchViewModel.warningMessage.collectAsState()
+    val hasReachedExpiredJobs by searchViewModel.hasReachedExpiredJobs.collectAsState()
     val pushes by searchViewModel.pushes.collectAsState()
     val installStates by searchViewModel.installStates.collectAsState()
     val activeInstallKey = installStates.entries.firstOrNull { (_, state) ->
@@ -234,7 +235,7 @@ fun SearchScreen(
                     }
                 }
 
-                warningMessage?.let {
+                warningMessage?.takeUnless { hasReachedExpiredJobs }?.let {
                     item {
                         AnimatedVisibility(
                             visible = showCurrentSearch,
@@ -310,6 +311,12 @@ fun SearchScreen(
                                 Text("Load more")
                             }
                         }
+                    }
+                }
+
+                if (hasReachedExpiredJobs && showCurrentSearch) {
+                    warningMessage?.let { message ->
+                        item { WarningState(warningMessage = message) }
                     }
                 }
 

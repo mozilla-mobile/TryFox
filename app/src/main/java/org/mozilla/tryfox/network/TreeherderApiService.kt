@@ -23,6 +23,7 @@ interface TreeherderApiService {
         @Query("count") count: Int = 10,
         @Query("offset") offset: Int = 0,
         @Query("author") author: String,
+        @Query("push_timestamp__lte") pushTimestampLte: Long? = null,
     ): TreeherderRevisionResponse
 
     @GET("project/{project}/push/")

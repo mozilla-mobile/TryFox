@@ -17,6 +17,7 @@ interface TreeherderRepository {
         author: String,
         count: Int = 10,
         offset: Int = 0,
+        pushTimestampLte: Long? = null,
     ): NetworkResult<TreeherderRevisionResponse> =
         getPushesByAuthor(author)
 

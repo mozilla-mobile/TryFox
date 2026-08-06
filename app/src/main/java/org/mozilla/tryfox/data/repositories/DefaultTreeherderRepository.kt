@@ -42,6 +42,7 @@ class DefaultTreeherderRepository(
         author: String,
         count: Int,
         offset: Int,
+        pushTimestampLte: Long?,
     ): NetworkResult<TreeherderRevisionResponse> {
         return safeApiCall {
             treeherderApiService.getPushByAuthor(
@@ -49,6 +50,7 @@ class DefaultTreeherderRepository(
                 author = author,
                 count = count,
                 offset = offset,
+                pushTimestampLte = pushTimestampLte,
             )
         }
     }
