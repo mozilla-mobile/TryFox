@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
+import org.mozilla.tryfox.model.HomeScreenLayout
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
@@ -52,6 +53,30 @@ class HomeAppCardModelTest {
         val cardsWithDebug = homeAppCards(appsWithDebug, emptyMap())
         assertEquals(true, FENIX_DEBUG in cardsWithDebug.first { it.family == HomeAppFamily.Fenix }.appsByName)
         assertEquals(true, FOCUS_DEBUG in cardsWithDebug.first { it.family == HomeAppFamily.Focus }.appsByName)
+    }
+
+    @Test
+    fun `creates one standalone card for each available flavor`() {
+        val apps = listOf(
+            FENIX, FENIX_BETA, FENIX_RELEASE, FENIX_DEBUG,
+            FOCUS, FOCUS_BETA, FOCUS_RELEASE, FOCUS_DEBUG,
+            REFERENCE_BROWSER,
+        ).associateWith(::app) + mapOf(
+            FENIX_DEBUG to app(FENIX_DEBUG, installedVersion = "1.0"),
+            FOCUS_DEBUG to app(FOCUS_DEBUG, installedVersion = "1.0"),
+        )
+
+        val cards = homeAppCards(apps, emptyMap(), HomeScreenLayout.OneCardPerFlavor)
+
+        assertEquals(
+            listOf(
+                FENIX_RELEASE, FENIX_BETA, FENIX, FENIX_DEBUG,
+                FOCUS_RELEASE, FOCUS_BETA, FOCUS, FOCUS_DEBUG,
+                REFERENCE_BROWSER,
+            ),
+            cards.map { it.selectedAppName },
+        )
+        assertEquals(true, cards.all { !it.showFlavorSelector })
     }
 
     private fun app(name: String, installedVersion: String? = null) = AppUiModel(

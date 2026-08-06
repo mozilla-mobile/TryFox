@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.ui.screens
 
 import org.mozilla.tryfox.model.CacheManagementState
+import org.mozilla.tryfox.model.HomeScreenLayout
 import org.mozilla.tryfox.ui.models.AppUiModel
 
 /**
@@ -21,5 +22,6 @@ sealed class HomeScreenState {
         val cacheManagementState: CacheManagementState,
         val isDownloadingAnyFile: Boolean,
         val selectedAppNames: Map<HomeAppFamily, String> = HomeAppFamily.entries.associateWith { it.defaultAppName },
+        val homeScreenLayout: HomeScreenLayout = HomeScreenLayout.OneCardPerApp,
     ) : HomeScreenState()
 }

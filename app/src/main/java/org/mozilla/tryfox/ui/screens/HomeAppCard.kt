@@ -97,7 +97,8 @@ internal fun HomeAppCard(
     val app = card.selectedApp
     val appState = app.toAppState()
     val title = cardTitle(card.family)
-    val tag = card.family.name.lowercase()
+    val subtitle = cardSubtitle(card.family, app.name, card.showFlavorSelector)
+    val tag = card.stableKey.lowercase()
     val flavorAppNames = card.family.appNames.filter { it in card.appsByName }
     val isNightly = app.name == FENIX || app.name == FOCUS
     val isDebug = app.name == FENIX_DEBUG || app.name == FOCUS_DEBUG
@@ -132,7 +133,7 @@ internal fun HomeAppCard(
                 )
                 Column {
                     Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text(cardSubtitle(card.family), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 
@@ -142,7 +143,7 @@ internal fun HomeAppCard(
                 modifier = Modifier.testTag("home_install_status_$tag").padding(top = 8.dp),
             )
 
-            if (flavorAppNames.size > 1) {
+            if (card.showFlavorSelector && flavorAppNames.size > 1) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -172,49 +173,50 @@ internal fun HomeAppCard(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    when {
-                        isDebug -> Unit
-                        app.apks is ApksResult.Loading -> CircularProgressIndicator(modifier = Modifier.size(28.dp))
-                        app.apks is ApksResult.Error -> Text(app.apks.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                        selectedApk != null && isNightly -> NightlyDetails(
-                            appName = app.name,
-                            version = selectedApk.version,
-                            date = selectedApk.date,
-                            buildDate = selectedApk.buildDate,
-                            selectedDate = app.userPickedDate,
-                            dateValidator = dateValidator,
-                            onDateSelected = onDateSelected,
-                        )
-                        selectedApk != null && isVersionSelectable -> ReleaseVersionDetails(
-                            appName = app.name,
-                            selectedVersion = app.selectedReleaseVersion ?: selectedApk.version,
-                            versions = app.availableReleaseVersions,
-                            onSelected = onReleaseVersionSelected,
-                        )
-                        selectedApk != null -> Text(selectedApk.version, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        else -> Text(stringResource(R.string.home_no_apks_available), style = MaterialTheme.typography.bodyMedium)
+            if (!isDebug || app.installedTryBuild != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        when {
+                            app.apks is ApksResult.Loading -> CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                            app.apks is ApksResult.Error -> Text(app.apks.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            selectedApk != null && isNightly -> NightlyDetails(
+                                appName = app.name,
+                                version = selectedApk.version,
+                                date = selectedApk.date,
+                                buildDate = selectedApk.buildDate,
+                                selectedDate = app.userPickedDate,
+                                dateValidator = dateValidator,
+                                onDateSelected = onDateSelected,
+                            )
+                            selectedApk != null && isVersionSelectable -> ReleaseVersionDetails(
+                                appName = app.name,
+                                selectedVersion = app.selectedReleaseVersion ?: selectedApk.version,
+                                versions = app.availableReleaseVersions,
+                                onSelected = onReleaseVersionSelected,
+                            )
+                            selectedApk != null -> Text(selectedApk.version, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            else -> Text(stringResource(R.string.home_no_apks_available), style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
-                }
-                if (!isDebug && (selectedApk != null || app.apks is ApksResult.Loading)) {
-                    Spacer(Modifier.width(12.dp))
-                    DownloadButton(
-                        downloadState = selectedApk?.downloadState ?: DownloadState.NotDownloaded,
-                        onDownloadClick = { selectedApk?.let(onDownloadClick) },
-                        onInstallClick = { selectedApk?.let(onInstallClick) },
-                        installState = selectedApk?.let { installStates[it.uniqueKey] } ?: InstallState.Idle,
-                        installDisabled = selectedApk == null,
-                        onOpenClick = onOpenInstalledApp,
-                        debugLabel = "home-card:${selectedApk?.uniqueKey ?: app.name}",
-                        modifier = Modifier
-                            .testTag("home_primary_action_$tag")
-                            .semantics { contentDescription = "Download $title" },
-                    )
+                    if (selectedApk != null || app.apks is ApksResult.Loading) {
+                        Spacer(Modifier.width(12.dp))
+                        DownloadButton(
+                            downloadState = selectedApk?.downloadState ?: DownloadState.NotDownloaded,
+                            onDownloadClick = { selectedApk?.let(onDownloadClick) },
+                            onInstallClick = { selectedApk?.let(onInstallClick) },
+                            installState = selectedApk?.let { installStates[it.uniqueKey] } ?: InstallState.Idle,
+                            installDisabled = selectedApk == null,
+                            onOpenClick = onOpenInstalledApp,
+                            debugLabel = "home-card:${selectedApk?.uniqueKey ?: app.name}",
+                            modifier = Modifier
+                                .testTag("home_primary_action_$tag")
+                                .semantics { contentDescription = "Download $title" },
+                        )
+                    }
                 }
             }
 
@@ -364,7 +366,16 @@ private fun NightlyBuildPickerDialog(
     HomeAppFamily.ReferenceBrowser -> stringResource(R.string.home_app_title_reference_browser)
 }
 
-@Composable private fun cardSubtitle(family: HomeAppFamily): String = when (family) {
+@Composable private fun cardSubtitle(
+    family: HomeAppFamily,
+    appName: String,
+    showFlavorSelector: Boolean,
+): String = when {
+    !showFlavorSelector && family != HomeAppFamily.ReferenceBrowser -> flavorLabel(appName)
+    else -> cardFamilySubtitle(family)
+}
+
+@Composable private fun cardFamilySubtitle(family: HomeAppFamily): String = when (family) {
     HomeAppFamily.Fenix -> stringResource(R.string.home_app_subtitle_fenix)
     HomeAppFamily.Focus -> stringResource(R.string.home_app_subtitle_focus)
     HomeAppFamily.ReferenceBrowser -> stringResource(R.string.home_app_subtitle_reference_browser)

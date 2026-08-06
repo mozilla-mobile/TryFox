@@ -37,6 +37,7 @@ import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
+import org.mozilla.tryfox.data.managers.FakeUserDataRepository
 import org.mozilla.tryfox.data.repositories.CachedHomeApk
 import org.mozilla.tryfox.data.repositories.CachedHomeApp
 import org.mozilla.tryfox.data.repositories.DateAwareReleaseRepository
@@ -55,6 +56,7 @@ import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
+import org.mozilla.tryfox.model.HomeScreenLayout
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
@@ -197,6 +199,7 @@ class HomeViewModelTest {
     private fun createViewModel(
         releaseRepositories: List<ReleaseRepository> = emptyList(),
         mozillaPackageManager: MozillaPackageManager = FakeMozillaPackageManager(),
+        userDataRepository: FakeUserDataRepository? = null,
         homeDataCacheRepository: HomeDataCacheRepository = FakeHomeDataCacheRepository(),
         installedTryBuildRepository: InstalledTryBuildRepository = FakeInstalledTryBuildRepository(),
     ) = HomeViewModel(
@@ -207,10 +210,25 @@ class HomeViewModelTest {
         intentManager = intentManager,
         installCoordinator = installCoordinator,
         ioDispatcher = mainCoroutineRule.testDispatcher,
+        userDataRepository = userDataRepository,
         homeDataCacheRepository = homeDataCacheRepository,
         installedTryBuildRepository = installedTryBuildRepository,
         supportedAbis = listOf("arm64-v8a", "x86_64", "armeabi-v7a"),
     )
+
+    @Test
+    fun `layout preference updates the loaded home state`() = runTest {
+        val userDataRepository = FakeUserDataRepository()
+        val viewModel = createViewModel(userDataRepository = userDataRepository)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        userDataRepository.saveHomeScreenLayout(HomeScreenLayout.OneCardPerFlavor)
+        advanceUntilIdle()
+
+        val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertEquals(HomeScreenLayout.OneCardPerFlavor, state.homeScreenLayout)
+    }
 
     private class FakeHomeDataCacheRepository(
         var snapshot: HomeDataSnapshot? = null,
