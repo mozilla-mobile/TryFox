@@ -7,6 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -172,7 +175,34 @@ class MainActivity : ComponentActivity() {
             routeDeepLink(intent)
         }
 
-        NavHost(navController = localNavController, startDestination = NavScreen.Home.route) {
+        NavHost(
+            navController = localNavController,
+            startDestination = NavScreen.Home.route,
+            enterTransition = {
+                slideInHorizontally(
+                    animationSpec = tween(SCREEN_TRANSITION_DURATION_MS),
+                    initialOffsetX = { fullWidth -> fullWidth },
+                )
+            },
+            exitTransition = {
+                slideOutHorizontally(
+                    animationSpec = tween(SCREEN_TRANSITION_DURATION_MS),
+                    targetOffsetX = { fullWidth -> -fullWidth },
+                )
+            },
+            popEnterTransition = {
+                slideInHorizontally(
+                    animationSpec = tween(SCREEN_TRANSITION_DURATION_MS),
+                    initialOffsetX = { fullWidth -> -fullWidth },
+                )
+            },
+            popExitTransition = {
+                slideOutHorizontally(
+                    animationSpec = tween(SCREEN_TRANSITION_DURATION_MS),
+                    targetOffsetX = { fullWidth -> fullWidth },
+                )
+            },
+        ) {
             composable(NavScreen.Home.route) {
                 // Inject HomeViewModel using Koin in Composable
                 HomeScreen(
@@ -317,4 +347,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private companion object {
+        private const val SCREEN_TRANSITION_DURATION_MS = 200
+    }
+
 }
