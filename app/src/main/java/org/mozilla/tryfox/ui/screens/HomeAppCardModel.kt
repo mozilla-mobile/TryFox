@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.ui.screens
 
 import org.mozilla.tryfox.ui.models.AppUiModel
+import org.mozilla.tryfox.model.HomeScreenLayout
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
@@ -22,11 +23,22 @@ data class HomeAppCardUiModel(
     val family: HomeAppFamily,
     val selectedAppName: String,
     val appsByName: Map<String, AppUiModel>,
+    val showFlavorSelector: Boolean = true,
 ) {
     val selectedApp: AppUiModel get() = appsByName.getValue(selectedAppName)
+    val stableKey: String get() = if (showFlavorSelector) family.name else selectedAppName
 }
 
 internal fun homeAppCards(
+    apps: Map<String, AppUiModel>,
+    selectedAppNames: Map<HomeAppFamily, String>,
+    layout: HomeScreenLayout = HomeScreenLayout.OneCardPerApp,
+): List<HomeAppCardUiModel> = when (layout) {
+    HomeScreenLayout.OneCardPerApp -> groupedHomeAppCards(apps, selectedAppNames)
+    HomeScreenLayout.OneCardPerFlavor -> flavorHomeAppCards(apps)
+}
+
+private fun groupedHomeAppCards(
     apps: Map<String, AppUiModel>,
     selectedAppNames: Map<HomeAppFamily, String>,
 ): List<HomeAppCardUiModel> = HomeAppFamily.entries.mapNotNull { family ->
@@ -37,6 +49,22 @@ internal fun homeAppCards(
     val selected = selectedAppNames[family].takeIf { it in familyApps } ?: family.defaultAppName
     HomeAppCardUiModel(family, selected, familyApps)
 }
+
+private fun flavorHomeAppCards(apps: Map<String, AppUiModel>): List<HomeAppCardUiModel> =
+    HomeAppFamily.entries.flatMap { family ->
+        family.appNames.mapNotNull { appName ->
+            apps[appName]
+                ?.takeUnless { appName.isDebugFlavor && it.installedVersion == null }
+                ?.let { app ->
+                    HomeAppCardUiModel(
+                        family = family,
+                        selectedAppName = appName,
+                        appsByName = mapOf(appName to app),
+                        showFlavorSelector = false,
+                    )
+                }
+        }
+    }
 
 private val String.isDebugFlavor: Boolean
     get() = this == FENIX_DEBUG || this == FOCUS_DEBUG

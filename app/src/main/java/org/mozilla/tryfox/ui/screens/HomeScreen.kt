@@ -178,6 +178,7 @@ fun HomeScreen(
                     val cards = homeAppCards(
                         apps = currentScreenState.apps,
                         selectedAppNames = currentScreenState.selectedAppNames,
+                        layout = currentScreenState.homeScreenLayout,
                     )
 
                     LazyColumn(
@@ -189,7 +190,7 @@ fun HomeScreen(
                     ) {
                         item { Spacer(modifier = Modifier.height(if (tryFoxApp != null) tryFoxCardHeight + 4.dp else 0.dp)) }
 
-                        items(cards, key = { it.family }) { card ->
+                        items(cards, key = { it.stableKey }) { card ->
                             HomeAppCard(
                                 card = card,
                                 onFlavorSelected = { appName ->

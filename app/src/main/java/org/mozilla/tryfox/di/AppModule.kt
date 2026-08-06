@@ -235,6 +235,7 @@ val viewModelModule = module {
             get(named("IODispatcher")),
             get(),
             get(),
+            get(),
         )
     }
     viewModel { params ->

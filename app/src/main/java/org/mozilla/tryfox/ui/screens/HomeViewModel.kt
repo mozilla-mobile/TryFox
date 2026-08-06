@@ -32,6 +32,7 @@ import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.HomeDataSnapshot
 import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
+import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.data.repositories.VersionAwareReleaseRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
@@ -41,6 +42,7 @@ import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.MozillaArchiveApk
+import org.mozilla.tryfox.model.HomeScreenLayout
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
@@ -77,6 +79,7 @@ class HomeViewModel(
     private val intentManager: IntentManager,
     private val installCoordinator: ApkInstallCoordinator,
     private val ioDispatcher: CoroutineDispatcher,
+    private val userDataRepository: UserDataRepository? = null,
     private val homeDataCacheRepository: HomeDataCacheRepository = EmptyHomeDataCacheRepository,
     private val installedTryBuildRepository: InstalledTryBuildRepository = EmptyInstalledTryBuildRepository,
     private val supportedAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
@@ -94,6 +97,7 @@ class HomeViewModel(
     private var installedTryBuild: InstalledTryBuild? = null
     private var initialLoadStarted = false
     private var tryFoxCardDismissed = false
+    private var homeScreenLayout = HomeScreenLayout.OneCardPerApp
 
     @Volatile
     private var selectedHomeAppNames = HomeAppFamily.entries.associateWith { it.defaultAppName }
@@ -120,6 +124,19 @@ class HomeViewModel(
                 syncLoadedStateDownloadStates()
             }
             .launchIn(viewModelScope)
+
+        userDataRepository?.homeScreenLayoutFlow
+            ?.onEach { layout ->
+                homeScreenLayout = layout
+                _homeScreenState.update { currentState ->
+                    if (currentState is HomeScreenState.Loaded) {
+                        currentState.copy(homeScreenLayout = layout)
+                    } else {
+                        currentState
+                    }
+                }
+            }
+            ?.launchIn(viewModelScope)
 
         mozillaPackageManager.appStates
             .onEach { appState ->
@@ -294,6 +311,7 @@ class HomeViewModel(
             cacheManagementState = currentCacheState,
             isDownloadingAnyFile = false,
             selectedAppNames = selectedHomeAppNames,
+            homeScreenLayout = homeScreenLayout,
         ).applyDownloadStates(downloadStates.value)
     }
 
