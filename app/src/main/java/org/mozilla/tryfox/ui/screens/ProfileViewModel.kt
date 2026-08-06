@@ -187,7 +187,6 @@ class SearchViewModel(
         var hasMore: Boolean = true,
         var hasReachedExpiredJobs: Boolean = false,
         var authorPushTimestampCursor: Long? = null,
-        var fetchedPushCount: Int = 0,
         var hasRecordedSearch: Boolean = false,
         val loadedPushIds: MutableSet<Int> = mutableSetOf(),
     )
@@ -516,7 +515,6 @@ class SearchViewModel(
                 }
                 session.hasMore = rawPushes.size == requestedCount
                 _canLoadMore.value = session.hasMore
-                session.fetchedPushCount += newPushes.size
                 logcat(LogPriority.DEBUG, TAG) {
                     "Page contains ${newPushes.size} new pushes; hasMore=${session.hasMore}; " +
                         "loaded IDs=${session.loadedPushIds.size}"
@@ -610,10 +608,6 @@ class SearchViewModel(
     private fun updatePaginationWarning(session: PaginationSession) {
         if (session.hasReachedExpiredJobs) {
             _warningMessage.value = "Older pushes' jobs have expired."
-        } else if (_pushes.value.size < session.fetchedPushCount) {
-            _warningMessage.value =
-                "Showing ${_pushes.value.size} of ${session.fetchedPushCount} fetched pushes. " +
-                "The remaining pushes did not contain a job that produced an APK."
         } else {
             _warningMessage.value = null
             _hasReachedExpiredJobs.value = false
