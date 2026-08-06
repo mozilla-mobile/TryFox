@@ -436,7 +436,8 @@ class HomeViewModel(
 
     private fun convertParsedApksToUiModels(parsedApks: List<MozillaArchiveApk>): List<ApkUiModel> {
         return parsedApks.map { parsedApk ->
-            val date = parsedApk.rawDateString?.formatApkDate()
+            val date = parsedApk.rawDateString?.formatNightlyBuildDate()
+            val buildDate = parsedApk.rawDateString?.rawNightlyBuildDate()
             val isCompatible = supportedAbis.any { deviceAbi ->
                 deviceAbi.equals(
                     parsedApk.abiName,
@@ -468,6 +469,7 @@ class HomeViewModel(
             ApkUiModel(
                 originalString = parsedApk.originalString,
                 date = date ?: "",
+                buildDate = buildDate,
                 appName = parsedApk.appName,
                 version = parsedApk.version,
                 abi = AbiUiModel(parsedApk.abiName, isCompatible),
@@ -477,17 +479,6 @@ class HomeViewModel(
                 uniqueKey = uniqueKey,
                 apkDir = apkDir,
             )
-        }
-    }
-
-    // Converts a raw build timestamp "yyyy-MM-dd-HH-mm-ss" to the display form
-    // "yyyy-MM-dd HH:mm:ss". Returns the input unchanged if it isn't in that shape.
-    private fun String.formatApkDate(): String {
-        val parts = split("-")
-        return if (parts.size >= 6) {
-            "${parts[0]}-${parts[1]}-${parts[2]} ${parts[3]}:${parts[4]}:${parts[5]}"
-        } else {
-            this
         }
     }
 
@@ -594,7 +585,7 @@ class HomeViewModel(
             .distinct()
         // rawDateString is "yyyy-MM-dd-HH-mm-ss" (UTC), so lexical descending == newest first.
         return timestamps.sortedDescending().map { rawDate ->
-            NightlyBuildOption(id = rawDate, label = rawDate.formatApkDate())
+            NightlyBuildOption(id = rawDate, label = rawDate.formatNightlyBuildTimestamp())
         }
     }
 

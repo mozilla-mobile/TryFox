@@ -16,7 +16,7 @@ sealed class ApksResult {
  */
 data class NightlyBuildOption(
     val id: String, // the build's full "yyyy-MM-dd-HH-mm-ss" timestamp; groups its ABI variants
-    val label: String, // full date + time for display, e.g. "2026-07-24 09:17:32"
+    val label: String, // date + time for display, e.g. "2026-07-24 09:17"
 )
 
 data class AppUiModel(

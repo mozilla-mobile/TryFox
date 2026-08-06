@@ -75,7 +75,6 @@ import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_RELEASE
-import org.mozilla.tryfox.util.parseDateToLocalDate
 import org.mozilla.tryfox.util.parseDateToMillis
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -187,6 +186,7 @@ internal fun HomeAppCard(
                             appName = app.name,
                             version = selectedApk.version,
                             date = selectedApk.date,
+                            buildDate = selectedApk.buildDate,
                             selectedDate = app.userPickedDate,
                             dateValidator = dateValidator,
                             onDateSelected = onDateSelected,
@@ -267,6 +267,7 @@ private fun NightlyDetails(
     appName: String,
     version: String,
     date: String,
+    buildDate: LocalDate?,
     selectedDate: LocalDate?,
     dateValidator: (LocalDate) -> Boolean,
     onDateSelected: (String, LocalDate) -> Unit,
@@ -280,20 +281,28 @@ private fun NightlyDetails(
         modifier = Modifier.testTag("home_nightly_date_$appName"),
     )
     if (showPicker) {
-        val initialDate = selectedDate ?: parseDateToLocalDate(date) ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
+        val initialDate = selectedDate ?: buildDate
+            ?: Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date
         val state = rememberDatePickerState(
-            initialSelectedDateMillis = initialDate.atStartOfDayIn(TimeZone.currentSystemDefault()).toEpochMilliseconds(),
+            initialSelectedDateMillis = initialDate.toDatePickerSelectionMillis(),
             selectableDates = object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean = dateValidator(Instant.fromEpochMilliseconds(utcTimeMillis).toLocalDateTime(TimeZone.UTC).date)
             },
         )
         DatePickerDialog(
             onDismissRequest = { showPicker = false },
-            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { onDateSelected(appName, Instant.fromEpochMilliseconds(it).toLocalDateTime(TimeZone.currentSystemDefault()).date) }; showPicker = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { onDateSelected(appName, datePickerSelectionDate(it)) }; showPicker = false }) { Text("OK") } },
             dismissButton = { TextButton(onClick = { showPicker = false }) { Text("Cancel") } },
         ) { DatePicker(state = state) }
     }
 }
+
+/** Material DatePicker represents a selected calendar day as midnight UTC. */
+internal fun LocalDate.toDatePickerSelectionMillis(): Long =
+    atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()
+
+internal fun datePickerSelectionDate(selectionMillis: Long): LocalDate =
+    Instant.fromEpochMilliseconds(selectionMillis).toLocalDateTime(TimeZone.UTC).date
 
 @Composable
 private fun ReleaseVersionDetails(appName: String, selectedVersion: String, versions: List<String>, onSelected: (String, String) -> Unit) {

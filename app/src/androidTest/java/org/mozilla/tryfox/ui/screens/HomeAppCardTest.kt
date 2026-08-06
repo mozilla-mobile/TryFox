@@ -6,16 +6,21 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mozilla.tryfox.data.InstalledTryBuild
+import org.mozilla.tryfox.ui.models.AbiUiModel
+import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
+import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
+import java.io.File
 
 @RunWith(AndroidJUnit4::class)
 class HomeAppCardTest {
@@ -77,5 +82,62 @@ class HomeAppCardTest {
 
         assertEquals("mozilla-central", openedProject)
         assertEquals("abcdef123456", openedRevision)
+    }
+
+    @Test
+    fun nightlyCalendarUsesStoredBuildDateInsteadOfRelativeCardLabel() {
+        val buildDate = LocalDate(2024, 12, 31)
+        var selectedDate: LocalDate? = null
+
+        composeTestRule.setContent {
+            TryFoxTheme {
+                HomeAppCard(
+                    card = HomeAppCardUiModel(
+                        family = HomeAppFamily.Fenix,
+                        selectedAppName = FENIX,
+                        appsByName = mapOf(
+                            FENIX to AppUiModel(
+                                name = FENIX,
+                                packageName = "org.mozilla.fenix",
+                                installedVersion = null,
+                                installedDate = null,
+                                apks = ApksResult.Success(
+                                    listOf(
+                                        ApkUiModel(
+                                            originalString = "",
+                                            date = "Today 09:17",
+                                            buildDate = buildDate,
+                                            appName = FENIX,
+                                            version = "145.0a1",
+                                            abi = AbiUiModel("arm64-v8a", true),
+                                            url = "https://example.invalid/fenix.apk",
+                                            fileName = "fenix.apk",
+                                            uniqueKey = "fenix/2024-12-31-09-17-32/fenix.apk",
+                                            apkDir = File("/tmp/fenix"),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                    installStates = emptyMap(),
+                    onFlavorSelected = {},
+                    onDownloadClick = {},
+                    onInstallClick = {},
+                    onOpenInstalledApp = {},
+                    onOpenTryBuild = { _, _ -> },
+                    onDateSelected = { _, date -> selectedDate = date },
+                    dateValidator = { true },
+                    onReleaseVersionSelected = { _, _ -> },
+                    onBuildSelected = { _, _ -> },
+                    onDismissBuildPicker = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("home_nightly_date_$FENIX").performClick()
+        composeTestRule.onNodeWithText("OK").performClick()
+
+        assertEquals(buildDate, selectedDate)
     }
 }
