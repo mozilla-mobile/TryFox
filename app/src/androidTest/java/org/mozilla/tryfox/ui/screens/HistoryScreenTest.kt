@@ -16,8 +16,9 @@ import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.FakeApkDownloadCoordinator
 import org.mozilla.tryfox.data.FakeCacheManager
 import org.mozilla.tryfox.data.FakeHistoryRepository
-import org.mozilla.tryfox.data.FakeIntentManager
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
+import org.mozilla.tryfox.data.repositories.EmptyInstalledTryBuildRepository
+import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
 @RunWith(AndroidJUnit4::class)
@@ -36,7 +37,7 @@ class HistoryScreenTest {
             historyRepository = historyRepository,
             downloadCoordinator = FakeApkDownloadCoordinator(),
             cacheManager = FakeCacheManager(),
-            intentManager = FakeIntentManager(),
+            installCoordinator = installCoordinator(),
         )
         var selectedProject: String? = null
         var selectedRevision: String? = null
@@ -70,7 +71,7 @@ class HistoryScreenTest {
             historyRepository = historyRepository,
             downloadCoordinator = FakeApkDownloadCoordinator(),
             cacheManager = FakeCacheManager(),
-            intentManager = FakeIntentManager(),
+            installCoordinator = installCoordinator(),
         )
 
         composeTestRule.setContent {
@@ -119,4 +120,9 @@ class HistoryScreenTest {
             historyRecordedTimestamp = 123L,
             lastInstallerLaunchTimestamp = 123L,
         )
+
+    private fun installCoordinator() = ApkInstallCoordinator(
+        InstrumentationRegistry.getInstrumentation().targetContext,
+        EmptyInstalledTryBuildRepository,
+    )
 }

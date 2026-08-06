@@ -3,6 +3,7 @@ package org.mozilla.tryfox.install
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -26,7 +27,7 @@ import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
-/** Owns PackageInstaller sessions started from unified search. */
+/** Owns every APK installation session started by TryFox. */
 @Suppress("NestedBlockDepth", "TooManyFunctions")
 class ApkInstallCoordinator(
     private val context: Context,
@@ -42,7 +43,7 @@ class ApkInstallCoordinator(
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val packageInstaller = context.packageManager.packageInstaller
+    private val sessionFactory = PackageInstallerSessionFactory(context.packageManager.packageInstaller)
     private val requestCodes = AtomicInteger(10_000)
     private val operations = mutableMapOf<String, Operation>()
     private var activeOperationId: String? = null
@@ -170,30 +171,9 @@ class ApkInstallCoordinator(
     }
 
     private fun commit(operation: Operation) {
-        var sessionId: Int? = null
         try {
-            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
-                setAppPackageName(operation.packageName)
-                setSize(operation.file.length())
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    setPackageSource(PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
-                }
-            }
-            sessionId = packageInstaller.createSession(params)
-            packageInstaller.openSession(sessionId).use { session ->
-                operation.file.inputStream().use { input ->
-                    session.openWrite("base.apk", 0, operation.file.length()).use { output ->
-                        input.copyTo(output)
-                        session.fsync(output)
-                    }
-                }
-                session.commit(statusReceiver(operation))
-            }
+            sessionFactory.commit(operation.file, operation.packageName, statusReceiver(operation))
         } catch (e: Exception) {
-            sessionId?.let(packageInstaller::abandonSession)
             logcat(LogPriority.ERROR, TAG) { "Could not create install session: ${e.message}" }
             fail(operation.artifactKey, "Could not start installation.")
         }
@@ -316,5 +296,38 @@ class ApkInstallCoordinator(
         const val SHARED_USER_SIGNATURE_USER_MESSAGE =
             "This build is signed differently from an installed Firefox app. Android cannot install them together. " +
                 "Uninstall the conflicting Firefox app and its local data, then try again."
+    }
+}
+
+internal class PackageInstallerSessionFactory(
+    private val packageInstaller: PackageInstaller,
+) {
+    fun commit(file: File, packageName: String, statusReceiver: IntentSender) {
+        var sessionId: Int? = null
+        try {
+            val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
+                setAppPackageName(packageName)
+                setSize(file.length())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    setPackageSource(PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_REQUIRED)
+                }
+            }
+            sessionId = packageInstaller.createSession(params)
+            packageInstaller.openSession(sessionId).use { session ->
+                file.inputStream().use { input ->
+                    session.openWrite("base.apk", 0, file.length()).use { output ->
+                        input.copyTo(output)
+                        session.fsync(output)
+                    }
+                }
+                session.commit(statusReceiver)
+            }
+        } catch (exception: Exception) {
+            sessionId?.let(packageInstaller::abandonSession)
+            throw exception
+        }
     }
 }

@@ -1,6 +1,7 @@
 package org.mozilla.tryfox.ui.screens
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
@@ -13,15 +14,21 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.io.TempDir
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.FakeHistoryRepository
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.FakeCacheManager
-import org.mozilla.tryfox.data.managers.FakeIntentManager
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
+import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.TryBuildProvenance
 import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -311,7 +318,7 @@ class HistoryViewModelTest {
     fun `install records a fresh installer launch timestamp before launching installer`() = runTest {
         val entry = historyEntry(lastInstallerLaunchTimestamp = 1L)
         val historyRepository = FakeHistoryRepository().apply { setEntries(listOf(entry)) }
-        val intentManager = FakeIntentManager()
+        val installCoordinator = installCoordinator()
         val cacheManager = FakeCacheManager(tempCacheDir)
         val cachedFile = File(cacheManager.getCacheDir("treeherder"), "${entry.taskId}/${entry.artifactFileName}")
         cachedFile.parentFile?.mkdirs()
@@ -319,7 +326,7 @@ class HistoryViewModelTest {
         val viewModel = createViewModel(
             cacheManager = cacheManager,
             historyRepository = historyRepository,
-            intentManager = intentManager,
+            installCoordinator = installCoordinator,
             currentTimeMillisProvider = { 123L },
         )
         advanceUntilIdle()
@@ -328,7 +335,9 @@ class HistoryViewModelTest {
         advanceUntilIdle()
 
         assertEquals(123L, historyRepository.recordedEntries.single().lastInstallerLaunchTimestamp)
-        assertTrue(intentManager.wasInstallApkCalled)
+        val provenance = argumentCaptor<TryBuildProvenance>()
+        verify(installCoordinator).install(eq(entry.uniqueKey), eq(cachedFile), provenance.capture())
+        assertEquals(entry.project, provenance.firstValue.project)
     }
 
     @Test
@@ -338,7 +347,7 @@ class HistoryViewModelTest {
             setEntries(listOf(entry))
             failUpsertHistoryEntry = true
         }
-        val intentManager = FakeIntentManager()
+        val installCoordinator = installCoordinator()
         val cacheManager = FakeCacheManager(tempCacheDir)
         val cachedFile = File(cacheManager.getCacheDir("treeherder"), "${entry.taskId}/${entry.artifactFileName}")
         cachedFile.parentFile?.mkdirs()
@@ -346,14 +355,14 @@ class HistoryViewModelTest {
         val viewModel = createViewModel(
             cacheManager = cacheManager,
             historyRepository = historyRepository,
-            intentManager = intentManager,
+            installCoordinator = installCoordinator,
         )
         advanceUntilIdle()
 
         viewModel.install(viewModel.historyItems.value.single(), cachedFile)
         advanceUntilIdle()
 
-        assertTrue(intentManager.wasInstallApkCalled)
+        verify(installCoordinator).install(eq(entry.uniqueKey), eq(cachedFile), org.mockito.kotlin.any())
     }
 
     @Test
@@ -523,17 +532,22 @@ class HistoryViewModelTest {
         cacheManager: FakeCacheManager,
         historyRepository: FakeHistoryRepository,
         downloadCoordinator: ApkDownloadCoordinator = FakeApkDownloadCoordinator(),
-        intentManager: FakeIntentManager = FakeIntentManager(),
+        installCoordinator: ApkInstallCoordinator = installCoordinator(),
         currentTimeMillisProvider: () -> Long = { 0L },
     ): HistoryViewModel =
         HistoryViewModel(
             historyRepository = historyRepository,
             downloadCoordinator = downloadCoordinator,
             cacheManager = cacheManager,
-            intentManager = intentManager,
+            installCoordinator = installCoordinator,
             ioDispatcher = mainCoroutineRule.testDispatcher,
             currentTimeMillisProvider = currentTimeMillisProvider,
         )
+
+    private fun installCoordinator(): ApkInstallCoordinator = mock<ApkInstallCoordinator>().also { coordinator ->
+        whenever(coordinator.states).thenReturn(MutableStateFlow(emptyMap()))
+        whenever(coordinator.successfulInstalls).thenReturn(MutableSharedFlow())
+    }
 
     private fun historyEntry(
         downloadUrl: String = "https://example.com/task/artifact",

@@ -17,7 +17,6 @@ import logcat.logcat
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
-import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
@@ -34,8 +33,7 @@ class HistoryViewModel(
     private val historyRepository: HistoryRepository,
     private val downloadCoordinator: ApkDownloadCoordinator,
     private val cacheManager: CacheManager,
-    private val intentManager: IntentManager,
-    private val installCoordinator: ApkInstallCoordinator? = null,
+    private val installCoordinator: ApkInstallCoordinator,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val currentTimeMillisProvider: () -> Long = System::currentTimeMillis,
 ) : ViewModel() {
@@ -49,8 +47,7 @@ class HistoryViewModel(
 
     private val _historyItems = MutableStateFlow<List<HistoryItemUiModel>>(emptyList())
     val historyItems: StateFlow<List<HistoryItemUiModel>> = _historyItems.asStateFlow()
-    val installStates: StateFlow<Map<String, InstallState>> =
-        installCoordinator?.states ?: MutableStateFlow(emptyMap())
+    val installStates: StateFlow<Map<String, InstallState>> = installCoordinator.states
 
     init {
         logcat(LogPriority.DEBUG, TAG) { "init" }
@@ -64,20 +61,6 @@ class HistoryViewModel(
                 downloadStates.value = persistedDownloads.toDownloadStates()
             }
             .launchIn(viewModelScope)
-
-        installCoordinator?.successfulInstalls
-            ?.onEach { artifactKey ->
-                _historyItems.value.firstOrNull { it.entry.uniqueKey == artifactKey }?.let { historyItem ->
-                    try {
-                        historyRepository.upsertHistoryEntry(
-                            historyItem.entry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
-                        )
-                    } catch (_: Exception) {
-                        // History is best-effort; the install has already succeeded.
-                    }
-                }
-            }
-            ?.launchIn(viewModelScope)
 
         historyRepository.historyEntries
             .combine(cacheManager.cacheState) { entries, _ -> entries }
@@ -144,29 +127,27 @@ class HistoryViewModel(
     }
 
     fun install(historyItem: HistoryItemUiModel, file: File) {
-        installCoordinator?.install(
-            historyItem.entry.uniqueKey,
-            file,
-            TryBuildProvenance(
-                project = historyItem.entry.project,
-                revision = historyItem.entry.revision,
-                commitMessage = historyItem.entry.commitMessage,
-            ),
-        ) ?: run {
-            viewModelScope.launch {
-                try {
-                    historyRepository.upsertHistoryEntry(
-                        historyItem.entry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
-                    )
-                } catch (_: Exception) {
-                    // History is best-effort; never block installation.
-                }
-                intentManager.installApk(file)
+        viewModelScope.launch {
+            try {
+                historyRepository.upsertHistoryEntry(
+                    historyItem.entry.copy(lastInstallerLaunchTimestamp = currentTimeMillisProvider()),
+                )
+            } catch (_: Exception) {
+                // History is best-effort; never block installation.
             }
+            installCoordinator.install(
+                historyItem.entry.uniqueKey,
+                file,
+                TryBuildProvenance(
+                    project = historyItem.entry.project,
+                    revision = historyItem.entry.revision,
+                    commitMessage = historyItem.entry.commitMessage,
+                ),
+            )
         }
     }
 
-    fun openInstalledApp(packageName: String) = installCoordinator?.openInstalledApp(packageName)
+    fun openInstalledApp(packageName: String) = installCoordinator.openInstalledApp(packageName)
 
     fun delete(historyItem: HistoryItemUiModel) {
         val uniqueKey = historyItem.entry.uniqueKey

@@ -14,6 +14,10 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.io.TempDir
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mozilla.tryfox.data.Artifact
 import org.mozilla.tryfox.data.ArtifactsResponse
 import org.mozilla.tryfox.data.DownloadState
@@ -27,8 +31,9 @@ import org.mozilla.tryfox.data.RevisionResult
 import org.mozilla.tryfox.data.TreeherderJobsResponse
 import org.mozilla.tryfox.data.TreeherderRevisionResponse
 import org.mozilla.tryfox.data.managers.FakeCacheManager
-import org.mozilla.tryfox.data.managers.FakeIntentManager
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
+import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.TryBuildProvenance
 import org.mozilla.tryfox.ui.screens.MainCoroutineRule
 import java.io.File
 
@@ -254,11 +259,11 @@ class TryFoxViewModelTest {
             artifactsByTaskId = mapOf("history-task" to listOf(apkArtifact("public/build/target.arm64-v8a.apk"))),
         )
         val historyRepository = FakeHistoryRepository()
-        val intentManager = FakeIntentManager()
+        val installCoordinator = mock<ApkInstallCoordinator>()
         val viewModel = createViewModel(
             repository = repository,
             historyRepository = historyRepository,
-            intentManager = intentManager,
+            installCoordinator = installCoordinator,
             currentTimeMillisProvider = { 123L },
         )
 
@@ -279,7 +284,10 @@ class TryFoxViewModelTest {
         assertEquals("arm64-v8a", historyEntry.abiName)
         assertEquals(123L, historyEntry.historyRecordedTimestamp)
         assertEquals(123L, historyEntry.lastInstallerLaunchTimestamp)
-        assertTrue(intentManager.wasInstallApkCalled)
+        val provenance = argumentCaptor<TryBuildProvenance>()
+        verify(installCoordinator).install(eq(downloadedArtifact.uniqueKey), eq(downloadedFile), provenance.capture())
+        assertEquals("mozilla-central", provenance.firstValue.project)
+        assertEquals("ed209aa2136b241686ff20489c5cb622348e2ecf", provenance.firstValue.revision)
     }
 
     @Test
@@ -369,7 +377,7 @@ class TryFoxViewModelTest {
     private fun createViewModel(
         repository: TreeherderRepository,
         historyRepository: FakeHistoryRepository = FakeHistoryRepository(),
-        intentManager: FakeIntentManager = FakeIntentManager(),
+        installCoordinator: ApkInstallCoordinator = mock(),
         downloadFileRepository: FakeDownloadFileRepository = FakeDownloadFileRepository(
             downloadProgressDelayMillis = 0,
         ),
@@ -378,7 +386,7 @@ class TryFoxViewModelTest {
         fenixRepository = repository,
         downloadFileRepository = downloadFileRepository,
         cacheManager = cacheManager,
-        intentManager = intentManager,
+        installCoordinator = installCoordinator,
         historyRepository = historyRepository,
         project = "mozilla-central",
         revision = null,

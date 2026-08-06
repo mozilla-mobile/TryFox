@@ -29,10 +29,11 @@ import org.mozilla.tryfox.data.SearchHistoryEntry
 import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.data.TreeherderInstallHistoryEntry
 import org.mozilla.tryfox.data.managers.CacheManager
-import org.mozilla.tryfox.data.managers.IntentManager
 import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.data.repositories.HistoryRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
+import org.mozilla.tryfox.install.ApkInstallCoordinator
+import org.mozilla.tryfox.install.TryBuildProvenance
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ArtifactUiModel
@@ -55,7 +56,7 @@ class TryFoxViewModel(
     private val fenixRepository: TreeherderRepository,
     private val downloadFileRepository: DownloadFileRepository,
     private val cacheManager: CacheManager,
-    private val intentManager: IntentManager,
+    private val installCoordinator: ApkInstallCoordinator,
     private val historyRepository: HistoryRepository,
     project: String?,
     revision: String?,
@@ -130,8 +131,6 @@ class TryFoxViewModel(
         private set
 
     val isLoadingJobArtifacts = mutableStateMapOf<String, Boolean>()
-
-    var onInstallApk: ((File) -> Unit)? = null
 
     private val deviceSupportedAbis: List<String> by lazy { supportedAbis }
 
@@ -570,14 +569,6 @@ class TryFoxViewModel(
                 is NetworkResult.Success -> {
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.Downloaded(result.data))
                     cacheManager.checkCacheStatus() // Update cache status via CacheManager
-                    onInstallApk?.let { installCallback ->
-                        try {
-                            updateInstallTimestamp(job = findJob(taskId), artifact = artifactUiModel)
-                        } catch (_: Exception) {
-                            // History is best-effort; never block installation.
-                        }
-                        installCallback(result.data)
-                    }
                 }
                 is NetworkResult.Error -> {
                     updateArtifactDownloadState(taskId, artifactUiModel.name, DownloadState.DownloadFailed(result.message))
@@ -634,11 +625,7 @@ class TryFoxViewModel(
     }
 
     fun installApk(file: File) {
-        val downloadedArtifact = findDownloadedArtifact(file)
-        if (downloadedArtifact == null) {
-            intentManager.installApk(file)
-            return
-        }
+        val downloadedArtifact = findDownloadedArtifact(file) ?: return
 
         viewModelScope.launch {
             try {
@@ -649,7 +636,15 @@ class TryFoxViewModel(
             } catch (_: Exception) {
                 // History is best-effort; never block installation.
             }
-            intentManager.installApk(file)
+            installCoordinator.install(
+                downloadedArtifact.artifact.uniqueKey,
+                file,
+                TryBuildProvenance(
+                    project = selectedProject,
+                    revision = revision,
+                    commitMessage = relevantPushComment ?: "No comment",
+                ),
+            )
         }
     }
 

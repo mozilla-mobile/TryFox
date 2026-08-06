@@ -107,7 +107,7 @@ Run Android instrumentation tests with a connected device or running emulator:
 -   **Retrofit** for type-safe HTTP requests to Treeherder and Taskcluster APIs.
 -   **Kotlinx Serialization** for efficient JSON parsing.
 -   **OkHttp** as the underlying HTTP client for Retrofit (with a `HttpLoggingInterceptor` for debugging network traffic).
--   **FileProvider** for securely sharing downloaded APKs with the system package installer.
+-   **PackageInstaller sessions** for installing downloaded APKs directly from TryFox.
 
 ## Requirements
 
