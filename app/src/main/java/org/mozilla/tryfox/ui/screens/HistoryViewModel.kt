@@ -51,7 +51,7 @@ class HistoryViewModel(
 
     init {
         logcat(LogPriority.DEBUG, TAG) { "init" }
-        viewModelScope.launch {
+        viewModelScope.launch(ioDispatcher) {
             historyRepository.refresh()
             cacheManager.checkCacheStatus()
         }
@@ -72,8 +72,10 @@ class HistoryViewModel(
 
     fun refreshCachedDownloadStates() {
         logcat(LogPriority.DEBUG, TAG) { "refreshCachedDownloadStates called" }
-        cacheManager.checkCacheStatus()
-        cacheRefreshEvents.update { it + 1 }
+        viewModelScope.launch(ioDispatcher) {
+            cacheManager.checkCacheStatus()
+            cacheRefreshEvents.update { it + 1 }
+        }
     }
 
     fun download(historyItem: HistoryItemUiModel) {

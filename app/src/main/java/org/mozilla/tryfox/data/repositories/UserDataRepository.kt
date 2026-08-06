@@ -3,6 +3,7 @@ package org.mozilla.tryfox.data.repositories
 import kotlinx.coroutines.flow.Flow
 import org.mozilla.tryfox.data.SearchHistoryEntry
 import org.mozilla.tryfox.lan.LanReceiveIdentity
+import org.mozilla.tryfox.model.HomeScreenLayout
 
 /**
  * A repository that stores the last searched email.
@@ -15,6 +16,7 @@ interface UserDataRepository {
     val lastSearchedEmailFlow: Flow<String>
     val searchHistoryFlow: Flow<List<SearchHistoryEntry>>
     val lanReceiveIdentityFlow: Flow<LanReceiveIdentity?>
+    val homeScreenLayoutFlow: Flow<HomeScreenLayout>
 
     /**
      * Saves the last searched email.
@@ -23,4 +25,5 @@ interface UserDataRepository {
     suspend fun saveLastSearchedEmail(email: String)
     suspend fun recordSearch(project: String, query: String, searchedAt: Long = System.currentTimeMillis())
     suspend fun saveLanReceiveIdentity(identity: LanReceiveIdentity)
+    suspend fun saveHomeScreenLayout(layout: HomeScreenLayout)
 }

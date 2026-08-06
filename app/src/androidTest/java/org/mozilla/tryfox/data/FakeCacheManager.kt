@@ -9,12 +9,15 @@ import java.io.File
 class FakeCacheManager : CacheManager {
     private val _cacheState = MutableStateFlow<CacheManagementState>(CacheManagementState.IdleEmpty)
     override val cacheState: StateFlow<CacheManagementState> = _cacheState
+    private val _cacheSizeBytes = MutableStateFlow(0L)
+    override val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes
 
     override suspend fun clearCache() {
         _cacheState.value = CacheManagementState.IdleEmpty
+        _cacheSizeBytes.value = 0L
     }
 
-    override fun checkCacheStatus() {
+    override suspend fun checkCacheStatus() {
         // No-op for now
     }
 

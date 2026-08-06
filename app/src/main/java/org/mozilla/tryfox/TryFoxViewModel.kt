@@ -186,8 +186,10 @@ class TryFoxViewModel(
     }
 
     fun checkCacheStatus() {
-        cacheManager.checkCacheStatus()
-        refreshArtifactDownloadStatesFromCache()
+        viewModelScope.launch(ioDispatcher) {
+            cacheManager.checkCacheStatus()
+            refreshArtifactDownloadStatesFromCache()
+        }
     }
 
     fun clearAppCache() {

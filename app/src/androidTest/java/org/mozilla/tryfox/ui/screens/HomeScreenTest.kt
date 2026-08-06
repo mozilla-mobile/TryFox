@@ -31,4 +31,15 @@ class HomeScreenTest {
 
         composeTestRule.onNodeWithText("Scan QR code").assertIsDisplayed()
     }
+
+    @Test
+    fun homeScreen_settingsButtonNavigatesToSettingsScreen() {
+        composeTestRule.onNodeWithContentDescription("Settings").performClick()
+
+        composeTestRule.onNodeWithText("Settings").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Cache").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Home screen layout").assertIsDisplayed()
+        composeTestRule.onNodeWithText("One card per app").assertIsDisplayed()
+        composeTestRule.onNodeWithText("One card per flavor of each app").assertIsDisplayed()
+    }
 }

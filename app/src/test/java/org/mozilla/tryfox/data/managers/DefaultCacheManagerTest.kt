@@ -3,6 +3,8 @@ package org.mozilla.tryfox.data.managers
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.io.TempDir
 import java.io.File
@@ -34,5 +36,48 @@ class DefaultCacheManagerTest {
         assertFalse(legacyApk.exists())
         assertTrue(unrelatedCacheFile.exists())
         assertFalse(File(managedRoot, "image_cache/cached-image").exists())
+    }
+
+    @Test
+    fun `cache status reports recursive size and clearing resets it`() = runTest {
+        val managedRoot = File(tempDir, "download-cache")
+        File(managedRoot, "fenix/nested/first.apk").apply {
+            parentFile?.mkdirs()
+            writeBytes(ByteArray(15))
+        }
+        File(managedRoot, "treeherder/second.apk").apply {
+            parentFile?.mkdirs()
+            writeBytes(ByteArray(9))
+        }
+        val manager = DefaultCacheManager(managedRoot, StandardTestDispatcher(testScheduler))
+
+        manager.checkCacheStatus()
+
+        assertEquals(24L, manager.cacheSizeBytes.value)
+        assertEquals(org.mozilla.tryfox.model.CacheManagementState.IdleNonEmpty, manager.cacheState.value)
+
+        manager.clearCache()
+
+        assertEquals(0L, manager.cacheSizeBytes.value)
+        assertEquals(org.mozilla.tryfox.model.CacheManagementState.IdleEmpty, manager.cacheState.value)
+    }
+
+    @Test
+    fun `zero byte cache files are still clearable`() = runTest {
+        val managedRoot = File(tempDir, "download-cache")
+        File(managedRoot, "fenix/empty.apk").apply {
+            parentFile?.mkdirs()
+            createNewFile()
+        }
+        val manager = DefaultCacheManager(managedRoot, StandardTestDispatcher(testScheduler))
+
+        manager.checkCacheStatus()
+
+        assertEquals(0L, manager.cacheSizeBytes.value)
+        assertEquals(org.mozilla.tryfox.model.CacheManagementState.IdleNonEmpty, manager.cacheState.value)
+
+        manager.clearCache()
+
+        assertFalse(File(managedRoot, "fenix/empty.apk").exists())
     }
 }

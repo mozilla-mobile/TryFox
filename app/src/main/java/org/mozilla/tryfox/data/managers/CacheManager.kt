@@ -6,7 +6,8 @@ import java.io.File
 
 interface CacheManager {
     val cacheState: StateFlow<CacheManagementState>
+    val cacheSizeBytes: StateFlow<Long>
     suspend fun clearCache()
-    fun checkCacheStatus()
+    suspend fun checkCacheStatus()
     fun getCacheDir(appName: String): File
 }

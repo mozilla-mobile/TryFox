@@ -63,6 +63,7 @@ import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopViewModel
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryViewModel
 import org.mozilla.tryfox.ui.screens.SearchHistoryViewModel
 import org.mozilla.tryfox.ui.screens.SearchViewModel
+import org.mozilla.tryfox.ui.screens.SettingsViewModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
@@ -212,6 +213,7 @@ val viewModelModule = module {
     viewModel { ReceiveFromDesktopViewModel(get()) }
     viewModel { ReceiveMessageHistoryViewModel(get(), get(named("IODispatcher"))) }
     viewModel { SearchHistoryViewModel(get()) }
+    viewModel { SettingsViewModel(get(), get(), get()) }
     viewModel {
         val releaseRepositories = listOf(
             get<ReleaseRepository>(named(FENIX)),
@@ -225,6 +227,7 @@ val viewModelModule = module {
         )
         HomeViewModel(
             releaseRepositories,
+            get(),
             get(),
             get(),
             get(),
