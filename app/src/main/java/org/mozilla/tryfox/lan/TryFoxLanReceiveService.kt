@@ -34,8 +34,8 @@ import org.mozilla.tryfox.EXTRA_NAVIGATION_ROUTE
 import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
 import org.mozilla.tryfox.MainActivity
 import org.mozilla.tryfox.R
-import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
+import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 import java.io.IOException
 
 class TryFoxLanReceiveService : Service(), KoinComponent {

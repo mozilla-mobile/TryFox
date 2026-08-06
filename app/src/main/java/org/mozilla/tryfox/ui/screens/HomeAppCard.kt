@@ -59,10 +59,9 @@ import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.ui.composables.AppIcon
-import org.mozilla.tryfox.ui.composables.rememberLinkedPushComment
-import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 import org.mozilla.tryfox.ui.composables.CurrentInstallState
 import org.mozilla.tryfox.ui.composables.DownloadButton
+import org.mozilla.tryfox.ui.composables.rememberLinkedPushComment
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
@@ -76,6 +75,7 @@ import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.parseDateToMillis
+import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
