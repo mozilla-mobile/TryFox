@@ -38,6 +38,7 @@ import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopScreen
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryScreen
 import org.mozilla.tryfox.ui.screens.SearchHistoryViewModel
 import org.mozilla.tryfox.ui.screens.SearchScreen
+import org.mozilla.tryfox.ui.screens.SettingsScreen
 import org.mozilla.tryfox.ui.screens.SearchViewModel
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
@@ -55,6 +56,8 @@ sealed class NavScreen(val route: String) {
      * Represents the History screen.
      */
     data object History : NavScreen(AppRoutes.HISTORY)
+
+    data object Settings : NavScreen(AppRoutes.SETTINGS)
 
     data object ReceiveFromDesktop : NavScreen(AppRoutes.RECEIVE_FROM_DESKTOP)
 
@@ -177,6 +180,7 @@ class MainActivity : ComponentActivity() {
                     onNavigateToQrScanner = { localNavController.navigate(NavScreen.QrScanner.route) },
                     onNavigateToReceiveFromDesktop = { localNavController.navigate(NavScreen.ReceiveFromDesktop.route) },
                     onNavigateToHistory = { localNavController.navigate(NavScreen.History.route) },
+                    onNavigateToSettings = { localNavController.navigate(NavScreen.Settings.route) },
                     onNavigateToTryBuild = { project, revision ->
                         localNavController.navigate(
                             NavScreen.TreeherderSearchWithArgs.createRoute(project, revision),
@@ -194,6 +198,12 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     historyViewModel = koinViewModel(),
+                )
+            }
+            composable(NavScreen.Settings.route) {
+                SettingsScreen(
+                    onNavigateUp = { localNavController.popBackStack() },
+                    settingsViewModel = koinViewModel(),
                 )
             }
             composable(NavScreen.QrScanner.route) {

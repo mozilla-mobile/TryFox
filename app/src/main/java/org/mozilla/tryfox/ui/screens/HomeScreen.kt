@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
@@ -55,6 +56,7 @@ import org.mozilla.tryfox.ui.composables.BinButton
  * @param modifier The modifier to be applied to the component.
  * @param onNavigateToSearch Callback to navigate to the unified build search screen.
  * @param onNavigateToHistory Callback to navigate to the History screen.
+ * @param onNavigateToSettings Callback to navigate to the Settings screen.
  * @param homeViewModel The ViewModel for the Home screen.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
@@ -65,6 +67,7 @@ fun HomeScreen(
     onNavigateToQrScanner: () -> Unit,
     onNavigateToReceiveFromDesktop: () -> Unit,
     onNavigateToHistory: () -> Unit,
+    onNavigateToSettings: () -> Unit,
     onNavigateToTryBuild: (String, String) -> Unit = { _, _ -> },
     homeViewModel: HomeViewModel = viewModel(),
 ) {
@@ -135,6 +138,12 @@ fun HomeScreen(
                             cacheState = currentCacheState,
                             onConfirm = { homeViewModel.clearAppCache() },
                             enabled = binButtonEnabled,
+                        )
+                    }
+                    IconButton(onClick = onNavigateToSettings) {
+                        Icon(
+                            imageVector = Icons.Filled.Settings,
+                            contentDescription = stringResource(id = R.string.home_settings_button_description),
                         )
                     }
                 },

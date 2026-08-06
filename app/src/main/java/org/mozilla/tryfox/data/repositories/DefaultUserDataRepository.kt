@@ -15,6 +15,7 @@ import org.mozilla.tryfox.data.SearchHistory
 import org.mozilla.tryfox.data.SearchHistoryEntry
 import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.lan.LanReceiveIdentity
+import org.mozilla.tryfox.model.HomeScreenLayout
 
 /**
  * A repository that stores the last searched email in a DataStore.
@@ -29,6 +30,7 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
         val LAN_DEVICE_ID = stringPreferencesKey("lan_device_id")
         val LAN_DEVICE_NAME = stringPreferencesKey("lan_device_name")
         val LAN_SHARED_SECRET = stringPreferencesKey("lan_shared_secret")
+        val HOME_SCREEN_LAYOUT = stringPreferencesKey("home_screen_layout")
     }
 
     override val searchHistoryFlow: Flow<List<SearchHistoryEntry>> = appContext.dataStore.data.map { preferences ->
@@ -60,6 +62,10 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
             }
         }
 
+    override val homeScreenLayoutFlow: Flow<HomeScreenLayout> = appContext.dataStore.data.map { preferences ->
+        homeScreenLayoutFromStoredValue(preferences[PreferenceKeys.HOME_SCREEN_LAYOUT])
+    }
+
     override suspend fun saveLastSearchedEmail(email: String) {
         recordSearch(project = "try", query = email)
     }
@@ -90,6 +96,12 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
         }
     }
 
+    override suspend fun saveHomeScreenLayout(layout: HomeScreenLayout) {
+        appContext.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.HOME_SCREEN_LAYOUT] = layout.name
+        }
+    }
+
     private fun decodeSearchHistory(serializedHistory: String): List<SearchHistoryEntry> =
         runCatching { json.decodeFromString<List<SearchHistoryEntry>>(serializedHistory) }.getOrDefault(emptyList())
 
@@ -97,3 +109,8 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
         val json = Json { ignoreUnknownKeys = true }
     }
 }
+
+internal fun homeScreenLayoutFromStoredValue(storedValue: String?): HomeScreenLayout =
+    storedValue
+        ?.let { value -> HomeScreenLayout.entries.firstOrNull { it.name == value } }
+        ?: HomeScreenLayout.OneCardPerApp

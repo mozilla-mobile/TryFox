@@ -26,6 +26,8 @@ class DefaultCacheManager(
 
     private val _cacheState = MutableStateFlow<CacheManagementState>(CacheManagementState.IdleEmpty)
     override val cacheState: StateFlow<CacheManagementState> = _cacheState.asStateFlow()
+    private val _cacheSizeBytes = MutableStateFlow(0L)
+    override val cacheSizeBytes: StateFlow<Long> = _cacheSizeBytes.asStateFlow()
 
     init {
         migrateLegacyCache(legacyCacheDir)
@@ -35,42 +37,39 @@ class DefaultCacheManager(
         return File(cacheDir, appName)
     }
 
-    private fun isAppCachePopulated(appName: String): Boolean {
-        val appSpecificCacheDir = getCacheDir(appName)
-        if (!appSpecificCacheDir.exists() || !appSpecificCacheDir.isDirectory) return false
-        appSpecificCacheDir.listFiles()?.forEach { item ->
-            if (item.isFile) return true
-            if (item.isDirectory) {
-                if (item.listFiles()?.any { it.isFile } == true) {
-                    return true
-                }
-            }
+    override suspend fun checkCacheStatus() {
+        val cacheSnapshot = withContext(ioDispatcher) { determineCacheSnapshot() }
+        val newCacheState = if (cacheSnapshot.hasFiles) {
+            CacheManagementState.IdleNonEmpty
+        } else {
+            CacheManagementState.IdleEmpty
         }
-        return false
-    }
-
-    private fun determineCacheState(): CacheManagementState {
-        val cacheIsNotEmpty = MANAGED_CACHE_NAMES.any { isAppCachePopulated(it) }
-        return if (cacheIsNotEmpty) CacheManagementState.IdleNonEmpty else CacheManagementState.IdleEmpty
-    }
-
-    override fun checkCacheStatus() {
-        val newCacheState = determineCacheState()
+        _cacheSizeBytes.value = cacheSnapshot.sizeBytes
         _cacheState.value = newCacheState
         logcat(TAG) { "Cache status checked. Current state: $newCacheState" }
     }
+
+    private fun determineCacheSnapshot(): CacheSnapshot =
+        cacheDir.takeIf { it.isDirectory }
+            ?.walkTopDown()
+            ?.fold(CacheSnapshot()) { snapshot, file ->
+                if (file.isFile) {
+                    snapshot.copy(sizeBytes = snapshot.sizeBytes + file.length(), hasFiles = true)
+                } else {
+                    snapshot
+                }
+            }
+            ?: CacheSnapshot()
 
     override suspend fun clearCache() {
         _cacheState.value = CacheManagementState.Clearing
         try {
             withContext(ioDispatcher) {
                 cacheDir.listFiles()?.forEach {
-                    if (it.isDirectory) {
-                        logcat(LogPriority.DEBUG, TAG) {
-                            "Deleting cache directory path=${it.absolutePath}"
-                        }
-                        it.deleteRecursively()
+                    logcat(LogPriority.DEBUG, TAG) {
+                        "Deleting cache entry path=${it.absolutePath}"
                     }
+                    it.deleteRecursively()
                 }
             }
             logcat(LogPriority.DEBUG, TAG) { "Cache cleared successfully." }
@@ -129,4 +128,9 @@ class DefaultCacheManager(
         private const val TAG = "DefaultCacheManager"
         private val MANAGED_CACHE_NAMES = listOf(FENIX, FOCUS, FOCUS_RELEASE, REFERENCE_BROWSER, TREEHERDER, TRYFOX)
     }
+
+    private data class CacheSnapshot(
+        val sizeBytes: Long = 0L,
+        val hasFiles: Boolean = false,
+    )
 }
