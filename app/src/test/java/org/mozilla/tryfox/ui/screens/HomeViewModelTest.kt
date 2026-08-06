@@ -9,10 +9,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.format
-import kotlinx.datetime.format.FormatStringsInDatetimeFormats
-import kotlinx.datetime.format.byUnicodePattern
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -70,7 +66,6 @@ import java.io.File
 @ExperimentalCoroutinesApi
 @ExtendWith(MockitoExtension::class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-@OptIn(FormatStringsInDatetimeFormats::class)
 class HomeViewModelTest {
 
     @JvmField
@@ -154,6 +149,7 @@ class HomeViewModelTest {
         return ApkUiModel(
             originalString = parsed.originalString,
             date = dateFormatted,
+            buildDate = parsed.rawDateString?.rawNightlyBuildDate(),
             appName = parsed.appName,
             version = parsed.version,
             abi = AbiUiModel(parsed.abiName, true),
@@ -373,15 +369,7 @@ class HomeViewModelTest {
             )
     }
 
-    private fun String.formatApkDateForTest(): String {
-        return try {
-            val inputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd-HH-mm-ss") }
-            val outputFormat = LocalDateTime.Format { byUnicodePattern("yyyy-MM-dd HH:mm:ss") }
-            LocalDateTime.parse(this, inputFormat).format(outputFormat)
-        } catch (e: Exception) {
-            this
-        }
-    }
+    private fun String.formatApkDateForTest(): String = formatNightlyBuildDate()
 
     @AfterEach
     fun tearDown() {

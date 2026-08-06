@@ -151,7 +151,7 @@ class SearchViewModel(
     companion object {
         private const val TAG = "SearchViewModel"
         private const val MAX_PARALLEL_ARTIFACT_REQUESTS = 6
-        private const val PUSH_PAGE_SIZE = 10
+        private const val PUSH_PAGE_SIZE = 20
     }
 
     private sealed interface PaginatedSearch {
@@ -174,6 +174,7 @@ class SearchViewModel(
         val search: PaginatedSearch,
         var nextOffset: Int = 0,
         var hasMore: Boolean = true,
+        var hasRetriedRecentPushes: Boolean = false,
         var fetchedPushCount: Int = 0,
         var hasRecordedSearch: Boolean = false,
         val loadedPushIds: MutableSet<Int> = mutableSetOf(),
@@ -462,9 +463,10 @@ class SearchViewModel(
     private suspend fun loadPagesUntilResultsOrExhausted(
         session: PaginationSession,
         isInitialLoad: Boolean,
+        requestedCountOverride: Int? = null,
     ) {
         if (!session.hasMore || paginationSession !== session) return
-        val requestedCount = requestedPushCount(session.search, session.nextOffset)
+        val requestedCount = requestedCountOverride ?: requestedPushCount(session.search, session.nextOffset)
         logcat(LogPriority.DEBUG, TAG) {
             "Requesting ${session.search::class.simpleName} push page: " +
                 "project=${session.search.project}, offset=${session.nextOffset}, count=$requestedCount"
@@ -518,6 +520,25 @@ class SearchViewModel(
                     }
                 }
                 updatePaginationWarning(session)
+                // A blank query means "find a recent build". If the newest page contains no
+                // usable APK, automatically look through the next 50 pushes before asking the
+                // user to load still more results.
+                if (
+                    isInitialLoad &&
+                    session.search is PaginatedSearch.Recent &&
+                    !session.hasRetriedRecentPushes &&
+                    _pushes.value.isEmpty() &&
+                    session.hasMore
+                ) {
+                    session.hasRetriedRecentPushes = true
+                    logcat(TAG) { "No usable APKs in the newest $PUSH_PAGE_SIZE pushes; searching the next 50." }
+                    loadPagesUntilResultsOrExhausted(
+                        session = session,
+                        isInitialLoad = true,
+                        requestedCountOverride = 50,
+                    )
+                    return
+                }
                 if (_pushes.value.isEmpty() && !session.hasMore) {
                     _errorMessage.value = "No push was found with a job that produced an APK."
                 }

@@ -1,5 +1,6 @@
 package org.mozilla.tryfox.ui.models
 
+import kotlinx.datetime.LocalDate
 import org.mozilla.tryfox.data.DownloadState
 import java.io.File
 
@@ -14,4 +15,5 @@ data class ApkUiModel(
     var downloadState: DownloadState = DownloadState.NotDownloaded,
     val uniqueKey: String, // e.g., "appName/date(YYYY-MM-DD)/fileName"
     val apkDir: File,
+    val buildDate: LocalDate? = null,
 )

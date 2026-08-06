@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TryFox unified search mockup</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --blue: #0061a4;
+      --blue-soft: #d8eaff;
+      --ink: #172b3a;
+      --muted: #52616b;
+      --page: #f7f9fb;
+      --surface: #ffffff;
+      --line: #c7d0d9;
+      --green: #177a45;
+      --focus: #7b3ff2;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #e8eef3;
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .phone {
+      width: min(100%, 412px);
+      min-height: 100vh;
+      margin: 0 auto;
+      background: var(--page);
+    }
+
+    .app-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      min-height: 64px;
+      padding: 12px 20px;
+      background: var(--blue-soft);
+    }
+
+    .back { font-size: 24px; line-height: 1; }
+    h1 { margin: 0; font-size: 21px; font-weight: 650; }
+
+    main { padding: 20px 16px 32px; }
+
+    .search-card, .push-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 2px 7px rgb(23 43 58 / 8%);
+    }
+
+    .search-card { padding: 16px; }
+    h2 { margin: 0; font-size: 19px; }
+
+    label { display: block; margin: 0 0 6px; color: var(--muted); font-size: 13px; font-weight: 600; }
+    select, input, button {
+      min-height: 48px;
+      border-radius: 10px;
+      font: inherit;
+    }
+    select, input {
+      width: 100%;
+      padding: 0 13px;
+      color: var(--ink);
+      background: var(--surface);
+      border: 1px solid #778591;
+    }
+    input:focus, select:focus { outline: 3px solid rgb(0 97 164 / 24%); border-color: var(--blue); }
+    .field { margin-top: 14px; }
+    .search-row { display: flex; gap: 8px; }
+    .search-row input { min-width: 0; }
+    button {
+      flex: 0 0 52px;
+      border: 0;
+      color: white;
+      background: var(--blue);
+      cursor: pointer;
+      font-size: 21px;
+    }
+    button:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+    .detected-type {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 12px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      color: #034f7e;
+      background: var(--blue-soft);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    #results { margin-top: 24px; }
+    .results-heading { margin: 0 0 12px; font-size: 18px; }
+    .push-card { padding: 15px; }
+    .push-card + .push-card { margin-top: 12px; }
+    .push-top { display: flex; justify-content: space-between; gap: 10px; }
+    .push-title { margin: 0; font-size: 16px; line-height: 1.3; }
+    .metadata { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+    .apk-list { margin: 14px 0 0; padding: 0; border-top: 1px solid var(--line); list-style: none; }
+    .apk-list li + li { border-top: 1px solid var(--line); }
+    .apk-row { display: flex; align-items: center; gap: 11px; min-height: 62px; color: var(--ink); text-decoration: none; }
+    .app-icon {
+      display: grid;
+      flex: 0 0 34px;
+      width: 34px;
+      height: 34px;
+      place-items: center;
+      color: white;
+      background: var(--blue);
+      border-radius: 9px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .app-icon.focus { background: var(--focus); }
+    .job-name { flex: 1; font-size: 14px; font-weight: 650; line-height: 1.25; }
+    .download { color: var(--blue); font-size: 19px; }
+    .empty { padding: 28px 12px; color: var(--muted); text-align: center; }
+
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #e7edf2; --muted: #b2bec8; --page: #111a21; --surface: #18242d; --line: #40515e; --blue-soft: #103a59; --blue: #66b9ee; --green: #79d69d; --focus: #b495ff; }
+      body { background: #0b1116; }
+      .badge { color: #b9e2ff; }
+      button { color: #082033; }
+    }
+  </style>
+</head>
+<body>
+  <div class="phone">
+    <header class="app-bar"><span class="back" aria-hidden="true">‹</span><h1>Search builds</h1></header>
+    <main>
+      <section class="search-card" aria-label="Search options">
+        <div>
+          <label for="project">Project</label>
+          <select id="project">
+            <option value="try">Try</option>
+            <option value="mozilla-central">Central</option>
+            <option value="mozilla-beta">Beta</option>
+            <option value="mozilla-release">Release</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="query">Email or revision</label>
+          <div class="search-row">
+            <input id="query" type="text" value="npoon@mozilla.com" placeholder="name@mozilla.com or revision hash" autocomplete="off">
+            <button id="search" type="button" aria-label="Search">⌕</button>
+          </div>
+          <p class="detected-type">Searching by <span class="badge" id="type">email</span></p>
+        </div>
+      </section>
+
+      <section id="results" aria-live="polite">
+        <h2 class="results-heading" id="results-heading">2 pushes found</h2>
+        <article class="push-card">
+          <div class="push-top"><h3 class="push-title">Bug 2001527 — Update the Android test build</h3></div>
+          <p class="metadata">Today at 14:32 · npoon@mozilla.com</p>
+          <ul class="apk-list" aria-label="Compatible APKs">
+            <li><a class="apk-row" href="#"><span class="app-icon" aria-hidden="true">F</span><span class="job-name">fenix-arm64-v8a</span><span class="download" aria-label="Download APK">↓</span></a></li>
+            <li><a class="apk-row" href="#"><span class="app-icon focus" aria-hidden="true">Fx</span><span class="job-name">focus-arm64-v8a</span><span class="download" aria-label="Download APK">↓</span></a></li>
+          </ul>
+        </article>
+        <article class="push-card">
+          <div class="push-top"><h3 class="push-title">Bug 2000991 — Refresh startup profile</h3></div>
+          <p class="metadata">Yesterday at 09:18 · npoon@mozilla.com</p>
+          <ul class="apk-list" aria-label="Compatible APKs">
+            <li><a class="apk-row" href="#"><span class="app-icon" aria-hidden="true">F</span><span class="job-name">fenix-arm64-v8a</span><span class="download" aria-label="Download APK">↓</span></a></li>
+          </ul>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const query = document.getElementById('query');
+    const type = document.getElementById('type');
+    const search = document.getElementById('search');
+    const heading = document.getElementById('results-heading');
+
+    function queryType(value) {
+      return value.includes('@') ? 'email' : 'revision';
+    }
+
+    function updateType() {
+      type.textContent = query.value.trim() ? queryType(query.value.trim()) : '—';
+    }
+
+    function runSearch() {
+      const value = query.value.trim();
+      if (!value) return;
+      const kind = queryType(value);
+      heading.textContent = kind === 'email' ? '2 pushes found' : '1 push found';
+      document.querySelectorAll('.push-card')[1].hidden = kind === 'revision';
+    }
+
+    query.addEventListener('input', updateType);
+    query.addEventListener('keydown', event => { if (event.key === 'Enter') runSearch(); });
+    search.addEventListener('click', runSearch);
+    updateType();
+  </script>
+</body>
+</html>

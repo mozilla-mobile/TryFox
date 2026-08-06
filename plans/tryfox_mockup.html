@@ -1,0 +1,763 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TryFox — Android mockup</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #fbf8fc;
+      --surface: #fff;
+      --surface-2: #f5f1f7;
+      --text: #1b1b1f;
+      --muted: #6f6b72;
+      --outline: #ded8e0;
+      --brand: #ff7100;
+      --brand-soft: #fff0df;
+      --blue: #0798e8;
+      --shadow: 0 2px 5px rgb(35 24 40 / 10%);
+      --nav: rgb(255 255 255 / 94%);
+    }
+
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #17151d;
+      --surface: #292730;
+      --surface-2: #37343d;
+      --text: #f7f3f8;
+      --muted: #c5bec8;
+      --outline: #4a4650;
+      --brand: #ff8000;
+      --brand-soft: #503720;
+      --blue: #35aff4;
+      --shadow: 0 2px 6px rgb(0 0 0 / 28%);
+      --nav: rgb(24 10 48 / 95%);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 30% -10%, color-mix(in srgb, var(--brand) 7%, transparent), transparent 34rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    button { font: inherit; }
+
+    .phone {
+      width: min(100%, 448px);
+      min-height: 100vh;
+      margin: 0 auto;
+      position: relative;
+      padding: 34px 20px 112px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .eyebrow {
+      margin: 0 0 7px;
+      color: var(--brand);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: .045em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1;
+      letter-spacing: -.03em;
+    }
+
+    .theme-toggle {
+      width: 50px;
+      height: 50px;
+      border: 0;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--brand);
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 3px 10px rgb(255 113 0 / 20%);
+    }
+
+    .theme-toggle svg { width: 24px; height: 24px; }
+
+    .subtitle {
+      margin: 28px 0 28px;
+      color: var(--muted);
+      font-size: 19px;
+      line-height: 1.42;
+    }
+
+    .cards { display: grid; gap: 20px; }
+
+    .app-card {
+      background: var(--surface);
+      border: 1px solid var(--outline);
+      border-radius: 18px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      transition: background .2s, border-color .2s, transform .15s;
+    }
+
+    .app-card:active { transform: scale(.997); }
+
+    .app-head {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .app-icon {
+      --icon-bg: var(--brand-soft);
+      --icon-color: var(--brand);
+      flex: 0 0 60px;
+      width: 60px;
+      height: 60px;
+      border-radius: 17px;
+      background: var(--icon-bg);
+      color: var(--icon-color);
+      display: grid;
+      place-items: center;
+      transition: background .22s, color .22s, transform .22s;
+    }
+
+    .app-icon.changed { animation: icon-pop .28s ease; }
+    @keyframes icon-pop { 50% { transform: scale(.9) rotate(-4deg); } }
+    .app-icon svg { width: 32px; height: 32px; }
+
+    .app-title { min-width: 0; }
+    .app-title h2 {
+      margin: 0 0 4px;
+      font-size: 21px;
+      line-height: 1.15;
+      letter-spacing: -.015em;
+    }
+    .app-title p { margin: 0; color: var(--muted); font-size: 16px; }
+
+    .install-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 28px;
+      margin-top: 17px;
+      padding: 4px 9px;
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 680;
+    }
+
+    .install-status.not-installed { color: var(--muted); font-weight: 600; }
+    .install-status svg { width: 16px; height: 16px; flex: 0 0 16px; }
+
+    .flavors {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 28px;
+    }
+
+    .chip {
+      min-height: 29px;
+      padding: 3px 11px;
+      border: 1px solid var(--outline);
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+
+    .chip:hover { border-color: color-mix(in srgb, var(--brand) 55%, var(--outline)); }
+    .chip[aria-pressed="true"] {
+      color: white;
+      background: var(--brand);
+      border-color: var(--brand);
+      box-shadow: 0 2px 5px rgb(255 113 0 / 22%);
+    }
+
+    .card-footer {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: end;
+      margin-top: 8px;
+    }
+
+    .version-name {
+      margin: 0 0 4px;
+      font-weight: 760;
+      font-size: 17px;
+    }
+
+    .version-picker,
+    .date-picker {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      text-align: left;
+      padding: 0;
+      cursor: pointer;
+      border-radius: 8px;
+      position: relative;
+    }
+
+    .version-picker {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      margin: -4px -7px 0;
+      padding: 4px 7px;
+      font-weight: 760;
+      font-size: 17px;
+    }
+
+    .version-picker:hover,
+    .date-picker:hover { background: var(--surface-2); }
+
+    .version-picker:focus-visible,
+    .date-picker:focus-visible {
+      outline: 3px solid color-mix(in srgb, var(--brand) 32%, transparent);
+      outline-offset: 1px;
+    }
+
+    .version-picker svg { width: 17px; height: 17px; color: var(--muted); }
+
+    .date,
+    .date-picker {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 28px;
+      margin: 0;
+      padding: 3px 6px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.25;
+    }
+    .date { margin-left: -6px; }
+    .date svg,
+    .date-picker svg { width: 16px; height: 16px; flex: 0 0 16px; }
+    .date-picker { margin-left: -6px; }
+
+    .menu-wrap { position: relative; width: fit-content; }
+    .version-menu {
+      position: absolute;
+      z-index: 12;
+      left: -7px;
+      top: calc(100% + 7px);
+      min-width: 190px;
+      padding: 6px;
+      margin: 0;
+      list-style: none;
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      background: var(--surface);
+      box-shadow: 0 10px 30px rgb(0 0 0 / 18%);
+    }
+    .version-menu[hidden] { display: none; }
+    .version-option {
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      background: transparent;
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+    }
+    .version-option:hover,
+    .version-option[aria-selected="true"] { background: var(--surface-2); }
+    .version-option small { color: var(--muted); }
+
+    dialog {
+      width: min(calc(100% - 32px), 360px);
+      border: 1px solid var(--outline);
+      border-radius: 24px;
+      padding: 0;
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: 0 24px 70px rgb(0 0 0 / 30%);
+    }
+    dialog::backdrop { background: rgb(0 0 0 / 45%); backdrop-filter: blur(2px); }
+    .date-dialog-content { padding: 24px; }
+    .date-dialog-content .eyebrow { margin-bottom: 8px; }
+    .date-dialog-content h3 { margin: 0 0 20px; font-size: 24px; }
+    .date-input {
+      width: 100%;
+      min-height: 56px;
+      border: 1px solid var(--outline);
+      border-radius: 12px;
+      padding: 0 14px;
+      background: var(--surface-2);
+      color: var(--text);
+      font: inherit;
+      font-size: 17px;
+    }
+    .dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 22px;
+    }
+    .dialog-button {
+      min-height: 42px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 18px;
+      background: transparent;
+      color: var(--brand);
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .dialog-button.primary { background: var(--brand); color: white; }
+
+    .action {
+      --action-color: var(--brand);
+      position: relative;
+      isolation: isolate;
+      min-width: 146px;
+      height: 48px;
+      padding: 0 22px;
+      border: 0;
+      border-radius: 13px;
+      color: white;
+      background: var(--action-color);
+      font-size: 17px;
+      font-weight: 760;
+      cursor: pointer;
+      overflow: visible;
+      transition: background .2s, color .2s, transform .12s;
+    }
+    .action:hover { filter: brightness(1.03); }
+    .action:active { transform: scale(.98); }
+    .action.install { --action-color: var(--blue); }
+    .action.open { --action-color: #218739; }
+    .action.busy {
+      color: var(--action-color);
+      background: transparent;
+    }
+
+    .button-content {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      white-space: nowrap;
+    }
+    .button-content svg { width: 21px; height: 21px; }
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .progress-ring {
+      position: absolute;
+      inset: -1px;
+      width: calc(100% + 2px);
+      height: calc(100% + 2px);
+      pointer-events: none;
+      overflow: visible;
+    }
+    .progress-ring .track,
+    .progress-ring .value {
+      fill: none;
+      vector-effect: non-scaling-stroke;
+      stroke-width: 2.5;
+    }
+    .progress-ring .track { stroke: color-mix(in srgb, var(--action-color) 27%, transparent); }
+    .progress-ring .value {
+      stroke: var(--action-color);
+      stroke-linecap: round;
+      stroke-dasharray: 1;
+      stroke-dashoffset: 1;
+      transition: stroke-dashoffset .05s linear;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      z-index: 5;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(100%, 448px);
+      height: 90px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: center;
+      border-top: 1px solid var(--outline);
+      background: var(--nav);
+      backdrop-filter: blur(14px);
+      padding: 8px 20px 10px;
+    }
+
+    .nav-item {
+      border: 0;
+      border-radius: 14px;
+      background: transparent;
+      color: var(--muted);
+      height: 70px;
+      display: grid;
+      place-content: center;
+      gap: 5px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .nav-item svg { width: 25px; height: 25px; justify-self: center; }
+    .nav-item.active { color: var(--brand); background: var(--brand-soft); font-weight: 700; }
+
+    @media (max-width: 370px) {
+      .phone { padding-left: 14px; padding-right: 14px; }
+      .app-card { padding: 17px; }
+      .card-footer { grid-template-columns: 1fr; }
+      .action { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="phone">
+    <header>
+      <div class="topbar">
+        <div>
+          <p class="eyebrow">WELCOME TO</p>
+          <h1>TryFox</h1>
+        </div>
+        <button class="theme-toggle" id="themeToggle" aria-label="Switch to dark mode" title="Toggle theme"></button>
+      </div>
+      <p class="subtitle">Download and try Firefox-based browsers</p>
+    </header>
+
+    <section class="cards" id="cards" aria-label="Firefox apps"></section>
+  </main>
+
+  <dialog id="dateDialog" aria-labelledby="dateDialogTitle">
+    <form method="dialog" class="date-dialog-content" id="dateDialogForm">
+      <p class="eyebrow">NIGHTLY BUILD</p>
+      <h3 id="dateDialogTitle">Choose a build date</h3>
+      <input class="date-input" id="nightlyDateInput" type="date" required />
+      <div class="dialog-actions">
+        <button class="dialog-button" value="cancel">Cancel</button>
+        <button class="dialog-button primary" id="dateConfirm" value="default">Select date</button>
+      </div>
+    </form>
+  </dialog>
+
+  <nav class="bottom-nav" aria-label="Primary navigation">
+    <button class="nav-item active" aria-current="page">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg>
+      <span>Home</span>
+    </button>
+    <button class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+      <span>Search</span>
+    </button>
+    <button class="nav-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10H3V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13" r="3"/></svg>
+      <span>Scanner</span>
+    </button>
+  </nav>
+
+  <script>
+    const icons = {
+      firefox: `<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="16" cy="16" r="11.5"/><path d="M4.8 16h22.4M16 4.5c3.4 3.1 5.2 7 5.2 11.5S19.4 24.4 16 27.5C12.6 24.4 10.8 20.5 10.8 16S12.6 7.6 16 4.5Z"/></svg>`,
+      focus: `<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M16 3.8 26 8v7.2c0 6.3-3.9 10.7-10 13-6.1-2.3-10-6.7-10-13V8l10-4.2Z"/></svg>`,
+      reference: `<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="11.5"/><path d="m19.8 10.8-2.1 7-7 2.1 2.1-7 7-2.1Z"/></svg>`,
+      download: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 17v3h14v-3"/></svg>`,
+      spinner: `<svg class="spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/></svg>`,
+      open: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M8 7h9v9"/></svg>`,
+      moon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z"/></svg>`,
+      sun: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`,
+      calendar: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2v3m12-3v3M3 9h18M5 4h14a2 2 0 0 1 2 2v15H3V6a2 2 0 0 1 2-2Z"/></svg>`,
+      chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg>`,
+      playStore: `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M3.8 2.6c-.5.5-.8 1.2-.8 2.1v14.6c0 .8.3 1.5.8 2l8.7-9.4L3.8 2.6Zm10 10.7-2.2-2.4L5.1 4l10.2 5.8-1.5 3.5Zm-2.2-.2 2.2-2.4 1.6 3.5L5.1 20l6.5-6.9Zm5.1-2.6-1.9 1.1-1.2-1.3 1.2-1.3 1.9 1.1c.8.4.8 1 0 1.4Z"/></svg>`
+    };
+
+    const apps = [
+      {
+        id: 'firefox', title: 'Firefox Android', subtitle: 'Fenix', icon: 'firefox', initial: 'nightly', installed: { release: null, beta: null, nightly: { version: 'v155.0a1', source: 'tryfox' } },
+        flavors: {
+          release: { label: 'Release', version: 'Release v148', date: 'Jul 28, 2026', bg: '#fff0df', color: '#ff7100', versions: [['Release v148','Jul 28, 2026'],['Release v147','Jun 24, 2026'],['Release v146','May 27, 2026']] },
+          beta:    { label: 'Beta', version: 'Beta v149', date: 'Jul 30, 2026', bg: '#ece8ff', color: '#6545c4', versions: [['Beta v149','Jul 30, 2026'],['Beta v148','Jul 2, 2026'],['Beta v147','Jun 5, 2026']] },
+          nightly: { label: 'Nightly', version: 'Nightly v150', date: 'Aug 1, 2026', bg: '#30223c', color: '#ff8500' }
+        }
+      },
+      {
+        id: 'focus', title: 'Focus for Android', subtitle: 'Privacy Browser', icon: 'focus', initial: 'beta', installed: { release: { version: 'v147.2.0', source: 'playstore' }, beta: { version: 'v148.0b6', source: 'tryfox' }, nightly: null },
+        flavors: {
+          release: { label: 'Release', version: 'Release v147', date: 'Jul 22, 2026', bg: '#eceaf0', color: '#2b165f', versions: [['Release v147','Jul 22, 2026'],['Release v146','Jun 25, 2026'],['Release v145','May 28, 2026']] },
+          beta:    { label: 'Beta', version: 'Beta v148', date: 'Jul 29, 2026', bg: '#e8e9f5', color: '#365cad', versions: [['Beta v148','Jul 29, 2026'],['Beta v147','Jul 1, 2026'],['Beta v146','Jun 4, 2026']] },
+          nightly: { label: 'Nightly', version: 'Nightly v149', date: 'Aug 1, 2026', bg: '#29213a', color: '#b781ff' }
+        }
+      },
+      {
+        id: 'reference', title: 'Reference Browser', subtitle: 'GeckoView Reference', icon: 'reference', initial: 'release', installed: { release: null },
+        flavors: {
+          release: { label: 'Release', version: 'Release v145', date: 'Jul 25, 2026', bg: '#e1f4ff', color: '#0798e8', versions: [['Release v145','Jul 25, 2026'],['Release v144','Jun 27, 2026'],['Release v143','May 30, 2026']] }
+        }
+      }
+    ];
+
+    const states = new Map();
+
+    function detailsTemplate(app, flavorKey, flavor) {
+      if (flavorKey === 'nightly') {
+        return `<p class="version-name">${flavor.version}</p>
+          <button class="date-picker" data-date-picker type="button" aria-label="Choose another Nightly build date" title="Choose another Nightly build date">
+            ${icons.calendar}<span>${flavor.date}</span>
+          </button>`;
+      }
+      const options = (flavor.versions || [[flavor.version, flavor.date]]).map(([version, date]) =>
+        `<li><button class="version-option" type="button" data-version="${version}" data-date="${date}" aria-selected="${version === flavor.version}"><span>${version}</span><small>${date}</small></button></li>`
+      ).join('');
+      return `<div class="menu-wrap">
+          <button class="version-picker" data-version-picker type="button" aria-haspopup="listbox" aria-expanded="false">
+            <span>${flavor.version}</span>${icons.chevron}
+          </button>
+          <ul class="version-menu" role="listbox" hidden>${options}</ul>
+        </div>
+        <p class="date">${icons.calendar}<span>${flavor.date}</span></p>`;
+    }
+
+
+    function installStatusTemplate(app, flavorKey) {
+      const installed = app.installed?.[flavorKey] || null;
+      if (!installed) {
+        return `<div class="install-status not-installed" data-install-status>Not installed</div>`;
+      }
+      const sourceIcon = installed.source === 'playstore' ? icons.playStore : '';
+      const sourceLabel = installed.source === 'playstore' ? ' — Google Play' : '';
+      return `<div class="install-status" data-install-status>${sourceIcon}<span>Installed - ${installed.version}${sourceLabel}</span></div>`;
+    }
+
+    function cardTemplate(app) {
+      const flavorButtons = Object.entries(app.flavors).map(([key, f]) =>
+        `<button class="chip" data-flavor="${key}" aria-pressed="${key === app.initial}">${f.label}</button>`
+      ).join('');
+      const f = app.flavors[app.initial];
+      return `
+        <article class="app-card" data-app="${app.id}">
+          <div class="app-head">
+            <div class="app-icon" style="--icon-bg:${f.bg};--icon-color:${f.color}">${icons[app.icon]}</div>
+            <div class="app-title"><h2>${app.title}</h2><p>${app.subtitle}</p></div>
+          </div>
+          ${installStatusTemplate(app, app.initial)}
+          <div class="flavors">${flavorButtons}</div>
+          <div class="card-footer">
+            <div class="release-details">
+              ${detailsTemplate(app, app.initial, f)}
+            </div>
+            <button class="action" data-action aria-label="Download ${app.title}">
+              <span class="button-content">Download</span>
+            </button>
+          </div>
+        </article>`;
+    }
+
+    const cardsEl = document.getElementById('cards');
+    cardsEl.innerHTML = apps.map(cardTemplate).join('');
+    apps.forEach(app => states.set(app.id, { phase: 'download', running: false, progress: 0, flavor: app.initial }));
+
+    function getApp(id) { return apps.find(a => a.id === id); }
+
+    cardsEl.addEventListener('click', (event) => {
+      const card = event.target.closest('.app-card');
+      if (!card) return;
+      const app = getApp(card.dataset.app);
+      const chip = event.target.closest('.chip');
+      if (chip) {
+        const state = states.get(app.id);
+        if (state.running) return;
+        card.querySelectorAll('.chip').forEach(c => c.setAttribute('aria-pressed', c === chip));
+        const flavorKey = chip.dataset.flavor;
+        const flavor = app.flavors[flavorKey];
+        state.flavor = flavorKey;
+        card.querySelector('.release-details').innerHTML = detailsTemplate(app, flavorKey, flavor);
+        card.querySelector('[data-install-status]').outerHTML = installStatusTemplate(app, flavorKey);
+        const icon = card.querySelector('.app-icon');
+        icon.style.setProperty('--icon-bg', flavor.bg);
+        icon.style.setProperty('--icon-color', flavor.color);
+        icon.classList.remove('changed');
+        requestAnimationFrame(() => icon.classList.add('changed'));
+        resetAction(app.id, card);
+        return;
+      }
+
+      const versionPicker = event.target.closest('[data-version-picker]');
+      if (versionPicker) {
+        const menu = versionPicker.nextElementSibling;
+        const opening = menu.hidden;
+        closeVersionMenus();
+        menu.hidden = !opening;
+        versionPicker.setAttribute('aria-expanded', String(opening));
+        return;
+      }
+
+      const versionOption = event.target.closest('[data-version]');
+      if (versionOption) {
+        const state = states.get(app.id);
+        const flavor = app.flavors[state.flavor];
+        flavor.version = versionOption.dataset.version;
+        flavor.date = versionOption.dataset.date;
+        card.querySelector('.release-details').innerHTML = detailsTemplate(app, state.flavor, flavor);
+        resetAction(app.id, card);
+        return;
+      }
+
+      const datePicker = event.target.closest('[data-date-picker]');
+      if (datePicker) {
+        openDateDialog(app, card);
+        return;
+      }
+
+      const action = event.target.closest('[data-action]');
+      if (action) runAction(app.id, card, action);
+    });
+
+    function resetAction(appId, card) {
+      const state = states.get(appId);
+      state.phase = 'download'; state.running = false; state.progress = 0;
+      const btn = card.querySelector('[data-action]');
+      btn.className = 'action';
+      btn.disabled = false;
+      btn.innerHTML = `<span class="button-content">Download</span>`;
+    }
+
+    function progressSvg() {
+      return `<svg class="progress-ring" viewBox="0 0 146 48" preserveAspectRatio="none" aria-hidden="true">
+        <rect class="track" x="1.25" y="1.25" width="143.5" height="45.5" rx="12" pathLength="1" />
+        <rect class="value" x="1.25" y="1.25" width="143.5" height="45.5" rx="12" pathLength="1" />
+      </svg>`;
+    }
+
+    function runAction(appId, card, btn) {
+      const state = states.get(appId);
+      if (state.running) return;
+      if (state.phase === 'open') {
+        btn.animate([{transform:'scale(1)'},{transform:'scale(.95)'},{transform:'scale(1)'}], {duration:220});
+        return;
+      }
+      if (state.phase === 'download') animatePhase(appId, btn, 'Downloading', 'install');
+      else if (state.phase === 'install') animatePhase(appId, btn, 'Installing', 'open');
+    }
+
+    function animatePhase(appId, btn, label, nextPhase) {
+      const state = states.get(appId);
+      state.running = true;
+      state.progress = 0;
+      btn.className = `action busy ${state.phase === 'install' ? 'install' : ''}`;
+      btn.disabled = true;
+      btn.innerHTML = `${progressSvg()}<span class="button-content">${icons.spinner}<span>${label}</span></span>`;
+      const value = btn.querySelector('.value');
+      const started = performance.now();
+      const duration = 3000;
+
+      function frame(now) {
+        const p = Math.min(1, (now - started) / duration);
+        state.progress = p;
+        value.style.strokeDashoffset = String(1 - p);
+        if (p < 1) requestAnimationFrame(frame);
+        else finishPhase(appId, btn, nextPhase);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function finishPhase(appId, btn, nextPhase) {
+      const state = states.get(appId);
+      state.running = false;
+      state.phase = nextPhase;
+      btn.disabled = false;
+      if (nextPhase === 'install') {
+        btn.className = 'action install';
+        btn.innerHTML = `<span class="button-content">${icons.download}<span>Install</span></span>`;
+      } else {
+        btn.className = 'action open';
+        btn.innerHTML = `<span class="button-content">${icons.open}<span>Open</span></span>`;
+        const app = getApp(appId);
+        const flavor = app.flavors[state.flavor];
+        app.installed[state.flavor] = { version: flavor.version, source: 'tryfox' };
+        const card = btn.closest('.app-card');
+        card.querySelector('[data-install-status]').outerHTML = installStatusTemplate(app, state.flavor);
+      }
+    }
+
+
+    function closeVersionMenus() {
+      document.querySelectorAll('.version-menu:not([hidden])').forEach(menu => {
+        menu.hidden = true;
+        menu.previousElementSibling?.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    document.addEventListener('click', event => {
+      if (!event.target.closest('.menu-wrap')) closeVersionMenus();
+    });
+
+    const dateDialog = document.getElementById('dateDialog');
+    const nightlyDateInput = document.getElementById('nightlyDateInput');
+    let pendingDateSelection = null;
+
+    function toInputDate(displayDate) {
+      const parsed = new Date(displayDate);
+      if (Number.isNaN(parsed.getTime())) return '';
+      return parsed.toISOString().slice(0, 10);
+    }
+
+    function formatDisplayDate(value) {
+      return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
+    }
+
+    function openDateDialog(app, card) {
+      const state = states.get(app.id);
+      const flavor = app.flavors[state.flavor];
+      nightlyDateInput.value = toInputDate(flavor.date);
+      nightlyDateInput.max = new Date().toISOString().slice(0, 10);
+      pendingDateSelection = { app, card, flavor };
+      dateDialog.showModal();
+      setTimeout(() => nightlyDateInput.focus(), 0);
+    }
+
+    document.getElementById('dateDialogForm').addEventListener('submit', event => {
+      if (event.submitter?.value === 'cancel') return;
+      event.preventDefault();
+      if (!nightlyDateInput.reportValidity() || !pendingDateSelection) return;
+      const { app, card, flavor } = pendingDateSelection;
+      flavor.date = formatDisplayDate(nightlyDateInput.value);
+      card.querySelector('.release-details').innerHTML = detailsTemplate(app, 'nightly', flavor);
+      resetAction(app.id, card);
+      pendingDateSelection = null;
+      dateDialog.close();
+    });
+
+    const root = document.documentElement;
+    const themeToggle = document.getElementById('themeToggle');
+    function renderThemeButton() {
+      const dark = root.dataset.theme === 'dark';
+      themeToggle.innerHTML = dark ? icons.sun : icons.moon;
+      themeToggle.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    }
+    themeToggle.addEventListener('click', () => {
+      root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+      renderThemeButton();
+    });
+    renderThemeButton();
+  </script>
+</body>
+</html>

@@ -104,10 +104,10 @@ class SearchViewModelTest {
         val installCoordinator = mock<ApkInstallCoordinator>()
         whenever(installCoordinator.states).thenReturn(MutableStateFlow(emptyMap()))
         whenever(installCoordinator.successfulInstalls).thenReturn(MutableSharedFlow())
-        whenever(repository.getPushesByAuthor("try", "developer@example.com", 10, 0))
-            .thenReturn(NetworkResult.Success(authorResponse((1..10).toList())))
         whenever(repository.getPushesByAuthor("try", "developer@example.com", 20, 0))
             .thenReturn(NetworkResult.Success(authorResponse((1..20).toList())))
+        whenever(repository.getPushesByAuthor("try", "developer@example.com", 40, 0))
+            .thenReturn(NetworkResult.Success(authorResponse((1..40).toList())))
         whenever(repository.getJobsForPush(1)).thenReturn(
             NetworkResult.Success(
                 TreeherderJobsResponse(
@@ -122,14 +122,14 @@ class SearchViewModelTest {
                 ),
             ),
         )
-        whenever(repository.getJobsForPush(11)).thenReturn(
+        whenever(repository.getJobsForPush(21)).thenReturn(
             NetworkResult.Success(
                 TreeherderJobsResponse(
                     listOf(JobDetails("fenix", "build-android-fenix-apk", "Bsign", "task-id")),
                 ),
             ),
         )
-        for (id in 2..10) {
+        for (id in 2..20) {
             whenever(repository.getJobsForPush(id)).thenReturn(NetworkResult.Success(TreeherderJobsResponse(emptyList())))
         }
         val viewModel = SearchViewModel(
@@ -147,9 +147,49 @@ class SearchViewModelTest {
         viewModel.loadMorePushes()
         advanceUntilIdle()
 
-        assertEquals(listOf("revision-1", "revision-11"), viewModel.pushes.value.map { it.revision })
-        verify(repository).getPushesByAuthor("try", "developer@example.com", 10, 0)
+        assertEquals(listOf("revision-1", "revision-21"), viewModel.pushes.value.map { it.revision })
         verify(repository).getPushesByAuthor("try", "developer@example.com", 20, 0)
+        verify(repository).getPushesByAuthor("try", "developer@example.com", 40, 0)
+    }
+
+    @Test
+    fun `blank query checks the next 50 pushes when the newest page has no APK`() = runTest {
+        val repository = mock<TreeherderRepository>()
+        val installCoordinator = mock<ApkInstallCoordinator>()
+        whenever(installCoordinator.states).thenReturn(MutableStateFlow(emptyMap()))
+        whenever(installCoordinator.successfulInstalls).thenReturn(MutableSharedFlow())
+        whenever(repository.getRecentPushes("try", 20, 0))
+            .thenReturn(NetworkResult.Success(recentResponse((1..20).toList())))
+        whenever(repository.getRecentPushes("try", 50, 20))
+            .thenReturn(NetworkResult.Success(recentResponse((21..70).toList())))
+        for (id in 1..20) {
+            whenever(repository.getJobsForPush(id)).thenReturn(NetworkResult.Success(TreeherderJobsResponse(emptyList())))
+        }
+        whenever(repository.getJobsForPush(21)).thenReturn(
+            NetworkResult.Success(TreeherderJobsResponse(listOf(JobDetails("fenix", "build-android-fenix-apk", "Bsign", "task-id")))),
+        )
+        whenever(repository.getArtifactsForTask("task-id")).thenReturn(
+            NetworkResult.Success(ArtifactsResponse(listOf(Artifact("s3", "public/build/target.arm64-v8a.apk", "", "application/vnd.android.package-archive")))),
+        )
+        for (id in 22..70) {
+            whenever(repository.getJobsForPush(id)).thenReturn(NetworkResult.Success(TreeherderJobsResponse(emptyList())))
+        }
+        val viewModel = SearchViewModel(
+            fenixRepository = repository,
+            userDataRepository = FakeUserDataRepository(),
+            cacheManager = FakeCacheManager(cacheDir),
+            historyRepository = FakeHistoryRepository(),
+            downloadCoordinator = FakeDownloadCoordinator(),
+            installCoordinator = installCoordinator,
+            authorEmail = "",
+        )
+
+        viewModel.submitSearch()
+        advanceUntilIdle()
+
+        assertEquals(listOf("revision-21"), viewModel.pushes.value.map { it.revision })
+        verify(repository).getRecentPushes("try", 20, 0)
+        verify(repository).getRecentPushes("try", 50, 20)
     }
 
     private fun revisionResponse() = TreeherderRevisionResponse(
@@ -170,6 +210,23 @@ class SearchViewModelTest {
     )
 
     private fun authorResponse(ids: List<Int>) = TreeherderRevisionResponse(
+        meta = RevisionMeta(revision = null, count = ids.size, repository = "try"),
+        results = ids.map { id ->
+            RevisionResult(
+                id = id,
+                revision = "revision-$id",
+                author = "developer@example.com",
+                revisions = listOf(
+                    RevisionDetail(id, 1, "revision-$id", "developer@example.com", "Push $id"),
+                ),
+                revisionCount = 1,
+                pushTimestamp = id.toLong(),
+                repositoryId = 1,
+            )
+        },
+    )
+
+    private fun recentResponse(ids: List<Int>) = TreeherderRevisionResponse(
         meta = RevisionMeta(revision = null, count = ids.size, repository = "try"),
         results = ids.map { id ->
             RevisionResult(

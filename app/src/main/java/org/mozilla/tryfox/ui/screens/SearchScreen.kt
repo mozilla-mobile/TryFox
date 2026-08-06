@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -54,10 +53,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -70,8 +67,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.filter
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.SearchHistory
 import org.mozilla.tryfox.data.SearchHistoryEntry
@@ -93,7 +88,6 @@ internal const val TREEHERDER_LOADING_STATE_TAG = "treeherder_loading_state"
 internal const val TREEHERDER_LOADING_MORE_TAG = "treeherder_loading_more"
 internal const val TREEHERDER_LOAD_MORE_ERROR_TAG = "treeherder_load_more_error"
 internal const val TREEHERDER_SEARCH_HISTORY_TAG = "treeherder_search_history"
-private const val TREEHERDER_LOAD_MORE_END_KEY = "treeherder_load_more_end"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,45 +126,6 @@ fun SearchScreen(
         query != displayedQuery
     val showSearchHistory = !hasSubmittedSearch || isEditingDisplayedSearch
     val showCurrentSearch = !isEditingDisplayedSearch
-    val resultsListState = rememberLazyListState()
-    var hasUserScrolledSinceLastLoad by remember { mutableStateOf(false) }
-    val currentShowCurrentSearch by rememberUpdatedState(showCurrentSearch)
-    val currentIsLoadingMore by rememberUpdatedState(isLoadingMore)
-    val loadMoreEndKey by rememberUpdatedState(
-        TREEHERDER_LOAD_MORE_END_KEY.takeIf {
-            canLoadMore && !isLoadingMore && loadMoreError == null && showCurrentSearch
-        },
-    )
-
-    LaunchedEffect(isLoadingMore) {
-        if (isLoadingMore) hasUserScrolledSinceLastLoad = false
-    }
-
-    LaunchedEffect(resultsListState) {
-        snapshotFlow { resultsListState.isScrollInProgress }
-            .distinctUntilChanged()
-            .filter { it }
-            .collect {
-                if (!currentIsLoadingMore) hasUserScrolledSinceLastLoad = true
-            }
-    }
-
-    LaunchedEffect(resultsListState) {
-        snapshotFlow {
-            loadMoreEndKey?.let { key ->
-                resultsListState.layoutInfo.visibleItemsInfo.any { it.key == key }
-            } ?: false
-        }
-            .distinctUntilChanged()
-            .filter { it }
-            .collect {
-                if (currentShowCurrentSearch && hasUserScrolledSinceLastLoad) {
-                    hasUserScrolledSinceLastLoad = false
-                    searchViewModel.loadMorePushes()
-                }
-            }
-    }
-
     fun submitSearch(queryToSubmit: String) {
         hasSubmittedSearch = true
         displayedQuery = queryToSubmit
@@ -245,7 +200,6 @@ fun SearchScreen(
             }
 
             LazyColumn(
-                state = resultsListState,
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -337,32 +291,28 @@ fun SearchScreen(
                         }
                     }
 
-                    if (canLoadMore && !isLoadingMore && loadMoreError == null) {
-                        item {
-                            LoadMoreButtonFooter(
-                                message = "More builds are available.",
-                                onLoadMore = searchViewModel::loadMorePushes,
-                            )
-                        }
-                    }
-                } else if (canLoadMore) {
+                } else if (canLoadMore && isLoadingMore) {
                     item {
-                        if (isLoadingMore) {
-                            LoadingMoreFooter()
-                        } else {
-                            LoadMoreButtonFooter(
-                                message = "No compatible APK builds were found in this page.",
-                                onLoadMore = searchViewModel::loadMorePushes,
-                            )
+                        LoadingMoreFooter()
+                    }
+                }
+
+                if (canLoadMore && !isLoading && !isLoadingMore && loadMoreError == null && showCurrentSearch) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            Button(
+                                onClick = searchViewModel::loadMorePushes,
+                                modifier = Modifier.padding(vertical = 4.dp),
+                            ) {
+                                Text("Load more")
+                            }
                         }
                     }
                 }
 
-                if (canLoadMore) {
-                    item(key = TREEHERDER_LOAD_MORE_END_KEY) {
-                        Spacer(modifier = Modifier.height(1.dp))
-                    }
-                }
             }
         }
     }
@@ -609,24 +559,6 @@ private fun LoadMoreErrorFooter(
             )
             Button(onClick = onRetry, modifier = Modifier.align(Alignment.End)) {
                 Text("Retry")
-            }
-        }
-    }
-}
-
-@Composable
-private fun LoadMoreButtonFooter(
-    message: String,
-    onLoadMore: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(text = message, style = MaterialTheme.typography.bodyMedium)
-            Button(onClick = onLoadMore, modifier = Modifier.align(Alignment.End)) {
-                Text("Load more")
             }
         }
     }
