@@ -23,14 +23,10 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,8 +43,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.mozilla.tryfox.R
-import org.mozilla.tryfox.model.CacheManagementState
-import org.mozilla.tryfox.ui.composables.BinButton
 
 /**
  * Composable function for the Home screen, which displays a list of available apps and allows users to interact with them.
@@ -83,13 +77,6 @@ fun HomeScreen(
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            val loadedState = screenState as? HomeScreenState.Loaded
-            val currentCacheState =
-                loadedState?.cacheManagementState ?: CacheManagementState.IdleEmpty
-            val isDownloading = loadedState?.isDownloadingAnyFile ?: false
-            val binButtonEnabled =
-                !isDownloading && currentCacheState == CacheManagementState.IdleNonEmpty
-
             TopAppBar(
                 title = { Text(stringResource(id = R.string.app_name)) },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -122,22 +109,6 @@ fun HomeScreen(
                             contentDescription = stringResource(
                                 id = R.string.home_search_treeherder_button_description,
                             ),
-                        )
-                    }
-                    val tooltipState = rememberTooltipState()
-                    TooltipBox(
-                        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                        tooltip = {
-                            PlainTooltip {
-                                Text(stringResource(id = R.string.bin_button_tooltip_clear_downloaded_apks))
-                            }
-                        },
-                        state = tooltipState,
-                    ) {
-                        BinButton(
-                            cacheState = currentCacheState,
-                            onConfirm = { homeViewModel.clearAppCache() },
-                            enabled = binButtonEnabled,
                         )
                     }
                     IconButton(onClick = onNavigateToSettings) {
