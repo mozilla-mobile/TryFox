@@ -2,6 +2,7 @@ package org.mozilla.tryfox.install
 
 import android.content.Context
 import android.content.Intent
+import android.content.IntentSender
 import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import kotlinx.coroutines.flow.Flow
@@ -9,14 +10,49 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.mockConstruction
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.mozilla.tryfox.data.InstalledTryBuild
 import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
+import java.io.ByteArrayOutputStream
+import java.io.File
 
 class ApkInstallCoordinatorTest {
+
+    @Test
+    fun `session factory creates and commits a PackageInstaller session owned by TryFox`() {
+        val packageInstaller = mock<PackageInstaller>()
+        val session = mock<PackageInstaller.Session>()
+        val statusReceiver = mock<IntentSender>()
+        val apk = File.createTempFile("tryfox-install", ".apk").apply { writeText("apk") }
+        val apkSize = apk.length()
+        whenever(packageInstaller.createSession(any())).thenReturn(42)
+        whenever(packageInstaller.openSession(42)).thenReturn(session)
+        whenever(session.openWrite(any(), any(), any())).thenReturn(ByteArrayOutputStream())
+
+        val paramsConstruction = mockConstruction(PackageInstaller.SessionParams::class.java) { _, context ->
+            assertEquals(PackageInstaller.SessionParams.MODE_FULL_INSTALL, context.arguments().single())
+        }
+        try {
+            PackageInstallerSessionFactory(packageInstaller).commit(apk, "org.mozilla.fenix", statusReceiver)
+
+            val params = paramsConstruction.constructed().single()
+            verify(params).setAppPackageName("org.mozilla.fenix")
+            verify(params).setSize(apkSize)
+        } finally {
+            paramsConstruction.close()
+            apk.delete()
+        }
+
+        verify(packageInstaller).createSession(any())
+        verify(session).openWrite("base.apk", 0L, apkSize)
+        verify(session).fsync(any())
+        verify(session).commit(statusReceiver)
+    }
 
     @Test
     fun `successful result after process recreation persists Try build provenance`() = runTest {

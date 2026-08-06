@@ -75,7 +75,7 @@ class HomeViewModel(
     private val mozillaPackageManager: MozillaPackageManager,
     private val cacheManager: CacheManager,
     private val intentManager: IntentManager,
-    private val installCoordinator: ApkInstallCoordinator? = null,
+    private val installCoordinator: ApkInstallCoordinator,
     private val ioDispatcher: CoroutineDispatcher,
     private val homeDataCacheRepository: HomeDataCacheRepository = EmptyHomeDataCacheRepository,
     private val installedTryBuildRepository: InstalledTryBuildRepository = EmptyInstalledTryBuildRepository,
@@ -87,8 +87,7 @@ class HomeViewModel(
 
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
-    val installStates: StateFlow<Map<String, InstallState>> =
-        installCoordinator?.states ?: MutableStateFlow(emptyMap())
+    val installStates: StateFlow<Map<String, InstallState>> = installCoordinator.states
     private val downloadStates = MutableStateFlow<Map<String, PersistedDownloadState>>(emptyMap())
     private var currentAppsByName: Map<String, AppUiModel> = emptyMap()
     private var cachedAppsByName: Map<String, AppUiModel> = emptyMap()
@@ -503,12 +502,12 @@ class HomeViewModel(
     }
 
     fun installApk(file: File) {
-        installCoordinator?.install(file.absolutePath, file) ?: intentManager.installApk(file)
+        installCoordinator.install(file.absolutePath, file)
     }
 
     fun installHomeApk(apkInfo: ApkUiModel) {
         val file = File(apkInfo.apkDir, apkInfo.fileName)
-        installCoordinator?.install(apkInfo.uniqueKey, file) ?: intentManager.installApk(file)
+        installCoordinator.install(apkInfo.uniqueKey, file)
     }
 
     fun uninstallApp(packageName: String) {

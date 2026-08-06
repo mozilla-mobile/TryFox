@@ -18,13 +18,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mozilla.tryfox.TryFoxViewModel
 import org.mozilla.tryfox.data.Artifact
 import org.mozilla.tryfox.data.ArtifactsResponse
+import org.mozilla.tryfox.data.FakeApkDownloadCoordinator
 import org.mozilla.tryfox.data.FakeCacheManager
-import org.mozilla.tryfox.data.FakeDownloadFileRepository
 import org.mozilla.tryfox.data.FakeHistoryRepository
-import org.mozilla.tryfox.data.FakeIntentManager
+import org.mozilla.tryfox.data.FakeUserDataRepository
 import org.mozilla.tryfox.data.JobDetails
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.RevisionDetail
@@ -34,7 +33,9 @@ import org.mozilla.tryfox.data.SearchHistoryEntry
 import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.data.TreeherderJobsResponse
 import org.mozilla.tryfox.data.TreeherderRevisionResponse
+import org.mozilla.tryfox.data.repositories.EmptyInstalledTryBuildRepository
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
+import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
 @RunWith(AndroidJUnit4::class)
@@ -47,24 +48,16 @@ class SearchScreenTest {
     fun treeherderScreen_showsLoaderUntilSearchCompletes_thenDisplaysResults() {
         val targetJobName = "signing-apk-focus-nightly"
         val targetDisplayName = "Focus nightly"
-        val viewModel = TryFoxViewModel(
+        val viewModel = searchViewModel(
             fenixRepository = DelayedTreeherderRepository(targetJobName = targetJobName),
-            downloadFileRepository = FakeDownloadFileRepository(),
-            cacheManager = FakeCacheManager(),
-            intentManager = FakeIntentManager(),
-            historyRepository = FakeHistoryRepository(),
-            project = "mozilla-central",
-            revision = "ed209aa2136b241686ff20489c5cb622348e2ecf",
-            supportedAbis = listOf("arm64-v8a"),
-            infoLogger = { _, _ -> 0 },
         )
 
         composeTestRule.setContent {
             TryFoxTheme {
                 SearchScreen(
-                    tryFoxViewModel = viewModel,
-                    deepLinkProject = null,
-                    deepLinkRevision = null,
+                    searchViewModel = viewModel,
+                    deepLinkProject = "mozilla-central",
+                    deepLinkQuery = "ed209aa2136b241686ff20489c5cb622348e2ecf",
                     onNavigateUp = {},
                 )
             }
@@ -138,24 +131,16 @@ class SearchScreenTest {
 
     @Test
     fun selectingHistoryEntry_hidesHistoryBeforeShowingSearchResults() {
-        val viewModel = TryFoxViewModel(
+        val viewModel = searchViewModel(
             fenixRepository = DelayedTreeherderRepository(targetJobName = "signing-apk-focus-nightly"),
-            downloadFileRepository = FakeDownloadFileRepository(),
-            cacheManager = FakeCacheManager(),
-            intentManager = FakeIntentManager(),
-            historyRepository = FakeHistoryRepository(),
-            project = null,
-            revision = null,
-            supportedAbis = listOf("arm64-v8a"),
-            infoLogger = { _, _ -> 0 },
         )
 
         composeTestRule.setContent {
             TryFoxTheme {
                 SearchScreen(
-                    tryFoxViewModel = viewModel,
+                    searchViewModel = viewModel,
                     deepLinkProject = null,
-                    deepLinkRevision = null,
+                    deepLinkQuery = null,
                     onNavigateUp = {},
                     searchHistory = listOf(
                         SearchHistoryEntry("try", "abc123", SearchHistoryQueryType.REVISION, 1L),
@@ -254,4 +239,19 @@ class SearchScreenTest {
             )
         }
     }
+
+    private fun installCoordinator() = ApkInstallCoordinator(
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext,
+        EmptyInstalledTryBuildRepository,
+    )
+
+    private fun searchViewModel(fenixRepository: TreeherderRepository) = SearchViewModel(
+        fenixRepository = fenixRepository,
+        userDataRepository = FakeUserDataRepository(),
+        cacheManager = FakeCacheManager(),
+        historyRepository = FakeHistoryRepository(),
+        downloadCoordinator = FakeApkDownloadCoordinator(),
+        installCoordinator = installCoordinator(),
+        authorEmail = null,
+    )
 }

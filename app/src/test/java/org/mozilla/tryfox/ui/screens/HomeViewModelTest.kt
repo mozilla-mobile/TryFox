@@ -22,6 +22,11 @@ import org.junit.jupiter.api.extension.RegisterExtension
 import org.junit.jupiter.api.io.TempDir
 import org.mockito.junit.jupiter.MockitoExtension
 import org.mockito.junit.jupiter.MockitoSettings
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.isNull
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
 import org.mockito.quality.Strictness
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.FakeMozillaArchiveRepository
@@ -47,6 +52,7 @@ import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
+import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.MozillaArchiveApk
@@ -76,6 +82,7 @@ class HomeViewModelTest {
     private lateinit var fakeCacheManager: FakeCacheManager
     private lateinit var fakeDownloadCoordinator: FakeApkDownloadCoordinator
     private val intentManager = FakeIntentManager()
+    private lateinit var installCoordinator: ApkInstallCoordinator
 
     @TempDir
     lateinit var tempCacheDir: File
@@ -182,6 +189,8 @@ class HomeViewModelTest {
     fun setUp() {
         fakeCacheManager = FakeCacheManager(tempCacheDir)
         fakeDownloadCoordinator = FakeApkDownloadCoordinator()
+        installCoordinator = mock()
+        whenever(installCoordinator.states).thenReturn(MutableStateFlow(emptyMap()))
         viewModel = createViewModel()
     }
 
@@ -196,6 +205,7 @@ class HomeViewModelTest {
         mozillaPackageManager = mozillaPackageManager,
         cacheManager = fakeCacheManager,
         intentManager = intentManager,
+        installCoordinator = installCoordinator,
         ioDispatcher = mainCoroutineRule.testDispatcher,
         homeDataCacheRepository = homeDataCacheRepository,
         installedTryBuildRepository = installedTryBuildRepository,
@@ -937,7 +947,6 @@ class HomeViewModelTest {
             (downloadedApkInfo.downloadState as DownloadState.Downloaded).file.path,
         )
         assertTrue(fakeCacheManager.checkCacheStatusCalled)
-        assertFalse(intentManager.wasInstallApkCalled)
         assertFalse(
             loadedState.isDownloadingAnyFile,
             "isDownloadingAnyFile should be false after success",
@@ -1105,5 +1114,25 @@ class HomeViewModelTest {
         val packageName = "org.mozilla.fenix"
         viewModel.uninstallApp(packageName)
         assertTrue(intentManager.wasUninstallApkCalled)
+    }
+
+    @Test
+    fun `installHomeApk delegates to the PackageInstaller coordinator`() {
+        val apk = createTestApkUiModel(
+            createTestParsedNightlyApk(testFenixAppName, testDateRaw, testVersion, testAbi),
+        )
+
+        viewModel.installHomeApk(apk)
+
+        verify(installCoordinator).install(eq(apk.uniqueKey), eq(File(apk.apkDir, apk.fileName)), isNull())
+    }
+
+    @Test
+    fun `installApk delegates downloaded files to the PackageInstaller coordinator`() {
+        val apk = File(tempCacheDir, "downloaded.apk")
+
+        viewModel.installApk(apk)
+
+        verify(installCoordinator).install(eq(apk.absolutePath), eq(apk), isNull())
     }
 }
