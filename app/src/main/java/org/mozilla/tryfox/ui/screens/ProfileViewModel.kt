@@ -148,10 +148,21 @@ class SearchViewModel(
         val failed: Boolean,
     )
 
+    private data class PushPageResult(
+        val pushes: List<PushUiModel>,
+        val hasExpiredJobs: Boolean,
+    )
+
+    private data class PushBuildResult(
+        val push: PushUiModel?,
+        val hasExpiredJobs: Boolean,
+    )
+
     companion object {
         private const val TAG = "SearchViewModel"
         private const val MAX_PARALLEL_ARTIFACT_REQUESTS = 6
         private const val PUSH_PAGE_SIZE = 20
+        private const val EMPTY_PAGE_FALLBACK_SIZE = 50
     }
 
     private sealed interface PaginatedSearch {
@@ -174,7 +185,8 @@ class SearchViewModel(
         val search: PaginatedSearch,
         var nextOffset: Int = 0,
         var hasMore: Boolean = true,
-        var hasRetriedRecentPushes: Boolean = false,
+        var hasReachedExpiredJobs: Boolean = false,
+        var authorPushTimestampCursor: Long? = null,
         var fetchedPushCount: Int = 0,
         var hasRecordedSearch: Boolean = false,
         val loadedPushIds: MutableSet<Int> = mutableSetOf(),
@@ -206,6 +218,9 @@ class SearchViewModel(
 
     private val _warningMessage = MutableStateFlow<String?>(null)
     val warningMessage: StateFlow<String?> = _warningMessage.asStateFlow()
+
+    private val _hasReachedExpiredJobs = MutableStateFlow(false)
+    val hasReachedExpiredJobs: StateFlow<Boolean> = _hasReachedExpiredJobs.asStateFlow()
 
     private val _pushes = MutableStateFlow<List<PushUiModel>>(emptyList())
     val pushes: StateFlow<List<PushUiModel>> = _pushes.asStateFlow()
@@ -277,6 +292,7 @@ class SearchViewModel(
         _authorEmail.value = email
         _errorMessage.value = null
         _warningMessage.value = null
+        _hasReachedExpiredJobs.value = false
     }
 
     fun updateQuery(query: String) = updateAuthorEmail(query)
@@ -284,6 +300,7 @@ class SearchViewModel(
     fun updateSelectedProject(project: String) {
         _selectedProject.value = project
         _warningMessage.value = null
+        _hasReachedExpiredJobs.value = false
     }
 
     fun setEmailFromDeepLinkAndSearch(project: String?, email: String) {
@@ -324,11 +341,13 @@ class SearchViewModel(
         _isLoadingMore.value = false
         _canLoadMore.value = false
         _loadMoreError.value = null
+        _hasReachedExpiredJobs.value = false
         activeSearchJob = viewModelScope.launch {
             try {
                 _isLoading.value = true
                 _errorMessage.value = null
                 _warningMessage.value = null
+                _hasReachedExpiredJobs.value = false
                 _pushes.value = emptyList()
                 when (val pushResult = fenixRepository.getPushByRevision(projectToSearch, revision)) {
                 is NetworkResult.Success -> {
@@ -429,6 +448,7 @@ class SearchViewModel(
                 _errorMessage.value = null
                 _loadMoreError.value = null
                 _warningMessage.value = null
+                _hasReachedExpiredJobs.value = false
                 _pushes.value = emptyList()
                 paginationSession = PaginationSession(search)
                 _canLoadMore.value = true
@@ -464,6 +484,7 @@ class SearchViewModel(
         session: PaginationSession,
         isInitialLoad: Boolean,
         requestedCountOverride: Int? = null,
+        isEmptyPageFallback: Boolean = false,
     ) {
         if (!session.hasMore || paginationSession !== session) return
         val requestedCount = requestedCountOverride ?: requestedPushCount(session.search, session.nextOffset)
@@ -475,6 +496,7 @@ class SearchViewModel(
             is NetworkResult.Error -> {
                 val message = "Error fetching pushes: ${response.message}"
                 logcat(LogPriority.ERROR, TAG) { message }
+                if (isEmptyPageFallback) return
                 if (isInitialLoad && _pushes.value.isEmpty()) _errorMessage.value = message else _loadMoreError.value = message
             }
 
@@ -486,9 +508,12 @@ class SearchViewModel(
                         rawPushes.joinToString { "${it.id}:${it.revision.take(12)}" }
                 }
                 val newPushes = rawPushes.filter { session.loadedPushIds.add(it.id) }
-                // Author-filtered Treeherder responses ignore offset. For those searches we
-                // request a growing prefix and advance by only the newly observed pushes.
+                // Treeherder's author filter ignores offset. Its timestamp cursor is inclusive,
+                // so duplicate the boundary push and remove it through loadedPushIds.
                 session.nextOffset += newPushes.size
+                if (session.search is PaginatedSearch.Author) {
+                    session.authorPushTimestampCursor = rawPushes.lastOrNull()?.pushTimestamp
+                }
                 session.hasMore = rawPushes.size == requestedCount
                 _canLoadMore.value = session.hasMore
                 session.fetchedPushCount += newPushes.size
@@ -506,7 +531,8 @@ class SearchViewModel(
                     updatePaginationWarning(session)
                     return
                 }
-                val displayablePushes = buildPushUiModels(session.search.project, newPushes, rawPushes)
+                val pageResult = buildPushUiModels(session.search.project, newPushes, rawPushes)
+                val displayablePushes = pageResult.pushes
                 logcat(LogPriority.DEBUG, TAG) {
                     "Page produced ${displayablePushes.size} displayable pushes: " +
                         displayablePushes.joinToString { it.revision.orEmpty().take(12) }
@@ -519,27 +545,37 @@ class SearchViewModel(
                         session.hasRecordedSearch = true
                     }
                 }
+                if (pageResult.hasExpiredJobs) {
+                    // Results are newest first. An all-empty jobs page marks Treeherder's job
+                    // retention boundary, so older pushes cannot yield downloadable builds.
+                    session.hasReachedExpiredJobs = true
+                    _hasReachedExpiredJobs.value = true
+                    session.hasMore = false
+                    _canLoadMore.value = false
+                }
                 updatePaginationWarning(session)
-                // A blank query means "find a recent build". If the newest page contains no
-                // usable APK, automatically look through the next 50 pushes before asking the
-                // user to load still more results.
+                // If a regular page has no usable APKs, make one larger request before asking
+                // the user to load more again. The fallback must never trigger another fallback.
                 if (
-                    isInitialLoad &&
-                    session.search is PaginatedSearch.Recent &&
-                    !session.hasRetriedRecentPushes &&
-                    _pushes.value.isEmpty() &&
+                    !isEmptyPageFallback &&
+                    displayablePushes.isEmpty() &&
                     session.hasMore
                 ) {
-                    session.hasRetriedRecentPushes = true
-                    logcat(TAG) { "No usable APKs in the newest $PUSH_PAGE_SIZE pushes; searching the next 50." }
+                    val fallbackCount = if (session.search is PaginatedSearch.Author) {
+                        EMPTY_PAGE_FALLBACK_SIZE + 1
+                    } else {
+                        EMPTY_PAGE_FALLBACK_SIZE
+                    }
+                    logcat(TAG) { "No usable APKs in this page; searching the next $EMPTY_PAGE_FALLBACK_SIZE." }
                     loadPagesUntilResultsOrExhausted(
                         session = session,
-                        isInitialLoad = true,
-                        requestedCountOverride = 50,
+                        isInitialLoad = isInitialLoad,
+                        requestedCountOverride = fallbackCount,
+                        isEmptyPageFallback = true,
                     )
                     return
                 }
-                if (_pushes.value.isEmpty() && !session.hasMore) {
+                if (_pushes.value.isEmpty() && !session.hasMore && !session.hasReachedExpiredJobs) {
                     _errorMessage.value = "No push was found with a job that produced an APK."
                 }
             }
@@ -547,7 +583,8 @@ class SearchViewModel(
     }
 
     private fun requestedPushCount(search: PaginatedSearch, offset: Int): Int = when (search) {
-        is PaginatedSearch.Author -> offset + PUSH_PAGE_SIZE
+        // The next author page includes its timestamp cursor, so request one additional push.
+        is PaginatedSearch.Author -> if (offset == 0) PUSH_PAGE_SIZE else PUSH_PAGE_SIZE + 1
         is PaginatedSearch.Recent -> PUSH_PAGE_SIZE
     }
 
@@ -560,8 +597,8 @@ class SearchViewModel(
             project = search.project,
             author = search.email,
             count = count,
-            // Treeherder ignores this parameter when author is supplied.
             offset = 0,
+            pushTimestampLte = paginationSession?.takeIf { it.search == search }?.authorPushTimestampCursor,
         )
         is PaginatedSearch.Recent -> fenixRepository.getRecentPushes(
             project = search.project,
@@ -571,12 +608,15 @@ class SearchViewModel(
     }
 
     private fun updatePaginationWarning(session: PaginationSession) {
-        if (_pushes.value.size < session.fetchedPushCount) {
+        if (session.hasReachedExpiredJobs) {
+            _warningMessage.value = "Older pushes' jobs have expired."
+        } else if (_pushes.value.size < session.fetchedPushCount) {
             _warningMessage.value =
                 "Showing ${_pushes.value.size} of ${session.fetchedPushCount} fetched pushes. " +
                 "The remaining pushes did not contain a job that produced an APK."
         } else {
             _warningMessage.value = null
+            _hasReachedExpiredJobs.value = false
         }
     }
 
@@ -584,16 +624,16 @@ class SearchViewModel(
         project: String,
         pushes: List<RevisionResult>,
         pagePushes: List<RevisionResult>,
-    ): List<PushUiModel> = coroutineScope {
+    ): PushPageResult = coroutineScope {
         val artifactSemaphore = Semaphore(MAX_PARALLEL_ARTIFACT_REQUESTS)
-        pushes.map { pushResult ->
+        val pushResults = pushes.map { pushResult ->
             async {
                 val jobsResult = fenixRepository.getJobsForPush(pushResult.id)
                 if (jobsResult !is NetworkResult.Success) {
                     logcat(LogPriority.WARN, TAG) {
                         "Push ${pushResult.id} job lookup failed: ${(jobsResult as NetworkResult.Error).message}"
                     }
-                    return@async null
+                    return@async PushBuildResult(push = null, hasExpiredJobs = false)
                 }
                 val candidates = jobsResult.data.results.filter(::isAndroidApkCandidate)
                 logcat(LogPriority.DEBUG, TAG) {
@@ -604,12 +644,15 @@ class SearchViewModel(
                 val (signedCandidates, unsignedCandidates) = selectJobsBySigning(
                     candidates,
                 )
-                val jobsWithArtifacts = (signedCandidates + unsignedCandidates).map { jobDetails ->
+                val artifactResults = (signedCandidates + unsignedCandidates).map { jobDetails ->
                     async {
-                        val artifactResult = artifactSemaphore.withPermit { fetchArtifacts(jobDetails.taskId) }
-                        artifactResult.artifacts.takeIf { it.isNotEmpty() }?.let { jobWithArtifacts(jobDetails, it) }
+                        artifactSemaphore.withPermit { fetchArtifacts(jobDetails.taskId) }
                     }
-                }.awaitAll().filterNotNull()
+                }.awaitAll()
+                val jobsWithArtifacts = artifactResults.mapIndexedNotNull { index, artifactResult ->
+                    artifactResult.artifacts.takeIf { it.isNotEmpty() }
+                        ?.let { jobWithArtifacts((signedCandidates + unsignedCandidates)[index], it) }
+                }
                 val visibleJobs = filterRedundantUnsignedApkJobs(jobsWithArtifacts)
                 if (visibleJobs.isEmpty()) {
                     logcat(LogPriority.DEBUG, TAG) {
@@ -617,7 +660,7 @@ class SearchViewModel(
                             "Candidates=${candidates.size}, jobsWithArtifacts=${jobsWithArtifacts.size}"
                     }
                 }
-                visibleJobs.takeIf { it.isNotEmpty() }?.let {
+                val push = visibleJobs.takeIf { it.isNotEmpty() }?.let {
                     logcat(LogPriority.DEBUG, TAG) {
                         "Push ${pushResult.id} is displayable with ${visibleJobs.size} jobs: " +
                             visibleJobs.joinToString { "${it.jobName} (${it.artifacts.size} APKs)" }
@@ -636,8 +679,19 @@ class SearchViewModel(
                         pushTimestamp = pushResult.pushTimestamp,
                     )
                 }
+                PushBuildResult(
+                    push = push,
+                    // Treeherder retains the push after its jobs have expired, but returns an
+                    // otherwise successful response with no jobs. Since results are newest
+                    // first, this is the boundary beyond which builds cannot be retrieved.
+                    hasExpiredJobs = jobsResult.data.results.isEmpty(),
+                )
             }
-        }.awaitAll().filterNotNull()
+        }.awaitAll()
+        PushPageResult(
+            pushes = pushResults.mapNotNull(PushBuildResult::push),
+            hasExpiredJobs = pushResults.isNotEmpty() && pushResults.all(PushBuildResult::hasExpiredJobs),
+        )
     }
 
     private suspend fun fetchArtifacts(taskId: String): ArtifactLoadResult {
@@ -681,7 +735,10 @@ class SearchViewModel(
                         uniqueKey = "$taskId/${artifact.name.substringAfterLast('/')}",
                     )
                 }
-                ArtifactLoadResult(artifacts = artifacts, failed = false)
+                ArtifactLoadResult(
+                    artifacts = artifacts,
+                    failed = false,
+                )
             }
 
             is NetworkResult.Error -> {
