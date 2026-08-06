@@ -1,7 +1,7 @@
 package org.mozilla.tryfox.ui.screens
 
-import kotlinx.datetime.LocalDate
 import kotlinx.datetime.Instant
+import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 

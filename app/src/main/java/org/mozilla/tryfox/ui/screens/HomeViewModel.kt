@@ -95,6 +95,7 @@ class HomeViewModel(
     private var installedTryBuild: InstalledTryBuild? = null
     private var initialLoadStarted = false
     private var tryFoxCardDismissed = false
+
     @Volatile
     private var selectedHomeAppNames = HomeAppFamily.entries.associateWith { it.defaultAppName }
     private val appMutationVersions = mutableMapOf<String, Long>()
