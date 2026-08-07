@@ -7,9 +7,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.core.tween
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -41,8 +41,8 @@ import org.mozilla.tryfox.ui.screens.ReceiveFromDesktopScreen
 import org.mozilla.tryfox.ui.screens.ReceiveMessageHistoryScreen
 import org.mozilla.tryfox.ui.screens.SearchHistoryViewModel
 import org.mozilla.tryfox.ui.screens.SearchScreen
-import org.mozilla.tryfox.ui.screens.SettingsScreen
 import org.mozilla.tryfox.ui.screens.SearchViewModel
+import org.mozilla.tryfox.ui.screens.SettingsScreen
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 
 /**
@@ -351,5 +351,4 @@ class MainActivity : ComponentActivity() {
     private companion object {
         private const val SCREEN_TRANSITION_DURATION_MS = 200
     }
-
 }

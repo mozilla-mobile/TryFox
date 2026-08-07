@@ -41,8 +41,8 @@ import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
-import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.model.HomeScreenLayout
+import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
