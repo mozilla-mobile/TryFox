@@ -1,7 +1,7 @@
 package org.mozilla.tryfox.ui.screens
 
-import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.model.HomeScreenLayout
+import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
