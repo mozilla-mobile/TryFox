@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,12 +30,14 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -145,31 +148,34 @@ internal fun HomeAppCard(
             )
 
             if (card.showFlavorSelector && flavorAppNames.size > 1) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    flavorAppNames.forEach { appName ->
-                        val isInstalled = card.appsByName[appName]?.installedVersion != null
-                        val installedStateDescription = stringResource(R.string.installed_chip_label)
-                        FilterChip(
-                            selected = appName == app.name,
-                            onClick = { onFlavorSelected(appName) },
-                            label = { Text(flavorLabel(appName)) },
-                            border = BorderStroke(
-                                width = if (isInstalled) 2.dp else 1.dp,
-                                color = if (isInstalled) {
-                                    MaterialTheme.colorScheme.primary
-                                } else {
-                                    MaterialTheme.colorScheme.outlineVariant
-                                },
-                            ),
-                            modifier = Modifier
-                                .testTag("home_flavor_${tag}_$appName")
-                                .semantics {
-                                    if (isInstalled) stateDescription = installedStateDescription
-                                },
-                        )
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 32.dp) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        flavorAppNames.forEach { appName ->
+                            val isInstalled = card.appsByName[appName]?.installedVersion != null
+                            val installedStateDescription = stringResource(R.string.installed_chip_label)
+                            FilterChip(
+                                selected = appName == app.name,
+                                onClick = { onFlavorSelected(appName) },
+                                label = { Text(flavorLabel(appName)) },
+                                border = BorderStroke(
+                                    width = if (isInstalled) 2.dp else 1.dp,
+                                    color = if (isInstalled) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.outlineVariant
+                                    },
+                                ),
+                                modifier = Modifier
+                                    .testTag("home_flavor_${tag}_$appName")
+                                    .semantics {
+                                        if (isInstalled) stateDescription = installedStateDescription
+                                    },
+                            )
+                        }
                     }
                 }
             }

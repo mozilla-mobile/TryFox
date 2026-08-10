@@ -1,13 +1,17 @@
 package org.mozilla.tryfox.ui.screens
 
+import androidx.compose.foundation.layout.width
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,8 +22,10 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 import org.mozilla.tryfox.util.FENIX
+import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
+import org.mozilla.tryfox.util.FENIX_RELEASE
 import java.io.File
 
 @RunWith(AndroidJUnit4::class)
@@ -27,6 +33,67 @@ class HomeAppCardTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
+
+    @Test
+    fun flavorSelector_wrapsLastFlavorOntoNextLineWhenCardIsNarrow() {
+        val appsByName = listOf(FENIX_RELEASE, FENIX_BETA, FENIX, FENIX_DEBUG)
+            .associateWith { appName ->
+                AppUiModel(
+                    name = appName,
+                    packageName = "org.mozilla.tryfox.$appName",
+                    installedVersion = null,
+                    installedDate = null,
+                    apks = ApksResult.Loading,
+                )
+            }
+
+        composeTestRule.setContent {
+            TryFoxTheme {
+                HomeAppCard(
+                    card = HomeAppCardUiModel(
+                        family = HomeAppFamily.Fenix,
+                        selectedAppName = FENIX,
+                        appsByName = appsByName,
+                    ),
+                    installStates = emptyMap(),
+                    onFlavorSelected = {},
+                    onDownloadClick = {},
+                    onInstallClick = {},
+                    onOpenInstalledApp = {},
+                    onOpenTryBuild = { _, _ -> },
+                    onDateSelected = { _, _ -> },
+                    dateValidator = { true },
+                    onReleaseVersionSelected = { _, _ -> },
+                    onBuildSelected = { _, _ -> },
+                    onDismissBuildPicker = {},
+                    modifier = Modifier.width(350.dp),
+                )
+            }
+        }
+
+        val flavorTagPrefix = "home_flavor_fenix_"
+        val firstRowBottom = listOf(FENIX_RELEASE, FENIX_BETA, FENIX)
+            .map { appName ->
+                composeTestRule
+                    .onNodeWithTag("$flavorTagPrefix$appName", useUnmergedTree = true)
+                    .assertIsDisplayed()
+                    .fetchSemanticsNode()
+                    .boundsInRoot
+                    .bottom
+            }
+            .maxOrNull()
+            ?: error("Expected first-row flavor chips")
+        val debugBounds = composeTestRule
+            .onNodeWithTag("$flavorTagPrefix$FENIX_DEBUG", useUnmergedTree = true)
+            .assertIsDisplayed()
+            .fetchSemanticsNode()
+            .boundsInRoot
+
+        assertTrue(
+            "Expected Debug flavor to wrap at or below the first row, but top=${debugBounds.top} bottom=$firstRowBottom",
+            debugBounds.top >= firstRowBottom,
+        )
+    }
 
     @Test
     fun matchingFenixDebugTryBuildShowsCommitAndOpensItsRevision() {
