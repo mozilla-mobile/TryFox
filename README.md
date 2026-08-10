@@ -15,13 +15,13 @@ Install the latest APK from [TryFox Releases](https://github.com/mozilla-mobile/
 <table>
   <tr>
     <td align="center"><strong>Date Picking</strong></td>
-    <td align="center"><strong>Treeherder Screen</strong></td>
-    <td align="center"><strong>Deeplink</strong></td>
+    <td align="center"><strong>Scan QR Code</strong></td>
+    <td align="center"><strong>Search or load from projects</strong></td>
   </tr>
   <tr>
-    <td align="center"><img src="doc/tryfox-date-picking.gif" alt="Date picking demo" width="220" /></td>
-    <td align="center"><img src="doc/tryfox-treeherder.gif" alt="Treeherder screen demo" width="220" /></td>
-    <td align="center"><img src="doc/tryfox-deeplink.gif" alt="Deeplink demo" width="220" /></td>
+    <td align="center"><img src="doc/tryfox-home.gif" alt="Date picking demo" width="220" /></td>
+    <td align="center"><img src="doc/tryfox-scan-qr.gif" alt="Treeherder screen demo" width="220" /></td>
+    <td align="center"><img src="doc/tryfox-load-autoland.gif" alt="Deeplink demo" width="220" /></td>
   </tr>
 </table>
 
