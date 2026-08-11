@@ -32,6 +32,7 @@ import org.koin.android.ext.android.inject
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
+import org.mozilla.tryfox.data.managers.NotificationManager
 import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.screens.HistoryScreen
@@ -99,6 +100,7 @@ sealed class NavScreen(val route: String) {
  */
 class MainActivity : ComponentActivity() {
     private val installCoordinator: ApkInstallCoordinator by inject()
+    private val notificationManager: NotificationManager by inject()
     private lateinit var navController: NavHostController
     private var receiveFromDesktopStartRequested by mutableStateOf(false)
     private var pendingUninstallOperationId: String? = null
@@ -111,6 +113,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        notificationManager.requestPermissionIfNeeded(this)
         lifecycleScope.launch {
             installCoordinator.uninstallRequests.collect { request ->
                 pendingUninstallOperationId = request.operationId
@@ -254,6 +257,7 @@ class MainActivity : ComponentActivity() {
                         )
                     },
                     receiveFromDesktopViewModel = koinViewModel(),
+                    notificationManager = notificationManager,
                     startReceiverOnEnter = receiveFromDesktopStartRequested,
                     onStartReceiverOnEnterConsumed = {
                         receiveFromDesktopStartRequested = false

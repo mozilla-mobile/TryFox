@@ -3,11 +3,8 @@ package org.mozilla.tryfox.ui.screens
 import android.Manifest
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +47,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.data.managers.NotificationManager
 import org.mozilla.tryfox.lan.LanReceiveStatus
 import org.mozilla.tryfox.lan.TryFoxLanReceiveService
 
@@ -60,6 +58,7 @@ fun ReceiveFromDesktopScreen(
     onNavigateToMessageHistory: () -> Unit,
     onNavigateToTreeherderRevision: (project: String, revision: String) -> Unit,
     receiveFromDesktopViewModel: ReceiveFromDesktopViewModel,
+    notificationManager: NotificationManager,
     startReceiverOnEnter: Boolean = false,
     onStartReceiverOnEnterConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
@@ -67,20 +66,9 @@ fun ReceiveFromDesktopScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by receiveFromDesktopViewModel.state.collectAsState()
-    var hasNotificationPermission by remember { mutableStateOf(notificationsPermissionGranted(context)) }
+    var hasNotificationPermission by remember { mutableStateOf(notificationManager.hasPermission()) }
     var hasRequestedNotificationPermission by remember { mutableStateOf(false) }
     var startAfterPermission by remember { mutableStateOf(false) }
-
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-    ) { granted ->
-        hasNotificationPermission = notificationsPermissionGranted(context)
-        hasRequestedNotificationPermission = true
-        if (granted && startAfterPermission) {
-            ContextCompat.startForegroundService(context, TryFoxLanReceiveService.startIntent(context))
-        }
-        startAfterPermission = false
-    }
 
     val permissionState = notificationPermissionState(
         context = context,
@@ -95,7 +83,8 @@ fun ReceiveFromDesktopScreen(
             }
             NotificationPermissionState.REQUESTABLE -> {
                 startAfterPermission = true
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                hasRequestedNotificationPermission = true
+                context.findActivity()?.let(notificationManager::requestPermission)
             }
             NotificationPermissionState.BLOCKED -> {
                 openAppNotificationSettings(context)
@@ -103,7 +92,7 @@ fun ReceiveFromDesktopScreen(
         }
     }
 
-    val requestStartReceiver = {
+    val requestStartReceiver: () -> Unit = {
         if (permissionState == NotificationPermissionState.GRANTED) {
             ContextCompat.startForegroundService(context, TryFoxLanReceiveService.startIntent(context))
         } else {
@@ -124,9 +113,13 @@ fun ReceiveFromDesktopScreen(
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                hasNotificationPermission = notificationsPermissionGranted(context)
+                hasNotificationPermission = notificationManager.hasPermission()
                 if (hasNotificationPermission) {
                     hasRequestedNotificationPermission = false
+                    if (startAfterPermission) {
+                        ContextCompat.startForegroundService(context, TryFoxLanReceiveService.startIntent(context))
+                        startAfterPermission = false
+                    }
                 }
             }
         }
@@ -347,13 +340,6 @@ fun ReceiveFromDesktopScreen(
         }
     }
 }
-
-private fun notificationsPermissionGranted(context: Context): Boolean =
-    Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.POST_NOTIFICATIONS,
-        ) == PackageManager.PERMISSION_GRANTED
 
 private enum class NotificationPermissionState {
     GRANTED,

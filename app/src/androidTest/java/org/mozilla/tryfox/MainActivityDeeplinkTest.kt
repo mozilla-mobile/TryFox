@@ -10,6 +10,7 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
+import androidx.test.rule.GrantPermissionRule
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,7 +19,11 @@ import org.junit.runner.RunWith
 @LargeTest
 class MainActivityDeeplinkTest {
 
-    @get:Rule
+    @get:Rule(order = 0)
+    val notificationPermissionRule: GrantPermissionRule =
+        GrantPermissionRule.grant(android.Manifest.permission.POST_NOTIFICATIONS)
+
+    @get:Rule(order = 1)
     val composeTestRule = createComposeRule()
 
     @Test

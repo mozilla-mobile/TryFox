@@ -19,7 +19,9 @@ import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.managers.CacheManager
 import org.mozilla.tryfox.data.managers.DefaultCacheManager
 import org.mozilla.tryfox.data.managers.DefaultIntentManager
+import org.mozilla.tryfox.data.managers.DefaultNotificationManager
 import org.mozilla.tryfox.data.managers.IntentManager
+import org.mozilla.tryfox.data.managers.NotificationManager
 import org.mozilla.tryfox.data.repositories.DefaultDownloadFileRepository
 import org.mozilla.tryfox.data.repositories.DefaultHistoryRepository
 import org.mozilla.tryfox.data.repositories.DefaultHomeDataCacheRepository
@@ -181,6 +183,7 @@ val repositoryModule = module {
         )
     }
     single<IntentManager> { DefaultIntentManager(androidContext()) }
+    single<NotificationManager> { DefaultNotificationManager(androidContext()) }
     single { ApkInstallCoordinator(androidContext(), get()) }
     single<ApkDownloadStore> { DefaultApkDownloadStore(androidContext(), get(named("IODispatcher"))) }
     single { DownloadNotificationFactory(androidContext()) }
