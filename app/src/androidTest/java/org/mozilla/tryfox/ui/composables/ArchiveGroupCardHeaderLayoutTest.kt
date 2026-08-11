@@ -1,9 +1,13 @@
 package org.mozilla.tryfox.ui.composables
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.datetime.LocalDate
 import org.junit.Assert.assertTrue
@@ -15,6 +19,7 @@ import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
 import org.mozilla.tryfox.util.FOCUS
+import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import java.io.File
 
@@ -111,6 +116,90 @@ class ArchiveGroupCardHeaderLayoutTest {
                 .fetchSemanticsNodes()
                 .isEmpty(),
         )
+    }
+
+    @Test
+    fun releaseVersionSelector_opensAtSelectedMajorAndConfirmsChosenVariant() {
+        var confirmedVersion: String? = null
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                ArchiveGroupCard(
+                    apks = listOf(createApkUiModel(FOCUS_RELEASE, "151.0.1", "")),
+                    onDownloadClick = {}, onInstallClick = {}, onOpenAppClick = {}, onUninstallClick = {},
+                    appState = null, onDateSelected = {}, userPickedDate = null,
+                    selectedReleaseVersion = "151.0.1",
+                    availableReleaseVersions = listOf("151.0.1", "151.0.0", "150.0.1"),
+                    appName = FOCUS_RELEASE, errorMessage = null, isLoading = false,
+                    dateValidator = { true }, onClearDate = {},
+                    onReleaseVersionSelected = { confirmedVersion = it },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_focus-release", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_selector_sheet_focus-release", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("release_version_variant_151_0_1", useUnmergedTree = true).assertIsSelected()
+
+        composeTestRule.onNodeWithTag("release_version_major_picker_focus-release", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithTag("release_version_variant_151_0_0", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithText("Select version").performClick()
+
+        assertTrue(confirmedVersion == "151.0.0")
+    }
+
+    @Test
+    fun betaVersionSelector_filtersVariantsAndCancelKeepsSelection() {
+        var confirmedVersion: String? = null
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                ArchiveGroupCard(
+                    apks = listOf(createApkUiModel(FOCUS_BETA, "151.0b2", "")),
+                    onDownloadClick = {}, onInstallClick = {}, onOpenAppClick = {}, onUninstallClick = {},
+                    appState = null, onDateSelected = {}, userPickedDate = null,
+                    selectedReleaseVersion = "151.0b2",
+                    availableReleaseVersions = listOf("151.0b2", "151.0b1", "150.0b3"),
+                    appName = FOCUS_BETA, errorMessage = null, isLoading = false,
+                    dateValidator = { true }, onClearDate = {},
+                    onReleaseVersionSelected = { confirmedVersion = it },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_focus-beta", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_variant_151_0b2", useUnmergedTree = true).assertIsSelected()
+        assertTrue(
+            composeTestRule
+                .onAllNodesWithTag("release_version_variant_150_0b3", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isEmpty(),
+        )
+
+        composeTestRule.onNodeWithTag("release_version_major_picker_focus-beta", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Cancel").performClick()
+
+        assertTrue(confirmedVersion == null)
+    }
+
+    @Test
+    fun versionSelector_keepsOutOfRangeCurrentMajorUnavailableUntilAnotherMajorIsChosen() {
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                ArchiveGroupCard(
+                    apks = listOf(createApkUiModel(FOCUS_RELEASE, "155.0.1", "")),
+                    onDownloadClick = {}, onInstallClick = {}, onOpenAppClick = {}, onUninstallClick = {},
+                    appState = null, onDateSelected = {}, userPickedDate = null,
+                    selectedReleaseVersion = "155.0.1",
+                    availableReleaseVersions = listOf("155.0.1", "154.0.2"),
+                    appName = FOCUS_RELEASE, errorMessage = null, isLoading = false,
+                    dateValidator = { true }, onClearDate = {}, onReleaseVersionSelected = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_focus-release", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithText("The current major version (155) is outside the selectable range. Choose a version from 117 to 154.")
+            .assertIsDisplayed()
+        composeTestRule.onNodeWithText("Select version").assertIsNotEnabled()
     }
 
     private fun createApkUiModel(
