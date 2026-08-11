@@ -3,6 +3,7 @@ package org.mozilla.tryfox.ui.screens
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -33,9 +34,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -63,6 +67,8 @@ fun HomeScreen(
     onNavigateToHistory: () -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToTryBuild: (String, String) -> Unit = { _, _ -> },
+    notificationPermissionGranted: Boolean = true,
+    onEnableNotifications: () -> Unit = {},
     homeViewModel: HomeViewModel = viewModel(),
 ) {
     val screenState by homeViewModel.homeScreenState.collectAsState()
@@ -127,7 +133,9 @@ fun HomeScreen(
                 .padding(innerPadding)
                 .pullRefresh(pullRefreshState),
         ) {
-            var tryFoxCardHeight by remember { mutableStateOf(0.dp) }
+            var floatingCardsHeight by remember { mutableStateOf(0.dp) }
+            var notificationCardDismissed by rememberSaveable { mutableStateOf(false) }
+            val density = LocalDensity.current
 
             when (val currentScreenState = screenState) {
                 is HomeScreenState.InitialLoading -> {
@@ -159,7 +167,17 @@ fun HomeScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
-                        item { Spacer(modifier = Modifier.height(if (tryFoxApp != null) tryFoxCardHeight + 4.dp else 0.dp)) }
+                        item {
+                            Spacer(
+                                modifier = Modifier.height(
+                                    if (tryFoxApp != null || (!notificationPermissionGranted && !notificationCardDismissed)) {
+                                        floatingCardsHeight + 4.dp
+                                    } else {
+                                        0.dp
+                                    },
+                                ),
+                            )
+                        }
 
                         items(cards, key = { it.stableKey }) { card ->
                             HomeAppCard(
@@ -192,17 +210,30 @@ fun HomeScreen(
                         }
                     }
 
-                    if (tryFoxApp != null) {
-                        TryFoxCardComponent(
-                            modifier = Modifier.align(Alignment.TopCenter),
-                            tryFoxApp = tryFoxApp,
-                            onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
-                            onInstallClick = homeViewModel::installHomeApk,
-                            installStates = installStates,
-                            onOpenInstalledApp = homeViewModel::openInstalledApp,
-                            onDismiss = { homeViewModel.dismissTryFoxCard() },
-                            onTryFoxCardHeightChange = { tryFoxCardHeight = it },
-                        )
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .onGloballyPositioned {
+                                floatingCardsHeight = with(density) { it.size.height.toDp() }
+                            },
+                    ) {
+                        if (!notificationPermissionGranted && !notificationCardDismissed) {
+                            SwipeableNotificationPermissionCard(
+                                onEnableNotifications = onEnableNotifications,
+                                onDismiss = { notificationCardDismissed = true },
+                            )
+                        }
+                        if (tryFoxApp != null) {
+                            TryFoxCardComponent(
+                                tryFoxApp = tryFoxApp,
+                                onDownloadClick = { homeViewModel.downloadNightlyApk(it) },
+                                onInstallClick = homeViewModel::installHomeApk,
+                                installStates = installStates,
+                                onOpenInstalledApp = homeViewModel::openInstalledApp,
+                                onDismiss = { homeViewModel.dismissTryFoxCard() },
+                                onTryFoxCardHeightChange = {},
+                            )
+                        }
                     }
                 }
             }

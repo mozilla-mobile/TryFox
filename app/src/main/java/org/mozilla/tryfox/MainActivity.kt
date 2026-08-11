@@ -33,6 +33,7 @@ import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 import org.mozilla.tryfox.EXTRA_RECEIVE_FROM_DESKTOP_START_REQUESTED
 import org.mozilla.tryfox.data.managers.NotificationManager
+import org.mozilla.tryfox.data.managers.NotificationPermissionState
 import org.mozilla.tryfox.install.ApkInstallCoordinator
 import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.screens.HistoryScreen
@@ -102,6 +103,7 @@ class MainActivity : ComponentActivity() {
     private val installCoordinator: ApkInstallCoordinator by inject()
     private val notificationManager: NotificationManager by inject()
     private lateinit var navController: NavHostController
+    private var notificationPermissionGranted by mutableStateOf(false)
     private var receiveFromDesktopStartRequested by mutableStateOf(false)
     private var pendingUninstallOperationId: String? = null
     private val uninstallLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -114,6 +116,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         notificationManager.requestPermissionOnFirstAppLaunch(this)
+        notificationPermissionGranted = notificationManager.hasPermission()
         lifecycleScope.launch {
             installCoordinator.uninstallRequests.collect { request ->
                 pendingUninstallOperationId = request.operationId
@@ -132,6 +135,21 @@ class MainActivity : ComponentActivity() {
                 AppNavigation()
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        notificationPermissionGranted = notificationManager.hasPermission()
+    }
+
+    @Deprecated("Deprecated in Android API")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        notificationPermissionGranted = notificationManager.hasPermission()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -218,6 +236,17 @@ class MainActivity : ComponentActivity() {
                         localNavController.navigate(
                             NavScreen.TreeherderSearchWithArgs.createRoute(project, revision),
                         )
+                    },
+                    notificationPermissionGranted = notificationPermissionGranted,
+                    onEnableNotifications = {
+                        notificationManager.setNotificationsEnabled(true)
+                        when (notificationManager.permissionState(this@MainActivity)) {
+                            NotificationPermissionState.REQUESTABLE -> {
+                                notificationManager.requestPermission(this@MainActivity)
+                            }
+                            NotificationPermissionState.BLOCKED -> notificationManager.openNotificationSettings()
+                            NotificationPermissionState.GRANTED -> Unit
+                        }
                     },
                     homeViewModel = koinViewModel(),
                 )

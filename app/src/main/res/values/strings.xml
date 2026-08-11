@@ -23,6 +23,8 @@
     <string name="settings_notifications_section_title">Notifications</string>
     <string name="settings_notifications_label">Notifications</string>
     <string name="settings_notifications_description">Allow notifications to keep you updated on APK download progress, including downloads that continue in the background.</string>
+    <string name="notification_permission_card_message">Grant notification permission to see download progress in notifications.</string>
+    <string name="notification_permission_card_enable">Enable</string>
     <string name="settings_cache_section_title">Cache</string>
     <string name="settings_cache_description">Downloaded APKs stored on this device.</string>
     <string name="settings_cache_size_label">Current space used</string>

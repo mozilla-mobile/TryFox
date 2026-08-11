@@ -1,18 +1,9 @@
 package org.mozilla.tryfox.ui.composables
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -21,7 +12,6 @@ import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
-import org.mozilla.tryfox.ui.theme.customColors
 
 @Composable
 fun TryFoxCard(
@@ -34,29 +24,18 @@ fun TryFoxCard(
 ) {
     val latestApk = (app.apks as? ApksResult.Success)?.apks?.firstOrNull() ?: return
 
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.customColors.tryFoxCardBackground,
-        ),
-    ) {
-        val installState = installStates[latestApk.uniqueKey] ?: InstallState.Idle
-        Column {
-            Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp, horizontal = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-            ) {
-            Column {
-                Text(
-                    text = stringResource(id = R.string.tryfox_card_title, latestApk.version),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
-            Spacer(modifier = Modifier.width(4.dp))
-                DownloadButton(
+    val installState = installStates[latestApk.uniqueKey] ?: InstallState.Idle
+    FloatingActionCard(
+        modifier = modifier,
+        text = { textModifier ->
+            Text(
+                text = stringResource(id = R.string.tryfox_card_title, latestApk.version),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = textModifier,
+            )
+        },
+        action = {
+            DownloadButton(
                 downloadState = latestApk.downloadState,
                 onDownloadClick = { onDownloadClick(latestApk) },
                 onInstallClick = { onInstallClick(latestApk) },
@@ -64,8 +43,9 @@ fun TryFoxCard(
                 installState = installState,
                 onOpenClick = onOpenInstalledApp,
                 debugLabel = "home:${latestApk.uniqueKey}",
-                )
-            }
+            )
+        },
+        footer = {
             (installState as? InstallState.Failed)?.let { failure ->
                 Text(
                     text = failure.message,
@@ -74,6 +54,6 @@ fun TryFoxCard(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
             }
-        }
-    }
+        },
+    )
 }
