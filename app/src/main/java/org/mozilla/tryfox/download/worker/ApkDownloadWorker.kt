@@ -19,6 +19,7 @@ import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.ApkDownloadStore
 import org.mozilla.tryfox.download.DownloadNotificationFactory
+import org.mozilla.tryfox.download.DownloadNotificationId
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
 import java.io.File
@@ -36,7 +37,10 @@ class ApkDownloadWorker(
     /** Required before [doWork] when the request is scheduled as expedited work. */
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val request = inputData.toRequest()
-        return notificationFactory.createForegroundInfo(request?.appName.orEmpty())
+        return notificationFactory.createForegroundInfo(
+            notificationId = DownloadNotificationId.forWorker(id),
+            appName = request?.notificationTitle.orEmpty(),
+        )
     }
 
     override suspend fun doWork(): Result {
@@ -47,8 +51,14 @@ class ApkDownloadWorker(
         var lastTotalBytes = -1L
         var lastProgressUpdateAt = 0L
         var lastProgressPercent = -1
+        val notificationId = DownloadNotificationId.forWorker(id)
         if (notificationManager.areNotificationsEnabled()) {
-            setForeground(notificationFactory.createForegroundInfo(request.appName))
+            setForeground(
+                notificationFactory.createForegroundInfo(
+                    notificationId = notificationId,
+                    appName = request.notificationTitle,
+                ),
+            )
         }
 
         updateState(
@@ -107,7 +117,8 @@ class ApkDownloadWorker(
                             if (notificationManager.areNotificationsEnabled()) {
                                 setForeground(
                                     notificationFactory.createForegroundInfo(
-                                        appName = request.appName,
+                                        notificationId = notificationId,
+                                        appName = request.notificationTitle,
                                         progress = if (totalBytes > 0) progressPercent else null,
                                         isIndeterminate = totalBytes <= 0,
                                     ),
@@ -298,6 +309,7 @@ class ApkDownloadWorker(
         val outputPath = getString(KEY_OUTPUT_PATH) ?: return null
         val appName = getString(KEY_APP_NAME) ?: return null
         val fileName = getString(KEY_FILE_NAME) ?: return null
+        val notificationTitle = getString(KEY_NOTIFICATION_TITLE) ?: appName
         val cacheRelativePath = getString(KEY_CACHE_RELATIVE_PATH)
 
         return ApkDownloadRequest(
@@ -306,6 +318,7 @@ class ApkDownloadWorker(
             outputFile = File(outputPath),
             appName = appName,
             fileName = fileName,
+            notificationTitle = notificationTitle,
             cacheRelativePath = cacheRelativePath,
         )
     }
@@ -319,6 +332,7 @@ class ApkDownloadWorker(
         const val KEY_OUTPUT_PATH = "download_output_path"
         const val KEY_APP_NAME = "download_app_name"
         const val KEY_FILE_NAME = "download_file_name"
+        const val KEY_NOTIFICATION_TITLE = "download_notification_title"
         const val KEY_CACHE_RELATIVE_PATH = "download_cache_relative_path"
         const val KEY_BYTES_DOWNLOADED = "download_bytes_downloaded"
         const val KEY_TOTAL_BYTES = "download_total_bytes"
@@ -331,6 +345,7 @@ class ApkDownloadWorker(
                 .putString(KEY_OUTPUT_PATH, request.outputPath)
                 .putString(KEY_APP_NAME, request.appName)
                 .putString(KEY_FILE_NAME, request.fileName)
+                .putString(KEY_NOTIFICATION_TITLE, request.notificationTitle)
                 .apply {
                     request.cacheRelativePath?.let { putString(KEY_CACHE_RELATIVE_PATH, it) }
                 }

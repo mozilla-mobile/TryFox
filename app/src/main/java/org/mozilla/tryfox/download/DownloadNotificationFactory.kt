@@ -14,6 +14,7 @@ class DownloadNotificationFactory(
     private val context: Context,
 ) {
     fun createForegroundInfo(
+        notificationId: Int,
         appName: String,
         progress: Int? = null,
         isIndeterminate: Boolean = true,
@@ -36,9 +37,9 @@ class DownloadNotificationFactory(
             .build()
 
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ForegroundInfo(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            ForegroundInfo(notificationId, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
-            ForegroundInfo(NOTIFICATION_ID, notification)
+            ForegroundInfo(notificationId, notification)
         }
     }
 
@@ -60,6 +61,5 @@ class DownloadNotificationFactory(
 
     private companion object {
         const val CHANNEL_ID = "tryfox_downloads"
-        const val NOTIFICATION_ID = 0x7478
     }
 }

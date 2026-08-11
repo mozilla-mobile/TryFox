@@ -161,6 +161,7 @@ class HistoryViewModelTest {
         val enqueuedRequest = downloadCoordinator.enqueuedRequests.single()
         val workId = downloadCoordinator.downloads.value[entry.uniqueKey]?.workId
         assertEquals(entry.downloadUrl, enqueuedRequest.downloadUrl)
+        assertEquals("Fenix nightly", enqueuedRequest.notificationTitle)
         assertNotNull(workId)
 
         val downloadedFile = File(cacheManager.getCacheDir("treeherder"), "${entry.taskId}/${entry.artifactFileName}")

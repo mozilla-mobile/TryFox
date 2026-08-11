@@ -920,6 +920,7 @@ class HomeViewModelTest {
         assertEquals(1, fakeDownloadCoordinator.enqueuedRequests.size)
         val enqueuedRequest = fakeDownloadCoordinator.enqueuedRequests.first()
         assertEquals(apkToDownload.uniqueKey, enqueuedRequest.uniqueKey)
+        assertEquals("Fenix Nightly $testVersion", enqueuedRequest.notificationTitle)
 
         var loadedState = viewModel.homeScreenState.value as HomeScreenState.Loaded
         var fenixBuildsState = loadedState.apps[FENIX]!!.apks as ApksResult.Success

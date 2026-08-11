@@ -10,4 +10,5 @@ data class ArtifactUiModel(
     val expires: String,
     var downloadState: DownloadState,
     val uniqueKey: String,
+    val notificationTitle: String = "",
 )

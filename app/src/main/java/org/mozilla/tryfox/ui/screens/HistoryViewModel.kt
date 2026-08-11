@@ -123,6 +123,7 @@ class HistoryViewModel(
                 outputFile = outputFile,
                 appName = entry.appName,
                 fileName = entry.artifactFileName,
+                notificationTitle = formatJobNameForDisplay(entry.jobName),
                 cacheRelativePath = entry.cacheRelativePath,
             ),
         )

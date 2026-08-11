@@ -770,7 +770,9 @@ class SearchViewModel(
         taskId = job.taskId,
         isSignedBuild = job.isSignedBuild,
         isTest = job.isTest,
-        artifacts = artifacts,
+        artifacts = artifacts.map { artifact ->
+            artifact.copy(notificationTitle = formatJobNameForDisplay(job.jobName))
+        },
     )
 
     fun getDownloadedFile(artifactName: String, taskId: String): File? {
@@ -854,6 +856,7 @@ class SearchViewModel(
                 outputFile = outputFile,
                 appName = TREEHERDER,
                 fileName = artifactFileName,
+                notificationTitle = artifactUiModel.notificationTitle.ifBlank { artifactFileName },
                 cacheRelativePath = "$TREEHERDER/$taskId/$artifactFileName",
             )
 

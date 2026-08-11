@@ -8,6 +8,7 @@ data class ApkDownloadRequest(
     val outputFile: File,
     val appName: String,
     val fileName: String,
+    val notificationTitle: String = appName,
     val cacheRelativePath: String? = null,
 ) {
     val outputPath: String = outputFile.absolutePath

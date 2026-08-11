@@ -36,6 +36,7 @@ import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.data.repositories.VersionAwareReleaseRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
+import org.mozilla.tryfox.download.homeDownloadNotificationTitle
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.install.ApkInstallCoordinator
@@ -514,6 +515,7 @@ class HomeViewModel(
                 outputFile = outputFile,
                 appName = apkInfo.appName,
                 fileName = apkInfo.fileName,
+                notificationTitle = homeDownloadNotificationTitle(apkInfo.appName, apkInfo.version),
                 cacheRelativePath = cacheRelativePathFor(apkInfo),
             ),
         )
