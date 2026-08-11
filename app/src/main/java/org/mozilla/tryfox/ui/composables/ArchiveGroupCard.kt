@@ -24,6 +24,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -46,7 +48,6 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SelectableDates
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -58,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -376,21 +378,24 @@ internal fun VersionSelector(
     var showSelector by remember { mutableStateOf(false) }
     val selectedVersion = selectedReleaseVersion ?: availableReleaseVersions.firstOrNull()
 
-    Surface(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .clickable(enabled = availableReleaseVersions.isNotEmpty()) { showSelector = true }
             .semantics {
-                contentDescription = "Selected version ${selectedVersion ?: ""}"
+                contentDescription = "Selected Firefox Release version ${selectedVersion ?: ""}"
             }
-            .testTag("release_version_chip_${appName.lowercase()}"),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f),
+            .testTag("release_version_chip_${appName.lowercase()}")
+            .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Text(
             text = selectedVersion ?: "--",
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+        Icon(
+            imageVector = if (showSelector) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+            contentDescription = stringResource(R.string.release_version_chip_description),
         )
     }
 
@@ -409,7 +414,7 @@ internal fun VersionSelector(
 }
 
 private const val MINIMUM_SUPPORTED_MAJOR_VERSION = 117
-private const val MAXIMUM_SUPPORTED_MAJOR_VERSION = 154
+private val VersionPickerWheelHeight = 156.dp
 
 private fun versionMajor(version: String): Int? =
     Regex("^(\\d+)(?:\\.|$)").find(version)?.groupValues?.getOrNull(1)?.toIntOrNull()
@@ -429,9 +434,10 @@ private fun VersionSelectorSheet(
     val initialMajor = versionMajor(selectedVersion.orEmpty())
         ?: versionsByMajor.keys.maxOrNull()
         ?: MINIMUM_SUPPORTED_MAJOR_VERSION
+    val maximumSupportedMajorVersion = versionsByMajor.keys.maxOrNull() ?: MINIMUM_SUPPORTED_MAJOR_VERSION
     var activeMajor by remember(selectedVersion, availableVersions) { mutableStateOf(initialMajor) }
     var draftVersion by remember(selectedVersion, availableVersions) { mutableStateOf(selectedVersion) }
-    val isActiveMajorSelectable = activeMajor in MINIMUM_SUPPORTED_MAJOR_VERSION..MAXIMUM_SUPPORTED_MAJOR_VERSION
+    val isActiveMajorSelectable = activeMajor in MINIMUM_SUPPORTED_MAJOR_VERSION..maximumSupportedMajorVersion
     val variants = if (isActiveMajorSelectable) versionsByMajor[activeMajor].orEmpty() else emptyList()
     val title = if (appName == FENIX_BETA || appName == FOCUS_BETA) {
         stringResource(R.string.version_selector_beta_title)
@@ -463,88 +469,123 @@ private fun VersionSelectorSheet(
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
             )
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(start = 16.dp, top = 4.dp),
             ) {
-                Text(
-                    text = stringResource(R.string.version_selector_major_label),
-                    style = MaterialTheme.typography.labelLarge,
-                )
-                AndroidView(
-                    factory = { context ->
-                        NumberPicker(context).apply {
-                            minValue = MINIMUM_SUPPORTED_MAJOR_VERSION
-                            maxValue = MAXIMUM_SUPPORTED_MAJOR_VERSION
-                            value = activeMajor.coerceIn(minValue, maxValue)
-                            wrapSelectorWheel = false
-                            descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
-                            setOnValueChangedListener { _, _, newValue -> selectMajor(newValue) }
-                            post {
-                                setSelectorTextColor(pickerTextColor)
-                                editableInput()?.apply {
-                                    inputType = InputType.TYPE_CLASS_NUMBER
-                                    setSelectAllOnFocus(true)
-                                    addTextChangedListener(object : TextWatcher {
-                                        override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.wrapContentWidth(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.version_selector_version_label),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    AndroidView(
+                        factory = { context ->
+                            NumberPicker(context).apply {
+                                minValue = MINIMUM_SUPPORTED_MAJOR_VERSION
+                                maxValue = maximumSupportedMajorVersion
+                                value = activeMajor.coerceIn(minValue, maxValue)
+                                wrapSelectorWheel = false
+                                descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+                                setOnValueChangedListener { _, _, newValue -> selectMajor(newValue) }
+                                post {
+                                    setSelectorTextColor(pickerTextColor)
+                                    editableInput()?.apply {
+                                        inputType = InputType.TYPE_CLASS_NUMBER
+                                        setSelectAllOnFocus(true)
+                                        addTextChangedListener(object : TextWatcher {
+                                            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) = Unit
 
-                                        override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) = Unit
+                                            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) = Unit
 
-                                        override fun afterTextChanged(text: Editable?) {
-                                            text?.toString()?.toIntOrNull()?.takeIf {
-                                                it in MINIMUM_SUPPORTED_MAJOR_VERSION..MAXIMUM_SUPPORTED_MAJOR_VERSION
-                                            }?.let(::selectMajor)
-                                        }
-                                    })
+                                            override fun afterTextChanged(text: Editable?) {
+                                                text?.toString()?.toIntOrNull()?.takeIf {
+                                                it in MINIMUM_SUPPORTED_MAJOR_VERSION..maximumSupportedMajorVersion
+                                                }?.let(::selectMajor)
+                                            }
+                                        })
+                                    }
                                 }
                             }
-                        }
-                    },
-                    update = { picker ->
-                        if (picker.value != activeMajor) picker.value = activeMajor
-                    },
-                    modifier = Modifier
-                        .wrapContentWidth()
-                        .padding(start = 16.dp)
-                        .testTag("release_version_major_picker_${appName.lowercase()}"),
-                )
-            }
-            Text(
-                text = stringResource(R.string.version_selector_available_builds),
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
-            )
-            if (variants.isEmpty()) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    Text(
-                        text = if (isActiveMajorSelectable) {
-                            stringResource(R.string.version_selector_no_builds)
-                        } else {
-                            stringResource(R.string.version_selector_current_major_unavailable, activeMajor)
                         },
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(vertical = 16.dp),
+                        update = { picker ->
+                            if (picker.value != activeMajor) picker.value = activeMajor
+                        },
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .height(VersionPickerWheelHeight)
+                            .clipToBounds()
+                            .testTag("release_version_major_picker_${appName.lowercase()}"),
                     )
                 }
-            } else {
-                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f)) {
-                    items(variants, key = { it }) { version ->
-                        val selected = draftVersion == version
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { draftVersion = version }
-                                .semantics { this.selected = selected }
-                                .testTag("release_version_variant_${version.replace('.', '_')}")
-                                .padding(vertical = 10.dp),
-                        ) {
-                            RadioButton(selected = selected, onClick = { draftVersion = version })
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(start = 24.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.version_selector_available_builds),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    if (variants.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxWidth()) {
                             Text(
-                                text = version,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                modifier = Modifier.padding(start = 12.dp),
+                                text = if (isActiveMajorSelectable) {
+                                    stringResource(R.string.version_selector_no_builds)
+                                } else {
+                                    stringResource(
+                                        R.string.version_selector_current_major_unavailable,
+                                        activeMajor,
+                                        MINIMUM_SUPPORTED_MAJOR_VERSION,
+                                        maximumSupportedMajorVersion,
+                                    )
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(vertical = 16.dp),
                             )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .wrapContentWidth(),
+                        ) {
+                            items(variants, key = { it }) { version ->
+                                val selected = draftVersion == version
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .wrapContentWidth()
+                                        .clickable {
+                                            draftVersion = version
+                                            onConfirm(version)
+                                        }
+                                        .semantics { this.selected = selected }
+                                        .testTag("release_version_variant_${version.replace('.', '_')}")
+                                        .padding(vertical = 2.dp),
+                                ) {
+                                    RadioButton(
+                                        selected = selected,
+                                        onClick = {
+                                            draftVersion = version
+                                            onConfirm(version)
+                                        },
+                                    )
+                                    Text(
+                                        text = version,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                        modifier = Modifier.padding(start = 12.dp),
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -554,10 +595,6 @@ private fun VersionSelectorSheet(
                 modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 16.dp),
             ) {
                 TextButton(onClick = onDismiss) { Text(stringResource(id = android.R.string.cancel)) }
-                Button(
-                    onClick = { draftVersion?.let(onConfirm) },
-                    enabled = isActiveMajorSelectable && draftVersion != null && variants.contains(draftVersion),
-                ) { Text(stringResource(R.string.version_selector_confirm)) }
             }
         }
     }

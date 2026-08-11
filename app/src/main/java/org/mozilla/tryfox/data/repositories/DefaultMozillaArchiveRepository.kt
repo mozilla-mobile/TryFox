@@ -121,7 +121,7 @@ class DefaultMozillaArchiveRepository(
         return try {
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
             val releaseVersions = mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
-            val candidateVersions = fetchFenixCandidateVersions(releaseType, releaseVersions.toSet())
+            val candidateVersions = fetchFenixCandidateVersions(releaseType)
             val versions = (releaseVersions + candidateVersions)
                 .distinct()
                 .sortedWith(mozillaArchiveHtmlParser::compareReleaseVersions)
@@ -291,12 +291,10 @@ class DefaultMozillaArchiveRepository(
 
     private suspend fun fetchFenixCandidateVersions(
         releaseType: ReleaseType,
-        publishedVersions: Set<String>,
     ): List<String> {
         val candidatesHtml = getHtmlPageOrNull(CANDIDATES_FENIX_BASE_URL) ?: return emptyList()
         val candidateBases = mozillaArchiveHtmlParser
             .parseFenixCandidateVersionsFromHtml(candidatesHtml, releaseType)
-            .filterNot(publishedVersions::contains)
 
         return coroutineScope {
             candidateBases
