@@ -443,6 +443,75 @@ class FenixReleaseTest {
         assertTrue(result < 0, "145.0.1 should be less than 145.0b5 based on numeric parts")
     }
 
+    @Test
+    fun `candidate parser filters channel and orders build numbers`() {
+        val candidatesHtml = loadHtmlResource("fenix-candidates-page.html")
+        val buildsHtml = loadHtmlResource("fenix-candidate-builds.html")
+
+        assertEquals(listOf("153.0.5", "153.0.4"), parser.parseFenixCandidateVersionsFromHtml(candidatesHtml, ReleaseType.Release))
+        assertEquals(listOf("153.0b5", "153.0b4"), parser.parseFenixCandidateVersionsFromHtml(candidatesHtml, ReleaseType.Beta))
+        assertEquals(listOf(2, 1), parser.parseCandidateBuildNumbersFromHtml(buildsHtml))
+        assertTrue(parser.compareReleaseVersions("153.0.5-RC2", "153.0.5-RC1") > 0)
+    }
+
+    @Test
+    fun `Fenix release versions include unpublished candidates and suppress published bases`() = runBlocking {
+        val api: MozillaArchivesApiService = mock()
+        val releasesHtml = """
+            <a href="153.0.4/">153.0.4/</a>
+            <a href="153.0b4/">153.0b4/</a>
+        """.trimIndent()
+        val candidatesHtml = loadHtmlResource("fenix-candidates-page.html")
+        val buildsHtml = loadHtmlResource("fenix-candidate-builds.html")
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL)).thenReturn(releasesHtml)
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.CANDIDATES_FENIX_BASE_URL)).thenReturn(candidatesHtml)
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForCandidateBuilds("153.0.5"))).thenReturn(buildsHtml)
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForCandidateBuilds("153.0b5"))).thenReturn(buildsHtml)
+
+        val repository = DefaultMozillaArchiveRepository(api)
+
+        assertEquals(
+            listOf("153.0.5-RC2", "153.0.5-RC1", "153.0.4"),
+            (repository.getFenixReleaseVersions(ReleaseType.Release) as NetworkResult.Success).data,
+        )
+        assertEquals(
+            listOf("153.0b5-RC2", "153.0b5-RC1", "153.0b4"),
+            (repository.getFenixReleaseVersions(ReleaseType.Beta) as NetworkResult.Success).data,
+        )
+    }
+
+    @Test
+    fun `Fenix release versions fall back to published versions when candidates cannot load`() = runBlocking {
+        val api: MozillaArchivesApiService = mock()
+        val releasesHtml = "<a href=\"153.0.4/\">153.0.4/</a>"
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL)).thenReturn(releasesHtml)
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.CANDIDATES_FENIX_BASE_URL))
+            .thenThrow(IllegalStateException("Candidates unavailable"))
+
+        val result = DefaultMozillaArchiveRepository(api).getFenixReleaseVersions(ReleaseType.Release)
+
+        assertEquals(listOf("153.0.4"), (result as NetworkResult.Success).data)
+    }
+
+    @Test
+    fun `Fenix candidate selection builds candidate APK URLs and isolated cache keys`() = runBlocking {
+        val api: MozillaArchivesApiService = mock()
+        val candidateHtml = loadHtmlResource("fenix-candidate-android.html")
+        val url = DefaultMozillaArchiveRepository.archiveUrlForCandidate("153.0.4", 2)
+        whenever(api.getHtmlPage(url)).thenReturn(candidateHtml)
+
+        val result = DefaultMozillaArchiveRepository(api)
+            .getFenixReleaseBuildsForVersion("153.0.4-RC2", ReleaseType.Release)
+
+        assertTrue(result is NetworkResult.Success)
+        val apks = (result as NetworkResult.Success).data
+        assertEquals(2, apks.size)
+        assertTrue(apks.all { it.version == "153.0.4-RC2" })
+        assertTrue(apks.all { it.rawDateString == "candidate-153.0.4-build2" })
+        assertTrue(apks.all { it.fullUrl.startsWith(url) })
+        assertTrue(apks.any { it.fileName == "fenix-153.0.4.multi.android-arm64-v8a.apk" })
+    }
+
     // Helper method
 
     private fun loadHtmlResource(resourceName: String): String {

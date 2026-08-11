@@ -1,5 +1,9 @@
 package org.mozilla.tryfox.data.repositories
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
@@ -26,8 +30,10 @@ class DefaultMozillaArchiveRepository(
 ) : MozillaArchiveRepository {
 
     companion object {
+        private const val CANDIDATE_BUILD_INDEX_CONCURRENCY = 4
         const val ARCHIVE_MOZILLA_BASE_URL = "https://archive.mozilla.org/pub/"
         const val RELEASES_FENIX_BASE_URL = "${ARCHIVE_MOZILLA_BASE_URL}fenix/releases/"
+        const val CANDIDATES_FENIX_BASE_URL = "${ARCHIVE_MOZILLA_BASE_URL}fenix/candidates/"
         const val RELEASES_FOCUS_BASE_URL = "${ARCHIVE_MOZILLA_BASE_URL}focus/releases/"
 
         internal fun archiveUrlForDate(appName: String, date: LocalDate): String {
@@ -43,6 +49,14 @@ class DefaultMozillaArchiveRepository(
 
         internal fun archiveUrlForRelease(baseUrl: String, number: String): String {
             return "$baseUrl$number/android/"
+        }
+
+        internal fun archiveUrlForCandidate(version: String, buildNumber: Int): String {
+            return "${CANDIDATES_FENIX_BASE_URL}$version-candidates/build$buildNumber/android/"
+        }
+
+        internal fun archiveUrlForCandidateBuilds(version: String): String {
+            return "${CANDIDATES_FENIX_BASE_URL}$version-candidates/"
         }
     }
 
@@ -107,12 +121,19 @@ class DefaultMozillaArchiveRepository(
         return try {
             val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
             val releaseVersions = mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
+            val candidateVersions = fetchFenixCandidateVersions(releaseType, releaseVersions.toSet())
+            val versions = (releaseVersions + candidateVersions)
+                .distinct()
+                .sortedWith(mozillaArchiveHtmlParser::compareReleaseVersions)
+                .reversed()
 
-            if (releaseVersions.isEmpty()) {
+            if (versions.isEmpty()) {
                 return NetworkResult.Error("No release versions found for type $releaseType", null)
             }
 
-            NetworkResult.Success(releaseVersions)
+            NetworkResult.Success(versions)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch Fenix release versions: ${e.message}", e)
         }
@@ -150,13 +171,25 @@ class DefaultMozillaArchiveRepository(
                 return NetworkResult.Error("No version provided", null)
             }
 
-            fetchReleaseApksForVersion(
-                version = version,
-                archiveBaseUrl = RELEASES_FENIX_BASE_URL,
-                archiveAppName = FENIX,
-                resultAppName = if (releaseType == ReleaseType.Release) FENIX_RELEASE else FENIX_BETA,
-                releaseType = releaseType,
-            )
+            val candidate = parseCandidateVersion(version)
+            if (candidate == null) {
+                fetchReleaseApksForVersion(
+                    version = version,
+                    archiveBaseUrl = RELEASES_FENIX_BASE_URL,
+                    archiveAppName = FENIX,
+                    resultAppName = if (releaseType == ReleaseType.Release) FENIX_RELEASE else FENIX_BETA,
+                    releaseType = releaseType,
+                )
+            } else {
+                fetchReleaseApksForVersion(
+                    version = candidate.baseVersion,
+                    displayVersion = version,
+                    archiveUrl = archiveUrlForCandidate(candidate.baseVersion, candidate.buildNumber),
+                    archiveAppName = FENIX,
+                    resultAppName = if (releaseType == ReleaseType.Release) FENIX_RELEASE else FENIX_BETA,
+                    cacheBuildKey = "candidate-${candidate.baseVersion}-build${candidate.buildNumber}",
+                )
+            }
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch Fenix release $version: ${e.message}", e)
         }
@@ -196,7 +229,25 @@ class DefaultMozillaArchiveRepository(
         releaseType: ReleaseType,
     ): NetworkResult<List<MozillaArchiveApk>> {
         val releaseUrl = archiveUrlForRelease(archiveBaseUrl, version)
-        val releaseHtml = mozillaArchivesApiService.getHtmlPage(releaseUrl)
+        return fetchReleaseApksForVersion(
+            version = version,
+            displayVersion = version,
+            archiveUrl = releaseUrl,
+            archiveAppName = archiveAppName,
+            resultAppName = resultAppName,
+            cacheBuildKey = "",
+        )
+    }
+
+    private suspend fun fetchReleaseApksForVersion(
+        version: String,
+        displayVersion: String,
+        archiveUrl: String,
+        archiveAppName: String,
+        resultAppName: String,
+        cacheBuildKey: String,
+    ): NetworkResult<List<MozillaArchiveApk>> {
+        val releaseHtml = mozillaArchivesApiService.getHtmlPage(archiveUrl)
         val abis = mozillaArchiveHtmlParser.parseFenixReleaseAbisFromHtml(releaseHtml, archiveAppName)
 
         if (abis.isEmpty()) {
@@ -204,7 +255,7 @@ class DefaultMozillaArchiveRepository(
         }
 
         val apks = abis.map { abi ->
-            constructReleaseApk(version, abi, releaseUrl, archiveAppName, resultAppName)
+            constructReleaseApk(version, displayVersion, abi, archiveUrl, archiveAppName, resultAppName, cacheBuildKey)
         }
 
         if (apks.isEmpty()) {
@@ -216,10 +267,12 @@ class DefaultMozillaArchiveRepository(
 
     private fun constructReleaseApk(
         version: String,
+        displayVersion: String,
         abi: String,
         releaseBaseUrl: String,
         archiveAppName: String,
         resultAppName: String,
+        cacheBuildKey: String,
     ): MozillaArchiveApk {
         val buildString = "$archiveAppName-$version-android${if (abi == "universal") "" else "-$abi"}/"
         val fileName = "$archiveAppName-$version.multi.android-$abi.apk"
@@ -227,13 +280,53 @@ class DefaultMozillaArchiveRepository(
 
         return MozillaArchiveApk(
             originalString = buildString,
-            rawDateString = "", // Release builds don't have date strings
+            rawDateString = cacheBuildKey, // Empty for releases; candidates need an isolated cache key.
             appName = resultAppName,
-            version = version,
+            version = displayVersion,
             abiName = abi,
             fullUrl = fullUrl,
             fileName = fileName,
         )
+    }
+
+    private suspend fun fetchFenixCandidateVersions(
+        releaseType: ReleaseType,
+        publishedVersions: Set<String>,
+    ): List<String> {
+        val candidatesHtml = getHtmlPageOrNull(CANDIDATES_FENIX_BASE_URL) ?: return emptyList()
+        val candidateBases = mozillaArchiveHtmlParser
+            .parseFenixCandidateVersionsFromHtml(candidatesHtml, releaseType)
+            .filterNot(publishedVersions::contains)
+
+        return coroutineScope {
+            candidateBases
+                .chunked(CANDIDATE_BUILD_INDEX_CONCURRENCY)
+                .flatMap { candidates ->
+                    candidates.map { baseVersion ->
+                        async {
+                            val buildsHtml = getHtmlPageOrNull(archiveUrlForCandidateBuilds(baseVersion))
+                                ?: return@async emptyList()
+                            mozillaArchiveHtmlParser.parseCandidateBuildNumbersFromHtml(buildsHtml)
+                                .map { buildNumber -> "$baseVersion-RC$buildNumber" }
+                        }
+                    }.awaitAll().flatten()
+                }
+        }
+    }
+
+    private data class CandidateVersion(val baseVersion: String, val buildNumber: Int)
+
+    private suspend fun getHtmlPageOrNull(url: String): String? = try {
+        mozillaArchivesApiService.getHtmlPage(url)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
+    private fun parseCandidateVersion(version: String): CandidateVersion? {
+        val match = Regex("^(\\d+\\.\\d+(?:\\.\\d+)?|\\d+\\.\\d+b\\d+)-RC(\\d+)$").matchEntire(version) ?: return null
+        return CandidateVersion(match.groupValues[1], match.groupValues[2].toInt())
     }
 
     private suspend fun getNightlyBuilds(appName: String, date: LocalDate? = null): NetworkResult<List<MozillaArchiveApk>> {
