@@ -18,6 +18,8 @@ import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.theme.TryFoxTheme
+import org.mozilla.tryfox.util.FENIX_BETA
+import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
@@ -200,6 +202,51 @@ class ArchiveGroupCardHeaderLayoutTest {
         composeTestRule.onNodeWithText("The current major version (155) is outside the selectable range. Choose a version from 117 to 154.")
             .assertIsDisplayed()
         composeTestRule.onNodeWithText("Select version").assertIsNotEnabled()
+    }
+
+    @Test
+    fun fenixReleaseSelector_showsCandidateVariantsAndConfirmsTheSelectedRc() {
+        var confirmedVersion: String? = null
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                ArchiveGroupCard(
+                    apks = listOf(createApkUiModel(FENIX_RELEASE, "153.0.4", "")),
+                    onDownloadClick = {}, onInstallClick = {}, onOpenAppClick = {}, onUninstallClick = {},
+                    appState = null, onDateSelected = {}, userPickedDate = null,
+                    selectedReleaseVersion = "153.0.4",
+                    availableReleaseVersions = listOf("153.0.4", "153.0.4-RC2", "153.0.4-RC1"),
+                    appName = FENIX_RELEASE, errorMessage = null, isLoading = false,
+                    dateValidator = { true }, onClearDate = {},
+                    onReleaseVersionSelected = { confirmedVersion = it },
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_fenix-release", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_variant_153_0_4-RC2", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithText("Select version").performClick()
+
+        assertTrue(confirmedVersion == "153.0.4-RC2")
+    }
+
+    @Test
+    fun fenixBetaSelector_showsCandidateVariants() {
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                ArchiveGroupCard(
+                    apks = listOf(createApkUiModel(FENIX_BETA, "153.0b5", "")),
+                    onDownloadClick = {}, onInstallClick = {}, onOpenAppClick = {}, onUninstallClick = {},
+                    appState = null, onDateSelected = {}, userPickedDate = null,
+                    selectedReleaseVersion = "153.0b5",
+                    availableReleaseVersions = listOf("153.0b5", "153.0b5-RC2", "153.0b5-RC1"),
+                    appName = FENIX_BETA, errorMessage = null, isLoading = false,
+                    dateValidator = { true }, onClearDate = {}, onReleaseVersionSelected = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_fenix-beta", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_variant_153_0b5-RC2", useUnmergedTree = true).assertIsDisplayed()
     }
 
     private fun createApkUiModel(
