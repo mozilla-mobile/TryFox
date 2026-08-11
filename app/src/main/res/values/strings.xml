@@ -62,8 +62,9 @@
     <string name="download_button_install">Install</string>
     <string name="download_button_installing">Installing…</string>
     <string name="download_button_open">Open</string>
-    <string name="install_conflict_title">Replace installed app?</string>
-    <string name="install_conflict_message">An incompatible or newer version of %1$s is installed. Uninstalling it deletes that app’s local data before this build is installed.</string>
+    <string name="install_conflict_title">Replace installed apps?</string>
+    <string name="install_conflict_message">To install this build, TryFox must uninstall the app below. Uninstalling it deletes that app’s local data.</string>
+    <string name="install_shared_user_conflict_message">This build is signed differently from the apps below. To install it, TryFox must uninstall all of them. Uninstalling these apps deletes their local data.</string>
     <string name="install_conflict_confirm">Uninstall and install</string>
     <string name="install_conflict_cancel">Cancel</string>
     <string name="download_button_downloading">Downloading</string>

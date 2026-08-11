@@ -24,7 +24,9 @@ import logcat.logcat
 import org.mozilla.tryfox.data.InstalledTryBuild
 import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
+import org.mozilla.tryfox.util.MOZILLA_PACKAGE_NAMES
 import java.io.File
+import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicInteger
 
 /** Owns every APK installation session started by TryFox. */
@@ -40,6 +42,8 @@ class ApkInstallCoordinator(
         val versionName: String?,
         val versionCode: Long,
         val provenance: TryBuildProvenance?,
+        val sharedUserId: String?,
+        val uninstallQueue: ArrayDeque<String> = ArrayDeque(),
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -70,18 +74,29 @@ class ApkInstallCoordinator(
 
     fun confirmUninstallAndRetry(artifactKey: String) {
         val operation = operations[artifactKey] ?: return
+        val packageName = operation.uninstallQueue.firstOrNull() ?: return
         _states.value = _states.value + (artifactKey to InstallState.Uninstalling)
-        _uninstallRequests.tryEmit(UninstallRequest(artifactKey, operation.packageName))
+        _uninstallRequests.tryEmit(UninstallRequest(artifactKey, packageName))
     }
 
     fun onUninstallResult(artifactKey: String, succeeded: Boolean) {
         val operation = operations[artifactKey] ?: return
-        if (!succeeded || isInstalled(operation.packageName)) {
+        val packageName = operation.uninstallQueue.firstOrNull()
+        if (packageName == null) {
+            fail(artifactKey, "No app was selected for uninstallation.")
+            return
+        }
+        if (!succeeded || isInstalled(packageName)) {
             logcat(LogPriority.WARN, TAG) {
-                "Uninstall failed artifactKey=$artifactKey package=${operation.packageName} " +
-                    "activitySucceeded=$succeeded packageStillInstalled=${isInstalled(operation.packageName)}"
+                "Uninstall failed artifactKey=$artifactKey package=$packageName " +
+                    "activitySucceeded=$succeeded packageStillInstalled=${isInstalled(packageName)}"
             }
             fail(artifactKey, "Uninstall was canceled or did not complete.")
+            return
+        }
+        operation.uninstallQueue.removeFirst()
+        if (operation.uninstallQueue.isNotEmpty()) {
+            _uninstallRequests.tryEmit(UninstallRequest(artifactKey, operation.uninstallQueue.first()))
             return
         }
         _states.value = _states.value + (artifactKey to InstallState.Installing)
@@ -122,30 +137,53 @@ class ApkInstallCoordinator(
             }
 
             PackageInstaller.STATUS_FAILURE_CONFLICT -> {
-                if (statusMessage.contains(SHARED_USER_SIGNATURE_FAILURE)) {
-                    logcat(LogPriority.WARN, TAG) {
-                        "Shared-user signature conflict artifactKey=$artifactKey package=${operation.packageName} " +
-                            "message=$statusMessage"
-                    }
-                    fail(artifactKey, SHARED_USER_SIGNATURE_USER_MESSAGE)
-                    return
-                }
-                val conflictingPackage = intent.getStringExtra(PackageInstaller.EXTRA_OTHER_PACKAGE_NAME) ?: operation.packageName
-                logcat(LogPriority.WARN, TAG) {
-                    "Install conflict artifactKey=$artifactKey package=${operation.packageName} " +
-                        "conflictingPackage=$conflictingPackage message=$statusMessage"
-                }
-                conflict(artifactKey, conflictingPackage)
+                handleInstallConflict(artifactKey, operation, intent, statusMessage)
             }
             else -> {
                 if (statusMessage.contains("VERSION_DOWNGRADE", ignoreCase = true) && isInstalled(operation.packageName)) {
-                    conflict(artifactKey, operation.packageName)
+                    conflict(
+                        artifactKey,
+                        listOf(conflictApp(operation.packageName)),
+                        ConflictReason.INCOMPATIBLE_OR_NEWER,
+                    )
                 } else {
                     logcat(LogPriority.WARN, TAG) { "Install failed status=$status message=$statusMessage" }
                     fail(artifactKey, userMessage(status))
                 }
             }
         }
+    }
+
+    private fun handleInstallConflict(
+        artifactKey: String,
+        operation: Operation,
+        intent: Intent,
+        statusMessage: String,
+    ) {
+        if (statusMessage.contains(SHARED_USER_SIGNATURE_FAILURE)) {
+            logcat(LogPriority.WARN, TAG) {
+                "Shared-user signature conflict artifactKey=$artifactKey package=${operation.packageName} " +
+                    "message=$statusMessage"
+            }
+            val conflictingApps = findSharedUserConflicts(operation)
+            if (conflictingApps.isEmpty()) {
+                fail(artifactKey, SHARED_USER_SIGNATURE_USER_MESSAGE)
+            } else {
+                conflict(artifactKey, conflictingApps, ConflictReason.SHARED_USER_SIGNATURE)
+            }
+            return
+        }
+        val conflictingPackage = intent.getStringExtra(PackageInstaller.EXTRA_OTHER_PACKAGE_NAME)
+            ?: operation.packageName
+        logcat(LogPriority.WARN, TAG) {
+            "Install conflict artifactKey=$artifactKey package=${operation.packageName} " +
+                "conflictingPackage=$conflictingPackage message=$statusMessage"
+        }
+        conflict(
+            artifactKey,
+            listOf(conflictApp(conflictingPackage)),
+            ConflictReason.INCOMPATIBLE_OR_NEWER,
+        )
     }
 
     private fun prepareAndInstall(artifactKey: String, file: File, provenance: TryBuildProvenance?) {
@@ -160,11 +198,23 @@ class ApkInstallCoordinator(
             return
         }
         val incomingVersion = archive.let(PackageInfoCompat::getLongVersionCode)
-        val operation = Operation(artifactKey, file, packageName, archive.versionName, incomingVersion, provenance)
+        val operation = Operation(
+            artifactKey = artifactKey,
+            file = file,
+            packageName = packageName,
+            versionName = archive.versionName,
+            versionCode = incomingVersion,
+            provenance = provenance,
+            sharedUserId = archive.sharedUserId,
+        )
         operations[artifactKey] = operation
         val installedVersion = installedVersion(packageName)
         if (installedVersion != null && installedVersion > incomingVersion) {
-            conflict(artifactKey, packageName)
+            conflict(
+                artifactKey,
+                listOf(conflictApp(packageName)),
+                ConflictReason.INCOMPATIBLE_OR_NEWER,
+            )
             return
         }
         commit(operation)
@@ -200,8 +250,11 @@ class ApkInstallCoordinator(
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE,
     ).intentSender
 
-    private fun conflict(artifactKey: String, packageName: String) {
-        _states.value = _states.value + (artifactKey to InstallState.Conflict(packageName))
+    private fun conflict(artifactKey: String, apps: List<ConflictApp>, reason: ConflictReason) {
+        val operation = operations[artifactKey] ?: return
+        operation.uninstallQueue.clear()
+        operation.uninstallQueue.addAll(apps.map(ConflictApp::packageName))
+        _states.value = _states.value + (artifactKey to InstallState.Conflict(apps, reason))
     }
 
     private suspend fun succeed(artifactKey: String, operation: Operation) {
@@ -251,7 +304,33 @@ class ApkInstallCoordinator(
             versionName = getStringExtra(EXTRA_VERSION_NAME),
             versionCode = versionCode,
             provenance = provenance,
+            sharedUserId = null,
         )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun findSharedUserConflicts(operation: Operation): List<ConflictApp> {
+        val sharedUserId = operation.sharedUserId ?: return emptyList()
+        return MOZILLA_PACKAGE_NAMES
+            .asSequence()
+            .filter { it != operation.packageName }
+            .mapNotNull { packageName -> installedPackageInfo(packageName)?.takeIf { it.sharedUserId == sharedUserId } }
+            .map { packageInfo ->
+                val packageName = packageInfo.packageName
+                val label = packageInfo.applicationInfo?.let(context.packageManager::getApplicationLabel)?.toString()
+                    .orEmpty()
+                    .ifBlank { packageName }
+                ConflictApp(label, packageName)
+            }
+            .toList()
+    }
+
+    private fun conflictApp(packageName: String): ConflictApp {
+        val packageInfo = installedPackageInfo(packageName)
+        val label = packageInfo?.applicationInfo?.let(context.packageManager::getApplicationLabel)?.toString()
+            .orEmpty()
+            .ifBlank { packageName }
+        return ConflictApp(label, packageName)
     }
 
     private fun fail(artifactKey: String, message: String) {
@@ -266,6 +345,12 @@ class ApkInstallCoordinator(
 
     private fun installedVersion(packageName: String): Long? = try {
         PackageInfoCompat.getLongVersionCode(context.packageManager.getPackageInfo(packageName, 0))
+    } catch (_: PackageManager.NameNotFoundException) {
+        null
+    }
+
+    private fun installedPackageInfo(packageName: String) = try {
+        context.packageManager.getPackageInfo(packageName, 0)
     } catch (_: PackageManager.NameNotFoundException) {
         null
     }

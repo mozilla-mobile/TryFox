@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -178,7 +179,24 @@ class MainActivity : ComponentActivity() {
             AlertDialog(
                 onDismissRequest = { installCoordinator.cancelConflict(artifactKey) },
                 title = { Text(stringResource(id = R.string.install_conflict_title)) },
-                text = { Text(stringResource(R.string.install_conflict_message, conflict.packageName)) },
+                text = {
+                    Column {
+                        Text(
+                            stringResource(
+                                if (conflict.reason == org.mozilla.tryfox.install.ConflictReason.SHARED_USER_SIGNATURE) {
+                                    R.string.install_shared_user_conflict_message
+                                } else {
+                                    R.string.install_conflict_message
+                                },
+                            ),
+                        )
+                        Text(
+                            conflict.apps.joinToString(separator = "\n\n") { app ->
+                                "• ${app.label}: ${app.packageName}"
+                            },
+                        )
+                    }
+                },
                 confirmButton = {
                     Button(onClick = { installCoordinator.confirmUninstallAndRetry(artifactKey) }) {
                         Text(stringResource(id = R.string.install_conflict_confirm))
