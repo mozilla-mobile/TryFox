@@ -56,6 +56,35 @@ class MozillaArchiveHtmlParser {
         }
     }
 
+    /** Returns candidate base versions, without their `-candidates` directory suffix. */
+    fun parseFenixCandidateVersionsFromHtml(html: String, releaseType: ReleaseType): List<String> {
+        val directoryPattern = Regex("<a href=\"[^\"]+\">([^<]+/)</a>")
+        return directoryPattern.findAll(html)
+            .mapNotNull { it.groups[1]?.value?.removeSuffix("/") }
+            .filter { it.endsWith("-candidates") }
+            .map { it.removeSuffix("-candidates") }
+            .filter { candidate ->
+                when (releaseType) {
+                    ReleaseType.Beta -> candidate.matches(Regex("\\d+\\.\\d+b\\d+"))
+                    ReleaseType.Release -> isStableReleaseVersion(candidate)
+                }
+            }
+            .distinct()
+            .sortedWith(::compareReleaseVersions)
+            .toList()
+            .reversed()
+    }
+
+    /** Extracts numeric build directories such as `build1/` and `build12/`. */
+    fun parseCandidateBuildNumbersFromHtml(html: String): List<Int> {
+        val directoryPattern = Regex("<a href=\"[^\"]+\">build(\\d+)/</a>")
+        return directoryPattern.findAll(html)
+            .mapNotNull { it.groups[1]?.value?.toIntOrNull() }
+            .distinct()
+            .sortedDescending()
+            .toList()
+    }
+
     fun parseFenixReleaseAbisFromHtml(html: String, appName: String): List<String> {
         // Pattern: {appName}-D+.D+(.D+)?-android-ABI/ or {appName}-D+.D+(.D+)?-android/
         // Also supports beta/alpha markers: {appName}-D+.D+(.D+)?[ab]D+-android-ABI/
@@ -87,6 +116,19 @@ class MozillaArchiveHtmlParser {
     }
 
     internal fun compareReleaseVersions(version1: String, version2: String): Int {
+        val rc1 = parseCandidateDisplayVersion(version1)
+        val rc2 = parseCandidateDisplayVersion(version2)
+        if (rc1 != null || rc2 != null) {
+            val base1 = rc1?.first ?: version1
+            val base2 = rc2?.first ?: version2
+            val baseComparison = compareReleaseVersionsWithoutRc(base1, base2)
+            if (baseComparison != 0) return baseComparison
+            return (rc1?.second ?: Int.MAX_VALUE).compareTo(rc2?.second ?: Int.MAX_VALUE)
+        }
+        return compareReleaseVersionsWithoutRc(version1, version2)
+    }
+
+    private fun compareReleaseVersionsWithoutRc(version1: String, version2: String): Int {
         val parts1 = version1.split(Regex("[.b-]")).mapNotNull { it.toIntOrNull() }
         val parts2 = version2.split(Regex("[.b-]")).mapNotNull { it.toIntOrNull() }
 
@@ -99,6 +141,11 @@ class MozillaArchiveHtmlParser {
             }
         }
         return 0
+    }
+
+    private fun parseCandidateDisplayVersion(version: String): Pair<String, Int>? {
+        val match = Regex("^(.+)-RC(\\d+)$").matchEntire(version) ?: return null
+        return match.groupValues[1] to match.groupValues[2].toInt()
     }
 
     private fun isStableReleaseVersion(version: String): Boolean {

@@ -455,8 +455,8 @@ class HomeViewModel(
 
     private fun convertParsedApksToUiModels(parsedApks: List<MozillaArchiveApk>): List<ApkUiModel> {
         return parsedApks.map { parsedApk ->
-            val date = parsedApk.rawDateString?.formatNightlyBuildDate()
             val buildDate = parsedApk.rawDateString?.rawNightlyBuildDate()
+            val date = buildDate?.let { parsedApk.rawDateString?.formatNightlyBuildDate().orEmpty() }.orEmpty()
             val isCompatible = supportedAbis.any { deviceAbi ->
                 deviceAbi.equals(
                     parsedApk.abiName,

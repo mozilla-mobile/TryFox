@@ -26,6 +26,7 @@ import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE
+import org.mozilla.tryfox.util.FOCUS_RELEASE
 import java.io.File
 
 @RunWith(AndroidJUnit4::class)
@@ -206,5 +207,61 @@ class HomeAppCardTest {
         composeTestRule.onNodeWithText("OK").performClick()
 
         assertEquals(buildDate, selectedDate)
+    }
+
+    @Test
+    fun releaseVersionOnHomeCard_opensVersionSelectorSheet() {
+        val version = "151.0.1"
+        composeTestRule.setContent {
+            TryFoxTheme {
+                HomeAppCard(
+                    card = HomeAppCardUiModel(
+                        family = HomeAppFamily.Focus,
+                        selectedAppName = FOCUS_RELEASE,
+                        appsByName = mapOf(
+                            FOCUS_RELEASE to AppUiModel(
+                                name = FOCUS_RELEASE,
+                                packageName = "org.mozilla.focus",
+                                installedVersion = null,
+                                installedDate = null,
+                                selectedReleaseVersion = version,
+                                availableReleaseVersions = listOf(version, "151.0.0", "150.0.1"),
+                                apks = ApksResult.Success(
+                                    listOf(
+                                        ApkUiModel(
+                                            originalString = "",
+                                            date = "",
+                                            appName = FOCUS_RELEASE,
+                                            version = version,
+                                            abi = AbiUiModel("arm64-v8a", true),
+                                            url = "https://example.invalid/focus.apk",
+                                            fileName = "focus.apk",
+                                            uniqueKey = "focus-release/focus.apk",
+                                            apkDir = File("/tmp/focus"),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                    installStates = emptyMap(),
+                    onFlavorSelected = {},
+                    onDownloadClick = {},
+                    onInstallClick = {},
+                    onOpenInstalledApp = {},
+                    onOpenTryBuild = { _, _ -> },
+                    onDateSelected = { _, _ -> },
+                    dateValidator = { true },
+                    onReleaseVersionSelected = { _, _ -> },
+                    onBuildSelected = { _, _ -> },
+                    onDismissBuildPicker = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_focus-release", useUnmergedTree = true).performClick()
+        composeTestRule
+            .onNodeWithTag("release_version_selector_sheet_focus-release", useUnmergedTree = true)
+            .assertIsDisplayed()
     }
 }

@@ -5,7 +5,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -25,8 +23,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -65,6 +61,7 @@ import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.ui.composables.AppIcon
 import org.mozilla.tryfox.ui.composables.CurrentInstallState
 import org.mozilla.tryfox.ui.composables.DownloadButton
+import org.mozilla.tryfox.ui.composables.VersionSelector
 import org.mozilla.tryfox.ui.composables.rememberLinkedPushComment
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
@@ -317,20 +314,12 @@ internal fun datePickerSelectionDate(selectionMillis: Long): LocalDate =
 
 @Composable
 private fun ReleaseVersionDetails(appName: String, selectedVersion: String, versions: List<String>, onSelected: (String, String) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            modifier = Modifier.clickable(enabled = versions.isNotEmpty()) { expanded = true }
-                .testTag("home_release_version_$appName").padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(selectedVersion, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Icon(Icons.Default.ArrowDropDown, contentDescription = "Select version")
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            versions.forEach { version -> DropdownMenuItem(text = { Text(version) }, onClick = { expanded = false; onSelected(appName, version) }) }
-        }
-    }
+    VersionSelector(
+        appName = appName,
+        selectedReleaseVersion = selectedVersion,
+        availableReleaseVersions = versions,
+        onReleaseVersionSelected = { version -> onSelected(appName, version) },
+    )
 }
 
 private fun AppUiModel.toAppState(): AppState? = installedVersion?.let { version ->

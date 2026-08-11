@@ -735,6 +735,41 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `onReleaseVersionSelected uses candidate build cache identity`() = runTest {
+        val stableApk = createTestParsedReleaseApk(version = "153.0.4")
+        val candidateApk = createTestParsedReleaseApk(version = "153.0.4")
+            .copy(version = "153.0.4-RC2", rawDateString = "candidate-153.0.4-build2")
+        val releaseRepositories = listOf(
+            FenixReleaseReleaseRepository(
+                FakeMozillaArchiveRepository(
+                    fenixReleaseVersions = NetworkResult.Success(listOf("153.0.4", "153.0.4-RC2")),
+                    fenixReleasesByVersion = mapOf(
+                        "153.0.4" to NetworkResult.Success(listOf(stableApk)),
+                        "153.0.4-RC2" to NetworkResult.Success(listOf(candidateApk)),
+                    ),
+                ),
+            ),
+        )
+        viewModel = createViewModel(releaseRepositories = releaseRepositories)
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        val stableApp = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
+        val stableKey = (stableApp.apks as ApksResult.Success).apks.single().uniqueKey
+
+        viewModel.onReleaseVersionSelected(FENIX_RELEASE, "153.0.4-RC2")
+        advanceUntilIdle()
+
+        val candidateApp = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
+        val candidate = (candidateApp.apks as ApksResult.Success).apks.single()
+        assertEquals("153.0.4-RC2", candidateApp.selectedReleaseVersion)
+        assertEquals("153.0.4-RC2", candidate.version)
+        assertEquals("fenix-release/candidate-153.0.4-build2/${candidate.fileName}", candidate.uniqueKey)
+        assertTrue(candidate.uniqueKey != stableKey)
+    }
+
+    @Test
     fun `onReleaseVersionSelected should reload Focus APKs for selected version`() = runTest {
         val latestReleaseApk = createTestParsedReleaseApk(version = "147.0.1", appName = testFocusReleaseAppName)
         val olderReleaseApk = createTestParsedReleaseApk(version = "146.0.1", appName = testFocusReleaseAppName)
