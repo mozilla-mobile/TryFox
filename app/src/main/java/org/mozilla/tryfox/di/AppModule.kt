@@ -188,7 +188,7 @@ val repositoryModule = module {
     single<ApkDownloadStore> { DefaultApkDownloadStore(androidContext(), get(named("IODispatcher"))) }
     single { DownloadNotificationFactory(androidContext()) }
     single { WorkManager.getInstance(androidContext()) }
-    single<ApkDownloadCoordinator> { DefaultApkDownloadCoordinator(androidContext(), get(), get()) }
+    single<ApkDownloadCoordinator> { DefaultApkDownloadCoordinator(androidContext(), get(), get(), get()) }
 
     single<ReleaseRepository>(named(FENIX)) { FenixReleaseRepository(get()) }
     single<ReleaseRepository>(named(FENIX_RELEASE)) { FenixReleaseReleaseRepository(get()) }

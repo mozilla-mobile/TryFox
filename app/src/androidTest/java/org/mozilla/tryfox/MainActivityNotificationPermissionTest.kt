@@ -40,4 +40,26 @@ class MainActivityNotificationPermissionTest {
 
         assertEquals(0, notificationManager.permissionRequestCount)
     }
+
+    @Test
+    fun appLaunch_doesNotRequestNotificationPermission_whenNotificationsAreDisabled() {
+        val notificationManager = FakeNotificationManager(hasNotificationPermission = false)
+        notificationManager.setNotificationsEnabled(false)
+        GlobalContext.get().declare<NotificationManager>(notificationManager)
+
+        ActivityScenario.launch(MainActivity::class.java).use { }
+
+        assertEquals(0, notificationManager.permissionRequestCount)
+    }
+
+    @Test
+    fun appLaunch_requestsNotificationPermissionOnlyOnce() {
+        val notificationManager = FakeNotificationManager(hasNotificationPermission = false)
+        GlobalContext.get().declare<NotificationManager>(notificationManager)
+
+        ActivityScenario.launch(MainActivity::class.java).use { }
+        ActivityScenario.launch(MainActivity::class.java).use { }
+
+        assertEquals(1, notificationManager.permissionRequestCount)
+    }
 }

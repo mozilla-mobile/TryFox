@@ -20,6 +20,9 @@
     <string name="common_unknown_error">An unknown error occurred.</string>
     <string name="common_back_button_description">Back</string>
     <string name="settings_screen_title">Settings</string>
+    <string name="settings_notifications_section_title">Notifications</string>
+    <string name="settings_notifications_label">Notifications</string>
+    <string name="settings_notifications_description">Allow notifications to keep you updated on APK download progress, including downloads that continue in the background.</string>
     <string name="settings_cache_section_title">Cache</string>
     <string name="settings_cache_description">Downloaded APKs stored on this device.</string>
     <string name="settings_cache_size_label">Current space used</string>

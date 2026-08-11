@@ -14,6 +14,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
+import org.mozilla.tryfox.data.managers.NotificationManager
 import org.mozilla.tryfox.data.repositories.DownloadFileRepository
 import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.ApkDownloadStore
@@ -30,6 +31,7 @@ class ApkDownloadWorker(
     private val cacheManager: CacheManager by inject()
     private val downloadStore: ApkDownloadStore by inject()
     private val notificationFactory: DownloadNotificationFactory by inject()
+    private val notificationManager: NotificationManager by inject()
 
     /** Required before [doWork] when the request is scheduled as expedited work. */
     override suspend fun getForegroundInfo(): ForegroundInfo {
@@ -45,7 +47,9 @@ class ApkDownloadWorker(
         var lastTotalBytes = -1L
         var lastProgressUpdateAt = 0L
         var lastProgressPercent = -1
-        setForeground(notificationFactory.createForegroundInfo(request.appName))
+        if (notificationManager.areNotificationsEnabled()) {
+            setForeground(notificationFactory.createForegroundInfo(request.appName))
+        }
 
         updateState(
             request = request,
@@ -100,13 +104,15 @@ class ApkDownloadWorker(
                                     KEY_TOTAL_BYTES to totalBytes,
                                 ),
                             )
-                            setForeground(
-                                notificationFactory.createForegroundInfo(
-                                    appName = request.appName,
-                                    progress = if (totalBytes > 0) progressPercent else null,
-                                    isIndeterminate = totalBytes <= 0,
-                                ),
-                            )
+                            if (notificationManager.areNotificationsEnabled()) {
+                                setForeground(
+                                    notificationFactory.createForegroundInfo(
+                                        appName = request.appName,
+                                        progress = if (totalBytes > 0) progressPercent else null,
+                                        isIndeterminate = totalBytes <= 0,
+                                    ),
+                                )
+                            }
                         }
                     }
                 }

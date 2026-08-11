@@ -8,6 +8,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import org.mozilla.tryfox.data.managers.NotificationManager
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.download.worker.ApkDownloadWorker
@@ -16,6 +17,7 @@ class DefaultApkDownloadCoordinator(
     context: Context,
     private val store: ApkDownloadStore = DefaultApkDownloadStore(context.applicationContext),
     private val workManager: WorkManager = WorkManager.getInstance(context.applicationContext),
+    private val notificationManager: NotificationManager,
 ) : ApkDownloadCoordinator {
     private companion object {
         const val TAG = "ApkDownloadCoordinator"
@@ -28,7 +30,11 @@ class DefaultApkDownloadCoordinator(
             OneTimeWorkRequestBuilder<ApkDownloadWorker>()
                 .setInputData(ApkDownloadWorker.createInputData(request))
                 .addTag(request.uniqueKey)
-                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .apply {
+                    if (notificationManager.areNotificationsEnabled()) {
+                        setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                    }
+                }
                 .build()
 
         store.upsert(

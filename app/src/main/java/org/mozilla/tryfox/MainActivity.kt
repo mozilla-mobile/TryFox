@@ -113,7 +113,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        notificationManager.requestPermissionIfNeeded(this)
+        notificationManager.requestPermissionOnFirstAppLaunch(this)
         lifecycleScope.launch {
             installCoordinator.uninstallRequests.collect { request ->
                 pendingUninstallOperationId = request.operationId
@@ -237,6 +237,7 @@ class MainActivity : ComponentActivity() {
                 SettingsScreen(
                     onNavigateUp = { localNavController.popBackStack() },
                     settingsViewModel = koinViewModel(),
+                    notificationManager = notificationManager,
                 )
             }
             composable(NavScreen.QrScanner.route) {

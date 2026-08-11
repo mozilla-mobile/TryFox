@@ -1,10 +1,6 @@
 package org.mozilla.tryfox.ui.screens
 
-import android.Manifest
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,12 +38,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.managers.NotificationManager
+import org.mozilla.tryfox.data.managers.NotificationPermissionState
 import org.mozilla.tryfox.lan.LanReceiveStatus
 import org.mozilla.tryfox.lan.TryFoxLanReceiveService
 
@@ -67,14 +63,13 @@ fun ReceiveFromDesktopScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val state by receiveFromDesktopViewModel.state.collectAsState()
     var hasNotificationPermission by remember { mutableStateOf(notificationManager.hasPermission()) }
-    var hasRequestedNotificationPermission by remember { mutableStateOf(false) }
     var startAfterPermission by remember { mutableStateOf(false) }
 
-    val permissionState = notificationPermissionState(
-        context = context,
-        hasRequestedNotificationPermission = hasRequestedNotificationPermission,
-        hasNotificationPermission = hasNotificationPermission,
-    )
+    val permissionState = if (hasNotificationPermission) {
+        NotificationPermissionState.GRANTED
+    } else {
+        notificationManager.permissionState(context.findActivity())
+    }
 
     val requestOrOpenSettings = {
         when (permissionState) {
@@ -83,11 +78,10 @@ fun ReceiveFromDesktopScreen(
             }
             NotificationPermissionState.REQUESTABLE -> {
                 startAfterPermission = true
-                hasRequestedNotificationPermission = true
                 context.findActivity()?.let(notificationManager::requestPermission)
             }
             NotificationPermissionState.BLOCKED -> {
-                openAppNotificationSettings(context)
+                notificationManager.openNotificationSettings()
             }
         }
     }
@@ -115,7 +109,6 @@ fun ReceiveFromDesktopScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasNotificationPermission = notificationManager.hasPermission()
                 if (hasNotificationPermission) {
-                    hasRequestedNotificationPermission = false
                     if (startAfterPermission) {
                         ContextCompat.startForegroundService(context, TryFoxLanReceiveService.startIntent(context))
                         startAfterPermission = false
@@ -339,40 +332,6 @@ fun ReceiveFromDesktopScreen(
             }
         }
     }
-}
-
-private enum class NotificationPermissionState {
-    GRANTED,
-    REQUESTABLE,
-    BLOCKED,
-}
-
-private fun notificationPermissionState(
-    context: Context,
-    hasRequestedNotificationPermission: Boolean,
-    hasNotificationPermission: Boolean,
-): NotificationPermissionState {
-    if (hasNotificationPermission) return NotificationPermissionState.GRANTED
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return NotificationPermissionState.GRANTED
-
-    val activity = context.findActivity()
-    val shouldShowRationale = activity?.let {
-        ActivityCompat.shouldShowRequestPermissionRationale(it, Manifest.permission.POST_NOTIFICATIONS)
-    } ?: false
-
-    return when {
-        !hasRequestedNotificationPermission -> NotificationPermissionState.REQUESTABLE
-        shouldShowRationale -> NotificationPermissionState.REQUESTABLE
-        else -> NotificationPermissionState.BLOCKED
-    }
-}
-
-private fun openAppNotificationSettings(context: Context) {
-    val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-        data = Uri.fromParts("package", context.packageName, null)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    context.startActivity(intent)
 }
 
 private tailrec fun Context.findActivity(): android.app.Activity? = when (this) {

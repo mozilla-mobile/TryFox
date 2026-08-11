@@ -47,4 +47,14 @@ class HomeScreenTest {
         composeTestRule.onNodeWithText("One card per app").assertIsDisplayed()
         composeTestRule.onNodeWithText("One card per flavor of each app").assertIsDisplayed()
     }
+
+    @Test
+    fun settingsScreen_showsNotificationPreference() {
+        composeTestRule.onNodeWithContentDescription("Settings").performClick()
+
+        composeTestRule.onNodeWithText("Notifications").assertIsDisplayed()
+        val description = "Allow notifications to keep you updated on APK download progress, " +
+            "including downloads that continue in the background."
+        composeTestRule.onNodeWithText(description).assertIsDisplayed()
+    }
 }

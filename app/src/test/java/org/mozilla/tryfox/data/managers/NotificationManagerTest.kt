@@ -2,6 +2,7 @@ package org.mozilla.tryfox.data.managers
 
 import android.app.Activity
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
 
@@ -22,5 +23,27 @@ class NotificationManagerTest {
         notificationManager.requestPermissionIfNeeded(mock<Activity>())
 
         assertEquals(0, notificationManager.permissionRequestCount)
+    }
+
+    @Test
+    fun `disabled notification preference prevents a permission request`() {
+        val notificationManager = FakeNotificationManager(hasNotificationPermission = false)
+        notificationManager.setNotificationsEnabled(false)
+
+        notificationManager.requestPermissionIfNeeded(mock<Activity>())
+
+        assertFalse(notificationManager.isNotificationPreferenceEnabled())
+        assertEquals(0, notificationManager.permissionRequestCount)
+    }
+
+    @Test
+    fun `notification permission is requested only on the first app launch`() {
+        val notificationManager = FakeNotificationManager(hasNotificationPermission = false)
+        val activity = mock<Activity>()
+
+        notificationManager.requestPermissionOnFirstAppLaunch(activity)
+        notificationManager.requestPermissionOnFirstAppLaunch(activity)
+
+        assertEquals(1, notificationManager.permissionRequestCount)
     }
 }

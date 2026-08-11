@@ -37,12 +37,14 @@ import org.mozilla.tryfox.R
 import org.mozilla.tryfox.data.repositories.TreeherderRepository
 import org.mozilla.tryfox.util.withoutTrailingReviewerDirective
 import java.io.IOException
+import org.mozilla.tryfox.data.managers.NotificationManager as TryFoxNotificationManager
 
 class TryFoxLanReceiveService : Service(), KoinComponent {
     private val identityManager: LanReceiveIdentityManager by inject()
     private val messageHistoryRepository: LanMessageHistoryRepository by inject()
     private val stateRepository: LanReceiveStateRepository by inject()
     private val treeherderRepository: TreeherderRepository by inject()
+    private val tryFoxNotificationManager: TryFoxNotificationManager by inject()
     private val pushResolver by lazy { LanReceivedPushResolver(treeherderRepository) }
 
     private val serviceScope = kotlinx.coroutines.CoroutineScope(
@@ -365,6 +367,7 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
     }
 
     private fun postStoppedNotification() {
+        if (!tryFoxNotificationManager.areNotificationsEnabled()) return
         createNotificationChannelIfNeeded()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(NOTIFICATION_ID, buildStoppedNotification())
@@ -400,6 +403,7 @@ class TryFoxLanReceiveService : Service(), KoinComponent {
     }
 
     private fun postReceivedMessageNotification(message: LanReceivedMessage) {
+        if (!tryFoxNotificationManager.areNotificationsEnabled()) return
         createNotificationChannelIfNeeded()
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notificationId = MESSAGE_NOTIFICATION_BASE_ID + message.id.toInt().coerceAtLeast(1)
