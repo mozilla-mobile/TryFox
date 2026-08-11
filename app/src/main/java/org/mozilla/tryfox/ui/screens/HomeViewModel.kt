@@ -197,7 +197,30 @@ class HomeViewModel(
     }
 
     fun refreshData() {
+        if (!initialLoadStarted) {
+            initialLoad()
+            return
+        }
         launchRefresh(hydrateCache = false)
+    }
+
+    fun refreshInstalledAppStates() {
+        viewModelScope.launch(ioDispatcher) {
+            val appInfoMap = appInfoMap()
+            synchronized(appsLock) {
+                currentAppsByName = currentAppsByName.mapValues { (appName, app) ->
+                    app.withInstalledState(appInfoMap[appName])
+                }
+            }
+            _homeScreenState.update { currentState ->
+                if (currentState !is HomeScreenState.Loaded) return@update currentState
+                currentState.copy(
+                    apps = currentState.apps.mapValues { (appName, app) ->
+                        app.withInstalledState(appInfoMap[appName])
+                    },
+                )
+            }
+        }
     }
 
     fun selectHomeAppFlavor(family: HomeAppFamily, appName: String) {
@@ -289,16 +312,23 @@ class HomeViewModel(
             AppUiModel(
                 name = appName,
                 packageName = appState.packageName,
-                installedVersion = appState.version,
-                installedVersionCode = appState.versionCode,
-                installedDate = appState.formattedInstallDate,
-                installingPackageName = appState.installingPackageName,
-                splitNames = appState.splitNames,
-                installedTryBuild = appName.takeIf { it == FENIX_DEBUG }
-                    ?.let { matchingInstalledTryBuild(appState) },
+                installedVersion = null,
+                installedDate = null,
                 apks = ApksResult.Loading,
             )
+                .withInstalledState(appState)
         }
+
+    private fun AppUiModel.withInstalledState(appState: AppState?): AppUiModel = copy(
+        packageName = appState?.packageName ?: packageName,
+        installedVersion = appState?.version,
+        installedVersionCode = appState?.versionCode,
+        installedDate = appState?.formattedInstallDate,
+        installingPackageName = appState?.installingPackageName,
+        splitNames = appState?.splitNames ?: emptyList(),
+        installedTryBuild = appState?.takeIf { name == FENIX_DEBUG }
+            ?.let { matchingInstalledTryBuild(it) },
+    )
 
     private fun publishCurrentApps() {
         val apps = synchronized(appsLock) { currentAppsByName }

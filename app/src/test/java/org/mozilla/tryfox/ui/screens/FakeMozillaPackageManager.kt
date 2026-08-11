@@ -15,8 +15,14 @@ import org.mozilla.tryfox.util.REFERENCE_BROWSER_PACKAGE
 import org.mozilla.tryfox.util.TRYFOX_PACKAGE
 
 class FakeMozillaPackageManager(
-    private val apps: Map<String, AppState> = emptyMap(),
+    apps: Map<String, AppState> = emptyMap(),
 ) : MozillaPackageManager {
+
+    private val apps = apps.toMutableMap()
+
+    fun setAppState(appState: AppState) {
+        apps[appState.packageName] = appState
+    }
 
     override val fenix: AppState
         get() = apps[FENIX_NIGHTLY_PACKAGE] ?: AppState("Fenix", FENIX_NIGHTLY_PACKAGE, null, null)
