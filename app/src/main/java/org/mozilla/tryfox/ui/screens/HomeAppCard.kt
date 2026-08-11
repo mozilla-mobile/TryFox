@@ -217,7 +217,9 @@ internal fun HomeAppCard(
                             downloadState = selectedApk?.downloadState ?: DownloadState.NotDownloaded,
                             onDownloadClick = { selectedApk?.let(onDownloadClick) },
                             onInstallClick = { selectedApk?.let(onInstallClick) },
-                            installState = selectedApk?.let { installStates[it.uniqueKey] } ?: InstallState.Idle,
+                            installState = selectedApk?.let {
+                                effectiveInstallState(app, it, installStates)
+                            } ?: InstallState.Idle,
                             installDisabled = selectedApk == null,
                             onOpenClick = onOpenInstalledApp,
                             debugLabel = "home-card:${selectedApk?.uniqueKey ?: app.name}",
@@ -269,6 +271,14 @@ internal fun HomeAppCard(
         )
     }
 }
+
+internal fun effectiveInstallState(
+    app: AppUiModel,
+    apk: ApkUiModel,
+    installStates: Map<String, InstallState>,
+): InstallState = installStates[apk.uniqueKey]
+    ?.takeUnless { it is InstallState.Installed && app.installedVersion == null }
+    ?: InstallState.Idle
 
 private const val SHORT_REVISION_LENGTH = 12
 

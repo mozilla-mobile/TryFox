@@ -64,6 +64,7 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
+import org.mozilla.tryfox.util.FENIX_NIGHTLY_PACKAGE
 import org.mozilla.tryfox.util.FENIX_RELEASE
 import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_RELEASE
@@ -466,6 +467,44 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(1, repository.calls)
+    }
+
+    @Test
+    fun `refresh rereads package state after installed app is removed outside TryFox`() = runTest {
+        val packageManager = FakeMozillaPackageManager(
+            mapOf(
+                FENIX_NIGHTLY_PACKAGE to AppState(
+                    "Fenix",
+                    FENIX_NIGHTLY_PACKAGE,
+                    "125.0a1",
+                    1L,
+                ),
+            ),
+        )
+        val repository = CountingReleaseRepository(
+            testFenixAppName,
+            NetworkResult.Success(emptyList()),
+        )
+        viewModel = createViewModel(
+            releaseRepositories = listOf(repository),
+            mozillaPackageManager = packageManager,
+        )
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        assertEquals(
+            "125.0a1",
+            (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps.getValue(FENIX).installedVersion,
+        )
+
+        packageManager.setAppState(AppState("Fenix", FENIX_NIGHTLY_PACKAGE, null, null))
+        viewModel.refreshInstalledAppStates()
+        advanceUntilIdle()
+
+        assertNull(
+            (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps.getValue(FENIX).installedVersion,
+        )
+        assertFalse(viewModel.isRefreshing.value)
     }
 
     @Test

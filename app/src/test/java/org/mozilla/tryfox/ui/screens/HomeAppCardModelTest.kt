@@ -2,7 +2,11 @@ package org.mozilla.tryfox.ui.screens
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.mozilla.tryfox.data.DownloadState
+import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.HomeScreenLayout
+import org.mozilla.tryfox.ui.models.AbiUiModel
+import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.util.FENIX
@@ -14,6 +18,7 @@ import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
+import java.io.File
 
 class HomeAppCardModelTest {
     @Test
@@ -79,11 +84,43 @@ class HomeAppCardModelTest {
         assertEquals(true, cards.all { !it.showFlavorSelector })
     }
 
+    @Test
+    fun `ignores stale installed state when package is no longer installed`() {
+        val app = app(FENIX)
+        val apk = apk()
+        val installState = mapOf(apk.uniqueKey to InstallState.Installed(FENIX))
+
+        assertEquals(InstallState.Idle, effectiveInstallState(app, apk, installState))
+    }
+
+    @Test
+    fun `keeps installed state when package is still installed`() {
+        val app = app(FENIX, installedVersion = "1.0")
+        val apk = apk()
+        val installState = mapOf(apk.uniqueKey to InstallState.Installed(FENIX))
+
+        assertEquals(InstallState.Installed(FENIX), effectiveInstallState(app, apk, installState))
+    }
+
     private fun app(name: String, installedVersion: String? = null) = AppUiModel(
         name = name,
         packageName = name,
         installedVersion = installedVersion,
         installedDate = null,
         apks = ApksResult.Loading,
+    )
+
+    private fun apk() = ApkUiModel(
+        originalString = "fenix.apk",
+        date = "",
+        buildDate = null,
+        appName = FENIX,
+        version = "1.0",
+        abi = AbiUiModel("arm64-v8a", true),
+        url = "https://example.com/fenix.apk",
+        fileName = "fenix.apk",
+        downloadState = DownloadState.Downloaded(File("fenix.apk")),
+        uniqueKey = "fenix/fenix.apk",
+        apkDir = File("."),
     )
 }
