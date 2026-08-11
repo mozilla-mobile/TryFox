@@ -455,7 +455,7 @@ class FenixReleaseTest {
     }
 
     @Test
-    fun `Fenix release versions include unpublished candidates and suppress published bases`() = runBlocking {
+    fun `Fenix release versions include candidates for published and unpublished bases`() = runBlocking {
         val api: MozillaArchivesApiService = mock()
         val releasesHtml = """
             <a href="153.0.4/">153.0.4/</a>
@@ -465,18 +465,44 @@ class FenixReleaseTest {
         val buildsHtml = loadHtmlResource("fenix-candidate-builds.html")
         whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL)).thenReturn(releasesHtml)
         whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.CANDIDATES_FENIX_BASE_URL)).thenReturn(candidatesHtml)
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForCandidateBuilds("153.0.4"))).thenReturn(buildsHtml)
         whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForCandidateBuilds("153.0.5"))).thenReturn(buildsHtml)
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForCandidateBuilds("153.0b4"))).thenReturn(buildsHtml)
         whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForCandidateBuilds("153.0b5"))).thenReturn(buildsHtml)
 
         val repository = DefaultMozillaArchiveRepository(api)
 
         assertEquals(
-            listOf("153.0.5-RC2", "153.0.5-RC1", "153.0.4"),
+            listOf("153.0.5-RC2", "153.0.5-RC1", "153.0.4", "153.0.4-RC2", "153.0.4-RC1"),
             (repository.getFenixReleaseVersions(ReleaseType.Release) as NetworkResult.Success).data,
         )
         assertEquals(
-            listOf("153.0b5-RC2", "153.0b5-RC1", "153.0b4"),
+            listOf("153.0b5-RC2", "153.0b5-RC1", "153.0b4", "153.0b4-RC2", "153.0b4-RC1"),
             (repository.getFenixReleaseVersions(ReleaseType.Beta) as NetworkResult.Success).data,
+        )
+    }
+
+    @Test
+    fun `Fenix release versions merge published and candidate builds in semantic order`() = runBlocking {
+        val api: MozillaArchivesApiService = mock()
+        val releasesHtml = """
+            <a href="153.0.4/">153.0.4/</a>
+            <a href="153.0.3/">153.0.3/</a>
+        """.trimIndent()
+        val candidatesHtml = "<a href=\"153.0.4-candidates/\">153.0.4-candidates/</a>"
+        val buildsHtml = """
+            <a href="build1/">build1/</a>
+            <a href="build2/">build2/</a>
+        """.trimIndent()
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL)).thenReturn(releasesHtml)
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.CANDIDATES_FENIX_BASE_URL)).thenReturn(candidatesHtml)
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForCandidateBuilds("153.0.4"))).thenReturn(buildsHtml)
+
+        val result = DefaultMozillaArchiveRepository(api).getFenixReleaseVersions(ReleaseType.Release)
+
+        assertEquals(
+            listOf("153.0.4", "153.0.4-RC2", "153.0.4-RC1", "153.0.3"),
+            (result as NetworkResult.Success).data,
         )
     }
 

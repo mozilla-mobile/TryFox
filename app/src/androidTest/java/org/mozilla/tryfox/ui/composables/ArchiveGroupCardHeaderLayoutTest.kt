@@ -1,7 +1,6 @@
 package org.mozilla.tryfox.ui.composables
 
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -140,13 +139,20 @@ class ArchiveGroupCardHeaderLayoutTest {
 
         composeTestRule.onNodeWithTag("release_version_chip_focus-release", useUnmergedTree = true).performClick()
         composeTestRule.onNodeWithTag("release_version_selector_sheet_focus-release", useUnmergedTree = true).assertIsDisplayed()
+        composeTestRule.onNodeWithText("Version").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Builds:").assertIsDisplayed()
         composeTestRule.onNodeWithTag("release_version_variant_151_0_1", useUnmergedTree = true).assertIsSelected()
 
         composeTestRule.onNodeWithTag("release_version_major_picker_focus-release", useUnmergedTree = true).assertIsDisplayed()
         composeTestRule.onNodeWithTag("release_version_variant_151_0_0", useUnmergedTree = true).performClick()
-        composeTestRule.onNodeWithText("Select version").performClick()
 
         assertTrue(confirmedVersion == "151.0.0")
+        assertTrue(
+            composeTestRule
+                .onAllNodesWithTag("release_version_selector_sheet_focus-release", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isEmpty(),
+        )
     }
 
     @Test
@@ -183,7 +189,7 @@ class ArchiveGroupCardHeaderLayoutTest {
     }
 
     @Test
-    fun versionSelector_keepsOutOfRangeCurrentMajorUnavailableUntilAnotherMajorIsChosen() {
+    fun versionSelector_supportsTheHighestMajorProvidedByTheArchive() {
         composeTestRule.setContent {
             TryFoxTheme(dynamicColor = false) {
                 ArchiveGroupCard(
@@ -199,9 +205,7 @@ class ArchiveGroupCardHeaderLayoutTest {
         }
 
         composeTestRule.onNodeWithTag("release_version_chip_focus-release", useUnmergedTree = true).performClick()
-        composeTestRule.onNodeWithText("The current major version (155) is outside the selectable range. Choose a version from 117 to 154.")
-            .assertIsDisplayed()
-        composeTestRule.onNodeWithText("Select version").assertIsNotEnabled()
+        composeTestRule.onNodeWithTag("release_version_variant_155_0_1", useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test
@@ -224,7 +228,6 @@ class ArchiveGroupCardHeaderLayoutTest {
 
         composeTestRule.onNodeWithTag("release_version_chip_fenix-release", useUnmergedTree = true).performClick()
         composeTestRule.onNodeWithTag("release_version_variant_153_0_4-RC2", useUnmergedTree = true).performClick()
-        composeTestRule.onNodeWithText("Select version").performClick()
 
         assertTrue(confirmedVersion == "153.0.4-RC2")
     }
