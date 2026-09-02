@@ -21,6 +21,7 @@ const val FENIX_DEBUG_PACKAGE = "org.mozilla.fenix.debug"
 const val FOCUS_NIGHTLY_PACKAGE = "org.mozilla.focus.nightly"
 const val FOCUS_BETA_PACKAGE = "org.mozilla.focus.beta"
 const val FOCUS_RELEASE_PACKAGE = "org.mozilla.focus"
+const val FOCUS_DEBUG_PACKAGE = "org.mozilla.focus.debug"
 const val REFERENCE_BROWSER_PACKAGE = "org.mozilla.reference.browser"
 const val TRYFOX_PACKAGE = "org.mozilla.tryfox"
 
@@ -32,5 +33,6 @@ val MOZILLA_PACKAGE_NAMES = listOf(
     FOCUS_NIGHTLY_PACKAGE,
     FOCUS_BETA_PACKAGE,
     FOCUS_RELEASE_PACKAGE,
+    FOCUS_DEBUG_PACKAGE,
     REFERENCE_BROWSER_PACKAGE,
 )
