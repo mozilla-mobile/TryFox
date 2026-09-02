@@ -302,7 +302,7 @@ class HomeViewModel(
             FOCUS to mozillaPackageManager.focus,
             FOCUS_RELEASE to mozillaPackageManager.focusRelease,
             FOCUS_BETA to mozillaPackageManager.focusBeta,
-            FOCUS_DEBUG to mozillaPackageManager.fenixDebug,
+            FOCUS_DEBUG to mozillaPackageManager.focusDebug,
             REFERENCE_BROWSER to mozillaPackageManager.referenceBrowser,
             TRYFOX to mozillaPackageManager.tryfox,
         )
