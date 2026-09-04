@@ -18,6 +18,9 @@ interface UserDataRepository {
     val lanReceiveIdentityFlow: Flow<LanReceiveIdentity?>
     val homeScreenLayoutFlow: Flow<HomeScreenLayout>
 
+    /** The ABI variant to favour when a build offers several. Emits `universal` by default. */
+    val preferredAbiFlow: Flow<String>
+
     /**
      * Saves the last searched email.
      * @param email The email to save.
@@ -26,4 +29,5 @@ interface UserDataRepository {
     suspend fun recordSearch(project: String, query: String, searchedAt: Long = System.currentTimeMillis())
     suspend fun saveLanReceiveIdentity(identity: LanReceiveIdentity)
     suspend fun saveHomeScreenLayout(layout: HomeScreenLayout)
+    suspend fun savePreferredAbi(abiName: String)
 }

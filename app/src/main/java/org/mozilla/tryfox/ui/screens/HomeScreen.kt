@@ -221,6 +221,7 @@ fun HomeScreen(
                                 onDismissBuildPicker = { appName ->
                                     homeViewModel.onDismissBuildPicker(appName)
                                 },
+                                preferredAbi = currentScreenState.preferredAbi,
                             )
                         }
                     }

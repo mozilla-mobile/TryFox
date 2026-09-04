@@ -16,6 +16,7 @@ import org.mozilla.tryfox.data.SearchHistoryEntry
 import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.lan.LanReceiveIdentity
 import org.mozilla.tryfox.model.HomeScreenLayout
+import org.mozilla.tryfox.util.DEFAULT_PREFERRED_ABI
 
 /**
  * A repository that stores the last searched email in a DataStore.
@@ -31,6 +32,7 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
         val LAN_DEVICE_NAME = stringPreferencesKey("lan_device_name")
         val LAN_SHARED_SECRET = stringPreferencesKey("lan_shared_secret")
         val HOME_SCREEN_LAYOUT = stringPreferencesKey("home_screen_layout")
+        val PREFERRED_ABI = stringPreferencesKey("preferred_abi")
     }
 
     override val searchHistoryFlow: Flow<List<SearchHistoryEntry>> = appContext.dataStore.data.map { preferences ->
@@ -66,6 +68,10 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
         homeScreenLayoutFromStoredValue(preferences[PreferenceKeys.HOME_SCREEN_LAYOUT])
     }
 
+    override val preferredAbiFlow: Flow<String> = appContext.dataStore.data.map { preferences ->
+        preferences[PreferenceKeys.PREFERRED_ABI]?.takeIf { it.isNotBlank() } ?: DEFAULT_PREFERRED_ABI
+    }
+
     override suspend fun saveLastSearchedEmail(email: String) {
         recordSearch(project = "try", query = email)
     }
@@ -99,6 +105,12 @@ class DefaultUserDataRepository(private val appContext: Context) : UserDataRepos
     override suspend fun saveHomeScreenLayout(layout: HomeScreenLayout) {
         appContext.dataStore.edit { preferences ->
             preferences[PreferenceKeys.HOME_SCREEN_LAYOUT] = layout.name
+        }
+    }
+
+    override suspend fun savePreferredAbi(abiName: String) {
+        appContext.dataStore.edit { preferences ->
+            preferences[PreferenceKeys.PREFERRED_ABI] = abiName
         }
     }
 

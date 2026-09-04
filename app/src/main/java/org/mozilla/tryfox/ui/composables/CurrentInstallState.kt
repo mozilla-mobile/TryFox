@@ -172,6 +172,13 @@ private fun InstallMetadataBottomSheet(
                 label = stringResource(id = R.string.install_metadata_source_label),
                 value = installSourceLabel(appState),
             )
+            InstallMetadataRow(
+                // The ABI Android selected at install time. A universal APK reports the single
+                // architecture the platform kept, so this does not identify the APK variant.
+                label = stringResource(id = R.string.install_metadata_abi_label),
+                value = appState.activeAbi
+                    ?: stringResource(id = R.string.install_metadata_abi_none),
+            )
             InstallMetadataBlock(
                 label = stringResource(id = R.string.install_metadata_splits_label),
                 // splitNames covers only the config splits; the base APK is always present but not
@@ -233,7 +240,7 @@ private fun InstallMetadataBlock(label: String, value: String) {
             text = value,
             style = MaterialTheme.typography.bodySmall,
             fontFamily = FontFamily.Monospace,
-            modifier = Modifier.padding(top = 2.dp),
+            modifier = Modifier.padding(start = 8.dp, top = 2.dp),
         )
     }
 }

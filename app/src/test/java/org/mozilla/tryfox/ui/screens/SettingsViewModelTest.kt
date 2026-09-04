@@ -19,6 +19,7 @@ import org.mozilla.tryfox.download.ApkDownloadRequest
 import org.mozilla.tryfox.download.model.DownloadStatus
 import org.mozilla.tryfox.download.model.PersistedDownloadState
 import org.mozilla.tryfox.model.HomeScreenLayout
+import org.mozilla.tryfox.util.UNIVERSAL_ABI
 import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -59,6 +60,45 @@ class SettingsViewModelTest {
         advanceUntilIdle()
         assertTrue(cacheManager.clearCacheCalled)
         assertEquals(0L, viewModel.uiState.value.cacheSizeBytes)
+    }
+
+    @Test
+    fun `preferred ABI defaults to universal and offers every device ABI`() = runTest {
+        val userData = FakeUserDataRepository()
+        val viewModel = SettingsViewModel(
+            FakeCacheManager(tempDir),
+            FakeDownloadCoordinator(),
+            userData,
+            supportedAbis = listOf("arm64-v8a", "armeabi-v7a"),
+        )
+        advanceUntilIdle()
+
+        assertEquals(UNIVERSAL_ABI, viewModel.uiState.value.preferredAbi)
+        assertEquals(listOf(UNIVERSAL_ABI, "arm64-v8a", "armeabi-v7a"), viewModel.uiState.value.abiOptions)
+
+        viewModel.selectPreferredAbi("arm64-v8a")
+        advanceUntilIdle()
+        assertEquals("arm64-v8a", viewModel.uiState.value.preferredAbi)
+
+        // An ABI this device cannot run is never persisted.
+        viewModel.selectPreferredAbi("x86_64")
+        advanceUntilIdle()
+        assertEquals("arm64-v8a", viewModel.uiState.value.preferredAbi)
+    }
+
+    @Test
+    fun `a stored ABI the device no longer runs resolves back to universal`() = runTest {
+        val userData = FakeUserDataRepository()
+        userData.savePreferredAbi("x86_64")
+        val viewModel = SettingsViewModel(
+            FakeCacheManager(tempDir),
+            FakeDownloadCoordinator(),
+            userData,
+            supportedAbis = listOf("arm64-v8a"),
+        )
+        advanceUntilIdle()
+
+        assertEquals(UNIVERSAL_ABI, viewModel.uiState.value.preferredAbi)
     }
 
     private class FakeDownloadCoordinator : ApkDownloadCoordinator {

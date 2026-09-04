@@ -61,6 +61,7 @@ import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
+import org.mozilla.tryfox.ui.models.preferredAbiApk
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
@@ -70,6 +71,7 @@ import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
+import org.mozilla.tryfox.util.UNIVERSAL_ABI
 import java.io.File
 
 @ExperimentalCoroutinesApi
@@ -229,6 +231,43 @@ class HomeViewModelTest {
 
         val state = viewModel.homeScreenState.value as HomeScreenState.Loaded
         assertEquals(HomeScreenLayout.OneCardPerFlavor, state.homeScreenLayout)
+    }
+
+    @Test
+    fun `preferred ABI reaches the loaded state and universal APKs count as supported`() = runTest {
+        val universalApk = createTestParsedReleaseApk(version = "153.0", abi = UNIVERSAL_ABI)
+        val arm64Apk = createTestParsedReleaseApk(version = "153.0", abi = "arm64-v8a")
+        val userDataRepository = FakeUserDataRepository()
+        val viewModel = createViewModel(
+            releaseRepositories = listOf(
+                FenixReleaseReleaseRepository(
+                    FakeMozillaArchiveRepository(
+                        fenixReleaseVersions = NetworkResult.Success(listOf("153.0")),
+                        fenixReleasesByVersion = mapOf(
+                            "153.0" to NetworkResult.Success(listOf(arm64Apk, universalApk)),
+                        ),
+                    ),
+                ),
+            ),
+            userDataRepository = userDataRepository,
+        )
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        val initialState = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertEquals(UNIVERSAL_ABI, initialState.preferredAbi)
+        val apks = (initialState.apps.getValue(FENIX_RELEASE).apks as ApksResult.Success).apks
+        // Universal bundles every architecture, so it must never be flagged as unsupported.
+        assertTrue(apks.single { it.abi.name == UNIVERSAL_ABI }.abi.isSupported)
+        assertEquals(UNIVERSAL_ABI, apks.preferredAbiApk(initialState.preferredAbi)?.abi?.name)
+
+        userDataRepository.savePreferredAbi("arm64-v8a")
+        advanceUntilIdle()
+
+        val updatedState = viewModel.homeScreenState.value as HomeScreenState.Loaded
+        assertEquals("arm64-v8a", updatedState.preferredAbi)
+        assertEquals("arm64-v8a", apks.preferredAbiApk(updatedState.preferredAbi)?.abi?.name)
     }
 
     private class FakeHomeDataCacheRepository(

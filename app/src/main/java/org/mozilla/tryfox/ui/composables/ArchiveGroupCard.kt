@@ -80,6 +80,8 @@ import org.mozilla.tryfox.install.InstallState
 import org.mozilla.tryfox.model.AppState
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.NightlyBuildOption
+import org.mozilla.tryfox.ui.models.preferredAbiApk
+import org.mozilla.tryfox.util.DEFAULT_PREFERRED_ABI
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_RELEASE
@@ -124,6 +126,7 @@ fun ArchiveGroupCard(
     onDismissBuildPicker: () -> Unit = {},
     installStates: Map<String, InstallState> = emptyMap(),
     onOpenInstalledApp: (String) -> Unit = {},
+    preferredAbi: String = DEFAULT_PREFERRED_ABI,
 ) {
     if (pendingBuildOptions.isNotEmpty()) {
         NightlyBuildPickerDialog(
@@ -200,6 +203,7 @@ fun ArchiveGroupCard(
                         appState,
                         installStates,
                         onOpenInstalledApp,
+                        preferredAbi,
                     )
                 }
 
@@ -623,9 +627,13 @@ private fun ArchiveGroupAbiSelector(
     appState: AppState?,
     installStates: Map<String, InstallState>,
     onOpenInstalledApp: (String) -> Unit,
+    preferredAbi: String,
 ) {
-    val firstSupportedIndex = apks.indexOfFirst { it.abi.isSupported }.takeIf { it != -1 } ?: 0
-    var selectedIndex by remember { mutableStateOf(firstSupportedIndex) }
+    val preferredIndex = apks.preferredAbiApk(preferredAbi)
+        ?.let(apks::indexOf)
+        ?.takeIf { it != -1 }
+        ?: 0
+    var selectedIndex by remember { mutableStateOf(preferredIndex) }
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,

@@ -3,6 +3,7 @@ package org.mozilla.tryfox.ui.screens
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.HomeScreenLayout
 import org.mozilla.tryfox.ui.models.AppUiModel
+import org.mozilla.tryfox.util.DEFAULT_PREFERRED_ABI
 
 /**
  * Represents the various states of the Home screen.
@@ -23,5 +24,6 @@ sealed class HomeScreenState {
         val isDownloadingAnyFile: Boolean,
         val selectedAppNames: Map<HomeAppFamily, String> = HomeAppFamily.entries.associateWith { it.defaultAppName },
         val homeScreenLayout: HomeScreenLayout = HomeScreenLayout.OneCardPerApp,
+        val preferredAbi: String = DEFAULT_PREFERRED_ABI,
     ) : HomeScreenState()
 }

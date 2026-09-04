@@ -39,6 +39,10 @@
     <string name="settings_home_layout_description">Choose how apps are grouped on Home.</string>
     <string name="settings_layout_one_card_per_app">One card per app</string>
     <string name="settings_layout_one_card_per_flavor">One card per flavor of each app</string>
+    <string name="settings_abi_section_title">Preferred ABI</string>
+    <string name="settings_abi_description">Which APK variant to offer when a build ships more than one. Builds without this variant fall back to universal.</string>
+    <string name="settings_abi_universal_label">Universal</string>
+    <string name="settings_abi_universal_description">Every architecture in one APK</string>
     <string name="treeherder_apks_search_artifacts_title">Search builds</string>
     <string name="treeherder_apks_project_label">Project</string>
     <string name="treeherder_apks_revision_label">Email or revision</string>
@@ -135,6 +139,8 @@
     <string name="install_metadata_version_code_label">Version code</string>
     <string name="install_metadata_install_date_label">Installed</string>
     <string name="install_metadata_source_label">Source</string>
+    <string name="install_metadata_abi_label">Active ABI</string>
+    <string name="install_metadata_abi_none">none</string>
     <string name="install_metadata_source_play_store">Google Play Store</string>
     <string name="install_metadata_source_sideloaded">Sideloaded</string>
     <string name="install_metadata_splits_label">Splits</string>
