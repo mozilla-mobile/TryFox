@@ -43,6 +43,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
@@ -54,6 +55,7 @@ import org.mozilla.tryfox.data.managers.NotificationManager
 import org.mozilla.tryfox.data.managers.NotificationPermissionState
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.HomeScreenLayout
+import org.mozilla.tryfox.util.isUniversalAbi
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -153,6 +155,12 @@ fun SettingsScreen(
             HomeLayoutSettingsCard(
                 selectedLayout = uiState.homeScreenLayout,
                 onLayoutSelected = settingsViewModel::selectHomeScreenLayout,
+            )
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+            AbiSettingsCard(
+                selectedAbi = uiState.preferredAbi,
+                abiOptions = uiState.abiOptions,
+                onAbiSelected = settingsViewModel::selectPreferredAbi,
             )
         }
     }
@@ -256,6 +264,50 @@ private fun HomeLayoutSettingsCard(
                 label = stringResource(R.string.settings_layout_one_card_per_flavor),
                 onSelected = onLayoutSelected,
             )
+        }
+    }
+}
+
+@Composable
+private fun AbiSettingsCard(
+    selectedAbi: String,
+    abiOptions: List<String>,
+    onAbiSelected: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SettingsSectionTitle(R.string.settings_abi_section_title)
+        Text(
+            text = stringResource(R.string.settings_abi_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp),
+        )
+        PreferenceGroup {
+            abiOptions.forEachIndexed { index, abiName ->
+                if (index > 0) HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                val selected = abiName.equals(selectedAbi, ignoreCase = true)
+                ListItem(
+                    headlineContent = {
+                        Text(
+                            if (isUniversalAbi(abiName)) {
+                                stringResource(R.string.settings_abi_universal_label)
+                            } else {
+                                abiName
+                            },
+                        )
+                    },
+                    supportingContent = if (isUniversalAbi(abiName)) {
+                        { Text(stringResource(R.string.settings_abi_universal_description)) }
+                    } else {
+                        null
+                    },
+                    trailingContent = { RadioButton(selected = selected, onClick = null) },
+                    modifier = Modifier
+                        .semantics { this.selected = selected }
+                        .testTag("settings_abi_option_$abiName")
+                        .clickable(role = Role.RadioButton) { onAbiSelected(abiName) },
+                )
+            }
         }
     }
 }

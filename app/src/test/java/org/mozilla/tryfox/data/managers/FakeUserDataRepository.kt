@@ -8,6 +8,7 @@ import org.mozilla.tryfox.data.SearchHistoryQueryType
 import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.lan.LanReceiveIdentity
 import org.mozilla.tryfox.model.HomeScreenLayout
+import org.mozilla.tryfox.util.DEFAULT_PREFERRED_ABI
 
 /**
  * A fake implementation of [UserDataRepository] for testing purposes.
@@ -22,6 +23,8 @@ class FakeUserDataRepository : UserDataRepository {
     override val lanReceiveIdentityFlow: Flow<LanReceiveIdentity?> = _lanReceiveIdentityFlow
     private val _homeScreenLayoutFlow = MutableStateFlow(HomeScreenLayout.OneCardPerApp)
     override val homeScreenLayoutFlow: Flow<HomeScreenLayout> = _homeScreenLayoutFlow
+    private val _preferredAbiFlow = MutableStateFlow(DEFAULT_PREFERRED_ABI)
+    override val preferredAbiFlow: Flow<String> = _preferredAbiFlow
 
     override suspend fun saveLastSearchedEmail(email: String) {
         recordSearch("try", email)
@@ -42,6 +45,10 @@ class FakeUserDataRepository : UserDataRepository {
 
     override suspend fun saveHomeScreenLayout(layout: HomeScreenLayout) {
         _homeScreenLayoutFlow.value = layout
+    }
+
+    override suspend fun savePreferredAbi(abiName: String) {
+        _preferredAbiFlow.value = abiName
     }
 
     // Helper method for tests to clear the stored email if needed

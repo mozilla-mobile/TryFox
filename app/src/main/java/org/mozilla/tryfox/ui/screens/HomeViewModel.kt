@@ -50,6 +50,7 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.models.NightlyBuildOption
 import org.mozilla.tryfox.ui.models.newVersionAvailable
+import org.mozilla.tryfox.util.DEFAULT_PREFERRED_ABI
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
@@ -60,6 +61,8 @@ import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
+import org.mozilla.tryfox.util.isAbiSupported
+import org.mozilla.tryfox.util.resolvePreferredAbi
 import java.io.File
 
 /**
@@ -101,6 +104,9 @@ class HomeViewModel(
     private var homeScreenLayout = HomeScreenLayout.OneCardPerApp
 
     @Volatile
+    private var preferredAbi = DEFAULT_PREFERRED_ABI
+
+    @Volatile
     private var selectedHomeAppNames = HomeAppFamily.entries.associateWith { it.defaultAppName }
     private val appMutationVersions = mutableMapOf<String, Long>()
     private val appsLock = Any()
@@ -139,6 +145,20 @@ class HomeViewModel(
             }
             ?.launchIn(viewModelScope)
 
+        userDataRepository?.preferredAbiFlow
+            ?.onEach { storedAbi ->
+                val resolvedAbi = resolvePreferredAbi(storedAbi, supportedAbis)
+                preferredAbi = resolvedAbi
+                _homeScreenState.update { currentState ->
+                    if (currentState is HomeScreenState.Loaded) {
+                        currentState.copy(preferredAbi = resolvedAbi)
+                    } else {
+                        currentState
+                    }
+                }
+            }
+            ?.launchIn(viewModelScope)
+
         mozillaPackageManager.appStates
             .onEach { appState ->
                 _homeScreenState.update { currentState ->
@@ -151,6 +171,7 @@ class HomeViewModel(
                                         installedVersionCode = appState.versionCode,
                                         installedDate = appState.formattedInstallDate,
                                         installingPackageName = appState.installingPackageName,
+                                        activeAbi = appState.activeAbi,
                                         splitNames = appState.splitNames,
                                         installedTryBuild = app.name.takeIf { it == FENIX_DEBUG }
                                             ?.let { matchingInstalledTryBuild(appState) },
@@ -327,6 +348,7 @@ class HomeViewModel(
         installedDate = appState?.formattedInstallDate,
         installingPackageName = appState?.installingPackageName,
         splitNames = appState?.splitNames ?: emptyList(),
+        activeAbi = appState?.activeAbi,
         installedTryBuild = appState?.takeIf { name == FENIX_DEBUG }
             ?.let { matchingInstalledTryBuild(it) },
     )
@@ -343,6 +365,7 @@ class HomeViewModel(
             isDownloadingAnyFile = false,
             selectedAppNames = selectedHomeAppNames,
             homeScreenLayout = homeScreenLayout,
+            preferredAbi = preferredAbi,
         ).applyDownloadStates(downloadStates.value)
     }
 
@@ -401,6 +424,7 @@ class HomeViewModel(
         installedDate = appState?.formattedInstallDate,
         installingPackageName = appState?.installingPackageName,
         splitNames = appState?.splitNames.orEmpty(),
+        activeAbi = appState?.activeAbi,
         installedTryBuild = appState?.takeIf { appName == FENIX_DEBUG }?.let(::matchingInstalledTryBuild),
         apks = ApksResult.Success(apks.map { it.toUiModel() }),
         selectedReleaseVersion = selectedReleaseVersion,
@@ -476,6 +500,7 @@ class HomeViewModel(
             installedDate = appState?.formattedInstallDate,
             installingPackageName = appState?.installingPackageName,
             splitNames = appState?.splitNames ?: emptyList(),
+            activeAbi = appState?.activeAbi,
             installedTryBuild = appState?.takeIf { repository.appName == FENIX_DEBUG }?.let(::matchingInstalledTryBuild),
             apks = apksResult,
             selectedReleaseVersion = selectedReleaseVersion,
@@ -487,12 +512,8 @@ class HomeViewModel(
         return parsedApks.map { parsedApk ->
             val buildDate = parsedApk.rawDateString?.rawNightlyBuildDate()
             val date = buildDate?.let { parsedApk.rawDateString?.formatNightlyBuildDate().orEmpty() }.orEmpty()
-            val isCompatible = supportedAbis.any { deviceAbi ->
-                deviceAbi.equals(
-                    parsedApk.abiName,
-                    ignoreCase = true,
-                )
-            }
+            // Universal APKs bundle every architecture, so they install anywhere.
+            val isCompatible = isAbiSupported(parsedApk.abiName, supportedAbis)
 
             // Key the cache dir / unique key by the full build timestamp (yyyy-MM-dd-HH-mm-ss) so
             // two Nightly builds from the same day don't collide on a date-only path. Releases have

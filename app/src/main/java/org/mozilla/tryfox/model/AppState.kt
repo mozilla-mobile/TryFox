@@ -11,6 +11,7 @@ data class AppState(
     val installDateMillis: Long?,
     val installingPackageName: String? = null,
     val versionCode: Long? = null,
+    val activeAbi: String? = null,
     val splitNames: List<String> = emptyList(),
 ) {
     val isInstalled: Boolean

@@ -34,6 +34,7 @@ import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.REFERENCE_BROWSER_PACKAGE
 import org.mozilla.tryfox.util.TRYFOX
 import org.mozilla.tryfox.util.TRYFOX_PACKAGE
+import org.mozilla.tryfox.util.abiFromNativeLibraryDir
 
 class DefaultMozillaPackageManager(private val context: Context) : MozillaPackageManager {
 
@@ -61,6 +62,7 @@ class DefaultMozillaPackageManager(private val context: Context) : MozillaPackag
             versionCode = packageInfo?.let { PackageInfoCompat.getLongVersionCode(it) },
             installDateMillis = packageInfo?.lastUpdateTime,
             installingPackageName = if (packageInfo != null) getInstallingPackageName(packageName) else null,
+            activeAbi = abiFromNativeLibraryDir(packageInfo?.applicationInfo?.nativeLibraryDir),
             splitNames = packageInfo?.applicationInfo?.splitNames?.toList() ?: emptyList(),
         )
     }
