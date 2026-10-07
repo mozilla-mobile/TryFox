@@ -67,6 +67,7 @@ import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.models.NightlyBuildOption
+import org.mozilla.tryfox.ui.models.ReleaseCandidatesUiState
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
@@ -91,6 +92,7 @@ internal fun HomeAppCard(
     onDateSelected: (String, LocalDate) -> Unit,
     dateValidator: (LocalDate) -> Boolean,
     onReleaseVersionSelected: (String, String) -> Unit,
+    onReleaseMajorBrowsed: (String, Int) -> Unit,
     onBuildSelected: (String, String) -> Unit,
     onDismissBuildPicker: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -201,7 +203,9 @@ internal fun HomeAppCard(
                                 appName = app.name,
                                 selectedVersion = app.selectedReleaseVersion ?: selectedApk.version,
                                 versions = app.availableReleaseVersions,
+                                releaseCandidates = app.releaseCandidates,
                                 onSelected = onReleaseVersionSelected,
+                                onMajorBrowsed = onReleaseMajorBrowsed,
                             )
                             selectedApk != null -> Text(selectedApk.version, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                             else -> Text(stringResource(R.string.home_no_apks_available), style = MaterialTheme.typography.bodyMedium)
@@ -322,12 +326,21 @@ internal fun datePickerSelectionDate(selectionMillis: Long): LocalDate =
     Instant.fromEpochMilliseconds(selectionMillis).toLocalDateTime(TimeZone.UTC).date
 
 @Composable
-private fun ReleaseVersionDetails(appName: String, selectedVersion: String, versions: List<String>, onSelected: (String, String) -> Unit) {
+private fun ReleaseVersionDetails(
+    appName: String,
+    selectedVersion: String,
+    versions: List<String>,
+    releaseCandidates: ReleaseCandidatesUiState,
+    onSelected: (String, String) -> Unit,
+    onMajorBrowsed: (String, Int) -> Unit,
+) {
     VersionSelector(
         appName = appName,
         selectedReleaseVersion = selectedVersion,
         availableReleaseVersions = versions,
         onReleaseVersionSelected = { version -> onSelected(appName, version) },
+        releaseCandidates = releaseCandidates,
+        onReleaseMajorBrowsed = { major -> onMajorBrowsed(appName, major) },
     )
 }
 

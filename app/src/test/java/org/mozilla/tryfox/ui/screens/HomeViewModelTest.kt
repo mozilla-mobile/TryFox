@@ -35,6 +35,7 @@ import org.mozilla.tryfox.data.FakeTryFoxReleaseRepository
 import org.mozilla.tryfox.data.InstalledTryBuild
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
+import org.mozilla.tryfox.data.ReleaseType
 import org.mozilla.tryfox.data.managers.FakeCacheManager
 import org.mozilla.tryfox.data.managers.FakeIntentManager
 import org.mozilla.tryfox.data.managers.FakeUserDataRepository
@@ -995,6 +996,83 @@ class HomeViewModelTest {
     private fun fenixReleaseApp() = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
 
     @Test
+    fun `home load fetches only the candidates listing and RC builds load per browsed major`() = runTest {
+        val stableApk = createTestParsedReleaseApk(version = "157.0.1")
+        val archive = CountingCandidatesArchiveRepository(
+            FakeMozillaArchiveRepository(
+                fenixReleaseVersions = NetworkResult.Success(listOf("157.0.1", "156.0")),
+                fenixReleasesByVersion = mapOf("157.0.1" to NetworkResult.Success(listOf(stableApk))),
+                // 158.0 only has candidates so far; it must still be reachable in the picker.
+                fenixCandidateBaseVersions = NetworkResult.Success(listOf("158.0", "157.0.1", "156.0")),
+                fenixCandidateVersionsByBase = mapOf(
+                    "158.0" to NetworkResult.Success(listOf("158.0-RC2", "158.0-RC1")),
+                    "157.0.1" to NetworkResult.Success(listOf("157.0.1-RC1")),
+                    "156.0" to NetworkResult.Success(listOf("156.0-RC1")),
+                ),
+            ),
+        )
+        viewModel = createViewModel(releaseRepositories = listOf(FenixReleaseReleaseRepository(archive)))
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        fun app() = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
+        assertEquals(1, archive.baseVersionRequests)
+        assertEquals(emptyList<String>(), archive.candidateRequests)
+        assertEquals(listOf("158.0", "157.0.1", "156.0"), app().releaseCandidates.baseVersions)
+        assertEquals("157.0.1", app().selectedReleaseVersion)
+        assertEquals(listOf("157.0.1", "156.0"), app().availableReleaseVersions)
+
+        viewModel.onReleaseMajorBrowsed(FENIX_RELEASE, 157)
+        advanceUntilIdle()
+
+        assertEquals(listOf("157.0.1"), archive.candidateRequests)
+        assertEquals(listOf("157.0.1", "157.0.1-RC1", "156.0"), app().availableReleaseVersions)
+
+        viewModel.onReleaseMajorBrowsed(FENIX_RELEASE, 158)
+        viewModel.onReleaseMajorBrowsed(FENIX_RELEASE, 157)
+        advanceUntilIdle()
+
+        assertEquals(1, archive.baseVersionRequests)
+        assertEquals(listOf("157.0.1", "158.0"), archive.candidateRequests)
+        assertEquals(
+            listOf("158.0-RC2", "158.0-RC1", "157.0.1", "157.0.1-RC1", "156.0"),
+            app().availableReleaseVersions,
+        )
+        assertEquals(setOf(157, 158), app().releaseCandidates.loadedMajors)
+        assertTrue(app().releaseCandidates.loadingMajors.isEmpty())
+    }
+
+    @Test
+    fun `release candidate major is retried after a failed load`() = runTest {
+        val stableApk = createTestParsedReleaseApk(version = "157.0.1")
+        val archive = CountingCandidatesArchiveRepository(
+            FakeMozillaArchiveRepository(
+                fenixReleaseVersions = NetworkResult.Success(listOf("157.0.1")),
+                fenixReleasesByVersion = mapOf("157.0.1" to NetworkResult.Success(listOf(stableApk))),
+                fenixCandidateBaseVersions = NetworkResult.Error("offline", null),
+            ),
+        )
+        viewModel = createViewModel(releaseRepositories = listOf(FenixReleaseReleaseRepository(archive)))
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        viewModel.onReleaseMajorBrowsed(FENIX_RELEASE, 157)
+        advanceUntilIdle()
+        viewModel.onReleaseMajorBrowsed(FENIX_RELEASE, 157)
+        advanceUntilIdle()
+
+        val app = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
+        // One attempt on the home load, then one per browse since each failed.
+        assertEquals(3, archive.baseVersionRequests)
+        assertTrue(app.releaseCandidates.loadedMajors.isEmpty())
+        assertTrue(app.releaseCandidates.loadingMajors.isEmpty())
+        assertEquals(listOf("157.0.1"), app.availableReleaseVersions)
+    }
+
+    @Test
     fun `home load never recommends a release candidate`() = runTest {
         val betaApk = createTestParsedReleaseApk(version = "158.0b4")
         val archive = FakeMozillaArchiveRepository(
@@ -1010,6 +1088,23 @@ class HomeViewModelTest {
         val app = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
         assertEquals("158.0b4", app.selectedReleaseVersion)
         assertEquals("158.0b4", (app.apks as ApksResult.Success).apks.single().version)
+    }
+
+    private class CountingCandidatesArchiveRepository(
+        private val delegate: FakeMozillaArchiveRepository,
+    ) : MozillaArchiveRepository by delegate {
+        var baseVersionRequests = 0
+        val candidateRequests = mutableListOf<String>()
+
+        override suspend fun getFenixCandidateBaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
+            baseVersionRequests++
+            return delegate.getFenixCandidateBaseVersions(releaseType)
+        }
+
+        override suspend fun getFenixCandidateVersions(baseVersion: String): NetworkResult<List<String>> {
+            candidateRequests += baseVersion
+            return delegate.getFenixCandidateVersions(baseVersion)
+        }
     }
 
     @Test

@@ -13,6 +13,8 @@ class FakeMozillaArchiveRepository(
     private val fenixReleases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
     private val fenixReleaseVersions: NetworkResult<List<String>> = NetworkResult.Success(emptyList()),
     private val fenixReleasesByVersion: Map<String, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
+    private val fenixCandidateBaseVersions: NetworkResult<List<String>> = NetworkResult.Success(emptyList()),
+    private val fenixCandidateVersionsByBase: Map<String, NetworkResult<List<String>>> = emptyMap(),
     private val focusReleases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
     private val focusReleaseVersions: NetworkResult<List<String>> = NetworkResult.Success(emptyList()),
     private val focusReleasesByVersion: Map<String, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
@@ -37,6 +39,14 @@ class FakeMozillaArchiveRepository(
 
     override suspend fun getFenixReleaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
         return fenixReleaseVersions
+    }
+
+    override suspend fun getFenixCandidateBaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
+        return fenixCandidateBaseVersions
+    }
+
+    override suspend fun getFenixCandidateVersions(baseVersion: String): NetworkResult<List<String>> {
+        return fenixCandidateVersionsByBase[baseVersion] ?: NetworkResult.Success(emptyList())
     }
 
     override suspend fun getFenixReleaseBuildsForVersion(

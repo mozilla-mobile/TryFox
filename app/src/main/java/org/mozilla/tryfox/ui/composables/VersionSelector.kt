@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,9 +34,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,8 +53,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import org.mozilla.tryfox.R
+import org.mozilla.tryfox.ui.models.ReleaseCandidatesUiState
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FOCUS_BETA
+import org.mozilla.tryfox.util.releaseVersionMajor
 
 @Composable
 internal fun VersionSelector(
@@ -58,6 +64,8 @@ internal fun VersionSelector(
     selectedReleaseVersion: String?,
     availableReleaseVersions: List<String>,
     onReleaseVersionSelected: (String) -> Unit,
+    releaseCandidates: ReleaseCandidatesUiState = ReleaseCandidatesUiState(),
+    onReleaseMajorBrowsed: (Int) -> Unit = {},
 ) {
     var showSelector by remember { mutableStateOf(false) }
     val selectedVersion = selectedReleaseVersion ?: availableReleaseVersions.firstOrNull()
@@ -88,6 +96,8 @@ internal fun VersionSelector(
             appName = appName,
             selectedVersion = selectedVersion,
             availableVersions = availableReleaseVersions,
+            releaseCandidates = releaseCandidates,
+            onMajorBrowsed = onReleaseMajorBrowsed,
             onDismiss = { showSelector = false },
             onConfirm = { version ->
                 showSelector = false
@@ -100,29 +110,39 @@ internal fun VersionSelector(
 private const val MINIMUM_SUPPORTED_MAJOR_VERSION = 117
 private val VersionPickerWheelHeight = 156.dp
 
-private fun versionMajor(version: String): Int? =
-    Regex("^(\\d+)(?:\\.|$)").find(version)?.groupValues?.getOrNull(1)?.toIntOrNull()
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun VersionSelectorSheet(
     appName: String,
     selectedVersion: String?,
     availableVersions: List<String>,
+    releaseCandidates: ReleaseCandidatesUiState,
+    onMajorBrowsed: (Int) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
     val versionsByMajor = remember(availableVersions) {
-        availableVersions.mapNotNull { version -> versionMajor(version)?.let { it to version } }.groupBy({ it.first }, { it.second })
+        availableVersions.mapNotNull { version -> releaseVersionMajor(version)?.let { it to version } }.groupBy({ it.first }, { it.second })
     }
-    val initialMajor = versionMajor(selectedVersion.orEmpty())
+    // Majors that only have candidate builds so far must still be reachable on the wheel.
+    val knownMajors = remember(versionsByMajor, releaseCandidates.baseVersions) {
+        versionsByMajor.keys + releaseCandidates.baseVersions.mapNotNull(::releaseVersionMajor)
+    }
+    val initialMajor = releaseVersionMajor(selectedVersion.orEmpty())
         ?: versionsByMajor.keys.maxOrNull()
         ?: MINIMUM_SUPPORTED_MAJOR_VERSION
-    val maximumSupportedMajorVersion = versionsByMajor.keys.maxOrNull() ?: MINIMUM_SUPPORTED_MAJOR_VERSION
-    var activeMajor by remember(selectedVersion, availableVersions) { mutableStateOf(initialMajor) }
-    var draftVersion by remember(selectedVersion, availableVersions) { mutableStateOf(selectedVersion) }
+    val maximumSupportedMajorVersion = knownMajors.maxOrNull() ?: MINIMUM_SUPPORTED_MAJOR_VERSION
+    var activeMajor by remember(selectedVersion) { mutableStateOf(initialMajor) }
+    var draftVersion by remember(selectedVersion) { mutableStateOf(selectedVersion) }
     val isActiveMajorSelectable = activeMajor in MINIMUM_SUPPORTED_MAJOR_VERSION..maximumSupportedMajorVersion
     val variants = if (isActiveMajorSelectable) versionsByMajor[activeMajor].orEmpty() else emptyList()
+    val isLoadingCandidates = activeMajor in releaseCandidates.loadingMajors
+    // The NumberPicker's text listener outlives recompositions, so read the latest bound through state.
+    val currentMaximumMajor by rememberUpdatedState(maximumSupportedMajorVersion)
+
+    LaunchedEffect(activeMajor) {
+        if (isActiveMajorSelectable) onMajorBrowsed(activeMajor)
+    }
     val title = if (appName == FENIX_BETA || appName == FOCUS_BETA) {
         stringResource(R.string.version_selector_beta_title)
     } else {
@@ -132,7 +152,7 @@ private fun VersionSelectorSheet(
 
     fun selectMajor(major: Int) {
         activeMajor = major
-        draftVersion = draftVersion?.takeIf { versionMajor(it) == major }
+        draftVersion = draftVersion?.takeIf { releaseVersionMajor(it) == major }
     }
 
     ModalBottomSheet(
@@ -188,7 +208,7 @@ private fun VersionSelectorSheet(
 
                                             override fun afterTextChanged(text: Editable?) {
                                                 text?.toString()?.toIntOrNull()?.takeIf {
-                                                it in MINIMUM_SUPPORTED_MAJOR_VERSION..maximumSupportedMajorVersion
+                                                it in MINIMUM_SUPPORTED_MAJOR_VERSION..currentMaximumMajor
                                                 }?.let(::selectMajor)
                                             }
                                         })
@@ -197,6 +217,7 @@ private fun VersionSelectorSheet(
                             }
                         },
                         update = { picker ->
+                            if (picker.maxValue != maximumSupportedMajorVersion) picker.maxValue = maximumSupportedMajorVersion
                             if (picker.value != activeMajor) picker.value = activeMajor
                         },
                         modifier = Modifier
@@ -218,7 +239,14 @@ private fun VersionSelectorSheet(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
-                    if (variants.isEmpty()) {
+                    if (variants.isEmpty() && isLoadingCandidates) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(vertical = 16.dp)
+                                .size(24.dp)
+                                .testTag("release_version_candidates_loading_${appName.lowercase()}"),
+                        )
+                    } else if (variants.isEmpty()) {
                         Box(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = if (isActiveMajorSelectable) {
@@ -270,6 +298,14 @@ private fun VersionSelectorSheet(
                                     )
                                 }
                             }
+                        }
+                        if (isLoadingCandidates) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .padding(vertical = 8.dp)
+                                    .size(24.dp)
+                                    .testTag("release_version_candidates_loading_${appName.lowercase()}"),
+                            )
                         }
                     }
                 }

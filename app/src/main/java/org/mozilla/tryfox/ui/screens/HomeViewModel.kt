@@ -22,6 +22,7 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.data.InstalledTryBuild
+import org.mozilla.tryfox.data.MozillaArchiveHtmlParser
 import org.mozilla.tryfox.data.MozillaPackageManager
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.managers.CacheManager
@@ -53,6 +54,7 @@ import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.models.NightlyBuildOption
+import org.mozilla.tryfox.ui.models.ReleaseCandidatesUiState
 import org.mozilla.tryfox.ui.models.newVersionAvailable
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
@@ -66,6 +68,7 @@ import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
 import org.mozilla.tryfox.util.abiPreferenceOrder
 import org.mozilla.tryfox.util.isAbiSupported
+import org.mozilla.tryfox.util.releaseVersionMajor
 import java.io.File
 
 /**
@@ -118,6 +121,8 @@ class HomeViewModel(
     private val refreshMutex = Mutex()
     private val refreshStateMutex = Mutex()
     private var activeRefreshes = 0
+    private val releaseCandidatesMutex = Mutex()
+    private val versionParser = MozillaArchiveHtmlParser()
 
     init {
         downloadCoordinator.downloads
@@ -479,9 +484,20 @@ class HomeViewModel(
         repository: ReleaseRepository,
         appState: AppState?,
     ): AppUiModel {
+        var releaseCandidates = ReleaseCandidatesUiState()
         val (apksResult, selectedReleaseVersion, availableReleaseVersions) =
             if (repository is VersionAwareReleaseRepository) {
-                when (val versionsResult = repository.getAvailableReleaseVersions()) {
+                // The top-level candidates listing is one request, like the releases listing; the
+                // per-version candidate directories are only fetched on demand by the picker.
+                val (versionsResult, candidateBasesResult) = coroutineScope {
+                    val versions = async { repository.getAvailableReleaseVersions() }
+                    val candidateBases = async { repository.getCandidateBaseVersions() }
+                    versions.await() to candidateBases.await()
+                }
+                releaseCandidates = (candidateBasesResult as? NetworkResult.Success)
+                    ?.let { ReleaseCandidatesUiState(baseVersions = it.data, isBaseVersionsLoaded = true) }
+                    ?: ReleaseCandidatesUiState()
+                when (versionsResult) {
                     is NetworkResult.Success -> {
                         // Only recommend published builds; RCs are reachable through the picker.
                         val selectedVersion = versionsResult.data.firstOrNull { !it.isReleaseCandidate() }
@@ -525,6 +541,7 @@ class HomeViewModel(
             apks = apksResult,
             selectedReleaseVersion = selectedReleaseVersion,
             availableReleaseVersions = availableReleaseVersions,
+            releaseCandidates = releaseCandidates,
         )
     }
 
@@ -728,6 +745,68 @@ class HomeViewModel(
             _homeScreenState.value = latestState.copy(apps = finalUpdatedApps)
             syncLoadedStateDownloadStates()
         }
+    }
+
+    /**
+     * Called by the version picker when it shows [major]. Loads the RC builds for that major and
+     * merges them into the picker's versions, re-fetching the candidates listing if the home load
+     * couldn't get it.
+     */
+    fun onReleaseMajorBrowsed(appName: String, major: Int) {
+        val repository =
+            releaseRepositories.firstOrNull { it.appName == appName } as? VersionAwareReleaseRepository
+                ?: return
+
+        viewModelScope.launch(ioDispatcher) {
+            val claimed = releaseCandidatesMutex.withLock {
+                val candidates = synchronized(appsLock) { currentAppsByName[appName] }?.releaseCandidates
+                    ?: return@withLock false
+                if (major in candidates.loadedMajors || major in candidates.loadingMajors) return@withLock false
+                updateAppEverywhere(appName) {
+                    it.copy(releaseCandidates = it.releaseCandidates.copy(loadingMajors = it.releaseCandidates.loadingMajors + major))
+                }
+                true
+            }
+            if (!claimed) return@launch
+
+            val baseVersions = releaseCandidatesMutex.withLock { loadCandidateBaseVersions(appName, repository) }
+            val results = baseVersions.orEmpty()
+                .filter { releaseVersionMajor(it) == major }
+                .let { bases -> coroutineScope { bases.map { async { repository.getCandidateVersions(it) } }.awaitAll() } }
+            val rcVersions = results.flatMap { (it as? NetworkResult.Success)?.data.orEmpty() }
+            // Leave the major unloaded on failure so browsing to it again retries.
+            val succeeded = baseVersions != null && results.all { it is NetworkResult.Success }
+
+            releaseCandidatesMutex.withLock {
+                updateAppEverywhere(appName) { app ->
+                    val candidates = app.releaseCandidates
+                    app.copy(
+                        availableReleaseVersions = (app.availableReleaseVersions + rcVersions)
+                            .distinct()
+                            .sortedWith(versionParser::compareReleaseVersions)
+                            .reversed(),
+                        releaseCandidates = candidates.copy(
+                            loadedMajors = if (succeeded) candidates.loadedMajors + major else candidates.loadedMajors,
+                            loadingMajors = candidates.loadingMajors - major,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    /** Returns the candidate base versions, fetching the listing on first use. Null if it failed. */
+    private suspend fun loadCandidateBaseVersions(
+        appName: String,
+        repository: VersionAwareReleaseRepository,
+    ): List<String>? {
+        val candidates = synchronized(appsLock) { currentAppsByName[appName] }?.releaseCandidates ?: return null
+        if (candidates.isBaseVersionsLoaded) return candidates.baseVersions
+        val result = repository.getCandidateBaseVersions() as? NetworkResult.Success ?: return null
+        updateAppEverywhere(appName) {
+            it.copy(releaseCandidates = it.releaseCandidates.copy(baseVersions = result.data, isBaseVersionsLoaded = true))
+        }
+        return result.data
     }
 
     private fun updateAppEverywhere(appName: String, transform: (AppUiModel) -> AppUiModel) {

@@ -25,6 +25,15 @@ interface MozillaArchiveRepository {
 
     suspend fun getFenixReleaseVersions(releaseType: ReleaseType = ReleaseType.Release): NetworkResult<List<String>>
 
+    /**
+     * Lists base versions (e.g. `157.0`, `158.0b4`) that have a `-candidates` directory. This is a
+     * single request; build numbers are resolved separately via [getFenixCandidateVersions].
+     */
+    suspend fun getFenixCandidateBaseVersions(releaseType: ReleaseType): NetworkResult<List<String>>
+
+    /** Lists the RC versions (e.g. `157.0-RC2`, `157.0-RC1`) available for one candidate base version. */
+    suspend fun getFenixCandidateVersions(baseVersion: String): NetworkResult<List<String>>
+
     suspend fun getFenixReleaseBuildsForVersion(
         version: String,
         releaseType: ReleaseType = ReleaseType.Release,

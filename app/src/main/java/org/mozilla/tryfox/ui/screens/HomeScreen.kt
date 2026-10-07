@@ -215,6 +215,9 @@ fun HomeScreen(
                                 onReleaseVersionSelected = { appName, version ->
                                     homeViewModel.onReleaseVersionSelected(appName, version)
                                 },
+                                onReleaseMajorBrowsed = { appName, major ->
+                                    homeViewModel.onReleaseMajorBrowsed(appName, major)
+                                },
                                 onBuildSelected = { appName, buildId ->
                                     homeViewModel.onNightlyBuildSelected(appName, buildId)
                                 },
