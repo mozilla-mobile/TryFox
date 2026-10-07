@@ -19,7 +19,7 @@ import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 
 @RunWith(AndroidJUnit4::class)
-class ArchiveGroupCardHeaderLayoutTest {
+class VersionSelectorTest {
 
     @get:Rule
     val composeTestRule = createComposeRule()
