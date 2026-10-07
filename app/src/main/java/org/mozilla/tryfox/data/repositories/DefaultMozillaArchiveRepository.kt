@@ -1,9 +1,6 @@
 package org.mozilla.tryfox.data.repositories
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
@@ -40,7 +37,6 @@ class DefaultMozillaArchiveRepository(
 
     companion object {
         private val LISTING_CACHE_TTL = 10.seconds
-        private const val CANDIDATE_BUILD_INDEX_CONCURRENCY = 4
         const val ARCHIVE_MOZILLA_BASE_URL = "https://archive.mozilla.org/pub/"
         const val RELEASES_FENIX_BASE_URL = "${ARCHIVE_MOZILLA_BASE_URL}fenix/releases/"
         const val CANDIDATES_FENIX_BASE_URL = "${ARCHIVE_MOZILLA_BASE_URL}fenix/candidates/"
@@ -130,13 +126,8 @@ class DefaultMozillaArchiveRepository(
 
     override suspend fun getFenixReleaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
         return try {
-            val releaseVersions = mozillaArchiveHtmlParser
+            val versions = mozillaArchiveHtmlParser
                 .releaseVersionsFromDirectories(getDirectoryListing(RELEASES_FENIX_BASE_URL), releaseType)
-            val candidateVersions = fetchFenixCandidateVersions(releaseType)
-            val versions = (releaseVersions + candidateVersions)
-                .distinct()
-                .sortedWith(mozillaArchiveHtmlParser::compareReleaseVersions)
-                .reversed()
 
             if (versions.isEmpty()) {
                 return NetworkResult.Error("No release versions found for type $releaseType", null)
@@ -147,6 +138,33 @@ class DefaultMozillaArchiveRepository(
             throw e
         } catch (e: Exception) {
             NetworkResult.Error("Failed to fetch Fenix release versions: ${e.message}", e)
+        }
+    }
+
+    override suspend fun getFenixCandidateBaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
+        return try {
+            NetworkResult.Success(
+                mozillaArchiveHtmlParser
+                    .candidateBaseVersionsFromDirectories(getDirectoryListing(CANDIDATES_FENIX_BASE_URL), releaseType),
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            NetworkResult.Error("Failed to fetch Fenix candidates: ${e.message}", e)
+        }
+    }
+
+    override suspend fun getFenixCandidateVersions(baseVersion: String): NetworkResult<List<String>> {
+        return try {
+            val buildsHtml = mozillaArchivesApiService.getHtmlPage(archiveUrlForCandidateBuilds(baseVersion))
+            NetworkResult.Success(
+                mozillaArchiveHtmlParser.parseCandidateBuildNumbersFromHtml(buildsHtml)
+                    .map { buildNumber -> "$baseVersion-RC$buildNumber" },
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            NetworkResult.Error("Failed to fetch Fenix $baseVersion candidates: ${e.message}", e)
         }
     }
 
@@ -271,29 +289,6 @@ class DefaultMozillaArchiveRepository(
         return NetworkResult.Success(apks)
     }
 
-    private suspend fun fetchFenixCandidateVersions(
-        releaseType: ReleaseType,
-    ): List<String> {
-        val candidatesHtml = getHtmlPageOrNull(CANDIDATES_FENIX_BASE_URL) ?: return emptyList()
-        val candidateBases = mozillaArchiveHtmlParser
-            .parseFenixCandidateVersionsFromHtml(candidatesHtml, releaseType)
-
-        return coroutineScope {
-            candidateBases
-                .chunked(CANDIDATE_BUILD_INDEX_CONCURRENCY)
-                .flatMap { candidates ->
-                    candidates.map { baseVersion ->
-                        async {
-                            val buildsHtml = getHtmlPageOrNull(archiveUrlForCandidateBuilds(baseVersion))
-                                ?: return@async emptyList()
-                            mozillaArchiveHtmlParser.parseCandidateBuildNumbersFromHtml(buildsHtml)
-                                .map { buildNumber -> "$baseVersion-RC$buildNumber" }
-                        }
-                    }.awaitAll().flatten()
-                }
-        }
-    }
-
     override suspend fun isPublished(url: String): Boolean = try {
         // Only archive URLs are built from directory listings; others come from real asset links.
         !url.startsWith(ARCHIVE_MOZILLA_BASE_URL) ||
@@ -319,14 +314,6 @@ class DefaultMozillaArchiveRepository(
         listingCache[url]?.takeIf { now - it.fetchedAt < LISTING_CACHE_TTL }?.let { return@withLock it.directories }
         mozillaArchiveHtmlParser.parseDirectoryNamesFromHtml(mozillaArchivesApiService.getHtmlPage(url))
             .also { listingCache[url] = CachedListing(now, it) }
-    }
-
-    private suspend fun getHtmlPageOrNull(url: String): String? = try {
-        mozillaArchivesApiService.getHtmlPage(url)
-    } catch (e: CancellationException) {
-        throw e
-    } catch (_: Exception) {
-        null
     }
 
     private fun parseCandidateVersion(version: String): CandidateVersion? {

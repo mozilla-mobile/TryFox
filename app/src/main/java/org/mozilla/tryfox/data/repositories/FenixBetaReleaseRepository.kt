@@ -21,6 +21,14 @@ class FenixBetaReleaseRepository(
         return mozillaArchiveRepository.getFenixReleaseVersions(ReleaseType.Beta)
     }
 
+    override suspend fun getCandidateBaseVersions(): NetworkResult<List<String>> {
+        return mozillaArchiveRepository.getFenixCandidateBaseVersions(ReleaseType.Beta)
+    }
+
+    override suspend fun getCandidateVersions(baseVersion: String): NetworkResult<List<String>> {
+        return mozillaArchiveRepository.getFenixCandidateVersions(baseVersion)
+    }
+
     override suspend fun getReleasesForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> {
         return mozillaArchiveRepository.getFenixReleaseBuildsForVersion(version, ReleaseType.Beta)
     }

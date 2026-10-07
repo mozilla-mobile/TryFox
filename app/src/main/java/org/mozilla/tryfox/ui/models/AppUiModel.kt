@@ -26,6 +26,19 @@ data class NightlyBuildOption(
     val label: String, // date + time for display, e.g. "2026-07-24 09:17"
 )
 
+/**
+ * Release-candidate state for the version picker. The `candidates/` listing ([baseVersions]) is
+ * fetched with the home load so majors with only candidate builds can be selected (the picker
+ * retries if that failed); RC build numbers are fetched per major as the user browses to it and
+ * merged into [AppUiModel.availableReleaseVersions].
+ */
+data class ReleaseCandidatesUiState(
+    val baseVersions: List<String> = emptyList(),
+    val isBaseVersionsLoaded: Boolean = false,
+    val loadedMajors: Set<Int> = emptySet(),
+    val loadingMajors: Set<Int> = emptySet(),
+)
+
 data class AppUiModel(
     val name: String,
     val packageName: String,
@@ -40,6 +53,8 @@ data class AppUiModel(
     val userPickedDate: LocalDate? = null,
     val selectedReleaseVersion: String? = null,
     val availableReleaseVersions: List<String> = emptyList(),
+    // RC builds are loaded lazily by the version picker; only the candidates listing comes with the home load.
+    val releaseCandidates: ReleaseCandidatesUiState = ReleaseCandidatesUiState(),
     // When a picked date has multiple builds, these drive a one-shot picker prompt. Empty otherwise.
     val pendingBuildOptions: List<NightlyBuildOption> = emptyList(),
 )

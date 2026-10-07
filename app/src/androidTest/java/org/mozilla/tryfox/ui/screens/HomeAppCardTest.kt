@@ -65,6 +65,7 @@ class HomeAppCardTest {
                     onDateSelected = { _, _ -> },
                     dateValidator = { true },
                     onReleaseVersionSelected = { _, _ -> },
+                    onReleaseMajorBrowsed = { _, _ -> },
                     onBuildSelected = { _, _ -> },
                     onDismissBuildPicker = {},
                     modifier = Modifier.width(350.dp),
@@ -139,6 +140,7 @@ class HomeAppCardTest {
                     onDateSelected = { _, _ -> },
                     dateValidator = { true },
                     onReleaseVersionSelected = { _, _ -> },
+                    onReleaseMajorBrowsed = { _, _ -> },
                     onBuildSelected = { _, _ -> },
                     onDismissBuildPicker = {},
                 )
@@ -198,6 +200,7 @@ class HomeAppCardTest {
                     onDateSelected = { _, date -> selectedDate = date },
                     dateValidator = { true },
                     onReleaseVersionSelected = { _, _ -> },
+                    onReleaseMajorBrowsed = { _, _ -> },
                     onBuildSelected = { _, _ -> },
                     onDismissBuildPicker = {},
                 )
@@ -255,6 +258,7 @@ class HomeAppCardTest {
                     onDateSelected = { _, _ -> },
                     dateValidator = { true },
                     onReleaseVersionSelected = { _, _ -> },
+                    onReleaseMajorBrowsed = { _, _ -> },
                     onBuildSelected = { _, _ -> },
                     onDismissBuildPicker = {},
                 )
