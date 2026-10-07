@@ -4,6 +4,7 @@ import android.os.Build
 import android.text.Editable
 import android.text.InputType
 import android.text.TextWatcher
+import android.view.ContextThemeWrapper
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.NumberPicker
@@ -168,7 +169,7 @@ private fun VersionSelectorSheet(
                     )
                     AndroidView(
                         factory = { context ->
-                            NumberPicker(context).apply {
+                            NumberPicker(ContextThemeWrapper(context, R.style.ThemeOverlay_TryFox_VersionPicker)).apply {
                                 minValue = MINIMUM_SUPPORTED_MAJOR_VERSION
                                 maxValue = maximumSupportedMajorVersion
                                 value = activeMajor.coerceIn(minValue, maxValue)
@@ -290,7 +291,7 @@ private fun NumberPicker.editableInput(): EditText? {
 
 private fun NumberPicker.setSelectorTextColor(color: Int) {
     editableInput()?.setTextColor(color)
-    if (Build.VERSION.SDK_INT >= 36) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         setTextColor(color)
     }
 }

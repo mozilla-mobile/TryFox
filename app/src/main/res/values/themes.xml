@@ -2,4 +2,12 @@
 <resources>
 
     <style name="Theme.TryFox" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!--
+    NumberPicker takes its wheel text color from the theme when it's created. Android 10+ can
+    recolor it afterwards with setTextColor, but older versions can't, so set it here.
+    -->
+    <style name="ThemeOverlay.TryFox.VersionPicker" parent="">
+        <item name="android:textColorPrimary">@color/version_picker_text</item>
+    </style>
 </resources>
