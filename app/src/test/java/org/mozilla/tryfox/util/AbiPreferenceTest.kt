@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test
 import org.mozilla.tryfox.data.DownloadState
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
-import org.mozilla.tryfox.ui.models.preferredAbiApk
 import java.io.File
 
 class AbiPreferenceTest {
@@ -36,15 +35,53 @@ class AbiPreferenceTest {
     }
 
     @Test
-    fun `stored affinity falls back to universal when blank or foreign to this device`() {
-        assertEquals("arm64-v8a", resolvePreferredAbi("arm64-v8a", deviceAbis))
+    fun `preference order is the resolved preference, then universal, then device ABIs in device order`() {
+        val emulatorAbis = listOf("x86_64", "arm64-v8a")
+
+        assertEquals(listOf(UNIVERSAL_ABI, "x86_64", "arm64-v8a"), abiPreferenceOrder(UNIVERSAL_ABI, emulatorAbis))
+        assertEquals(listOf("arm64-v8a", UNIVERSAL_ABI, "x86_64"), abiPreferenceOrder("arm64-v8a", emulatorAbis))
+        // Unset, the device's primary ABI comes first.
+        assertEquals(listOf("x86_64", UNIVERSAL_ABI, "arm64-v8a"), abiPreferenceOrder(null, emulatorAbis))
+        // ABIs the device can't run, and retired ones, are never offered.
+        assertEquals(listOf("arm64-v8a", UNIVERSAL_ABI), abiPreferenceOrder(null, listOf("arm64-v8a", "armeabi")))
+    }
+
+    @Test
+    fun `stored affinity falls back to the device's primary ABI when unset or foreign to this device`() {
+        assertEquals("armeabi-v7a", resolvePreferredAbi("armeabi-v7a", deviceAbis))
+        // An explicit universal choice is kept.
         assertEquals(UNIVERSAL_ABI, resolvePreferredAbi(UNIVERSAL_ABI, deviceAbis))
-        assertEquals(UNIVERSAL_ABI, resolvePreferredAbi(null, deviceAbis))
-        assertEquals(UNIVERSAL_ABI, resolvePreferredAbi("", deviceAbis))
+        assertEquals("arm64-v8a", resolvePreferredAbi(null, deviceAbis))
+        assertEquals("arm64-v8a", resolvePreferredAbi("", deviceAbis))
         // Recorded on an x86 emulator, then restored onto an ARM device.
-        assertEquals(UNIVERSAL_ABI, resolvePreferredAbi("x86_64", deviceAbis))
-        // The device runs armeabi, but it is no longer an option, so it resolves back to universal.
-        assertEquals(UNIVERSAL_ABI, resolvePreferredAbi("armeabi", deviceAbis))
+        assertEquals("arm64-v8a", resolvePreferredAbi("x86_64", deviceAbis))
+        // The device runs armeabi, but it is no longer an option, so it resolves to the default.
+        assertEquals("arm64-v8a", resolvePreferredAbi("armeabi", deviceAbis))
+    }
+
+    @Test
+    fun `unset preference resolves to the device's first usable ABI`() {
+        assertEquals("x86_64", resolvePreferredAbi(null, listOf("x86_64", "arm64-v8a")))
+        // Nothing buildable is reported, so fall back to universal, which installs anywhere.
+        assertEquals(UNIVERSAL_ABI, resolvePreferredAbi(null, listOf("armeabi")))
+        assertEquals(UNIVERSAL_ABI, resolvePreferredAbi(null, emptyList()))
+    }
+
+    @Test
+    fun `cascade builds each list from the one before`() {
+        // An x86_64 emulator that also runs ARM code, and advertises a retired ABI.
+        val emulatorAbis = listOf("x86_64", "arm64-v8a", "armeabi")
+
+        assertEquals(listOf("x86_64", "arm64-v8a"), deviceAbiOptions(emulatorAbis))
+        assertEquals(listOf(UNIVERSAL_ABI, "x86_64", "arm64-v8a"), abiPreferenceOptions(emulatorAbis))
+
+        // Nothing stored: the device's primary ABI leads, then universal, then the rest.
+        assertEquals("x86_64", resolvePreferredAbi(null, emulatorAbis))
+        assertEquals(listOf("x86_64", UNIVERSAL_ABI, "arm64-v8a"), abiPreferenceOrder(null, emulatorAbis))
+
+        // An explicit choice leads instead, without repeating it later in the order.
+        assertEquals("arm64-v8a", resolvePreferredAbi("arm64-v8a", emulatorAbis))
+        assertEquals(listOf("arm64-v8a", UNIVERSAL_ABI, "x86_64"), abiPreferenceOrder("arm64-v8a", emulatorAbis))
     }
 
     @Test
@@ -64,26 +101,31 @@ class AbiPreferenceTest {
 
     @Test
     fun `preferred variant wins and universal is the fallback`() {
-        val releaseApks = listOf(apk("arm64-v8a"), apk("armeabi-v7a"), apk(UNIVERSAL_ABI))
+        val releaseAbis = listOf("arm64-v8a", "armeabi-v7a", UNIVERSAL_ABI)
 
-        assertEquals(UNIVERSAL_ABI, releaseApks.preferredAbiApk(UNIVERSAL_ABI)?.abi?.name)
-        assertEquals("arm64-v8a", releaseApks.preferredAbiApk("arm64-v8a")?.abi?.name)
-        // x86_64 has no variant here, so the universal APK still installs.
-        assertEquals(UNIVERSAL_ABI, releaseApks.preferredAbiApk("x86_64")?.abi?.name)
+        assertEquals(UNIVERSAL_ABI, releaseAbis.pickedFor(UNIVERSAL_ABI))
+        assertEquals("arm64-v8a", releaseAbis.pickedFor("arm64-v8a"))
+        // x86_64 isn't an option on this device, so the device's primary ABI is used instead.
+        assertEquals("arm64-v8a", releaseAbis.pickedFor("x86_64"))
+        // A build without the preferred variant falls back to universal.
+        assertEquals(UNIVERSAL_ABI, listOf("armeabi-v7a", UNIVERSAL_ABI).pickedFor("arm64-v8a"))
     }
 
     @Test
-    fun `nightly builds without a universal variant fall back to a supported ABI`() {
-        val nightlyApks = listOf(
-            apk("x86_64", isSupported = false),
-            apk("arm64-v8a"),
-        )
+    fun `builds without a universal variant fall back to a supported ABI`() {
+        // e.g. a Focus build, whose universal APK isn't published.
+        val abis = listOf("x86_64", "arm64-v8a")
 
-        assertEquals("arm64-v8a", nightlyApks.preferredAbiApk(UNIVERSAL_ABI)?.abi?.name)
-        assertEquals("arm64-v8a", nightlyApks.preferredAbiApk("arm64-v8a")?.abi?.name)
-        assertEquals("x86_64", nightlyApks.preferredAbiApk("x86_64")?.abi?.name)
-        assertNull(emptyList<ApkUiModel>().preferredAbiApk(UNIVERSAL_ABI))
+        assertEquals("arm64-v8a", abis.pickedFor(UNIVERSAL_ABI))
+        assertEquals("arm64-v8a", abis.pickedFor("arm64-v8a"))
+        // The x86_64 APK can't run on this ARM device, so it's never picked.
+        assertEquals("arm64-v8a", abis.pickedFor("x86_64"))
+        assertNull(listOf("x86_64").pickedFor(UNIVERSAL_ABI))
     }
+
+    /** The ABI from this build that [abiPreferenceOrder] picks first, as the home card does. */
+    private fun List<String>.pickedFor(preferredAbi: String): String? =
+        abiPreferenceOrder(preferredAbi, deviceAbis).firstOrNull { it in this }
 
     private fun apk(abiName: String, isSupported: Boolean = true) = ApkUiModel(
         originalString = "fenix-153.0-android-$abiName/",

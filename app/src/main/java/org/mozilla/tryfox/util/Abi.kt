@@ -7,14 +7,45 @@ private val LEGACY_ABIS = setOf("armeabi", "mips", "mips64")
 /** The ABI name the archive uses for the APK that bundles every architecture. */
 const val UNIVERSAL_ABI = "universal"
 
-/** The ABI affinity used until the user picks one: universal installs on any device. */
-const val DEFAULT_PREFERRED_ABI = UNIVERSAL_ABI
-
 fun isUniversalAbi(abiName: String?): Boolean = UNIVERSAL_ABI.equals(abiName, ignoreCase = true)
 
 /** True when an APK built for [abiName] can be installed on a device running [deviceAbis]. */
 fun isAbiSupported(abiName: String?, deviceAbis: List<String>): Boolean =
     isUniversalAbi(abiName) || deviceAbis.any { it.equals(abiName, ignoreCase = true) }
+
+// Which APK to offer is decided by a cascade, each step building on the one before:
+//   deviceAbiOptions     -> the device's ABIs that APKs are built for
+//   abiPreferenceOptions -> those plus universal: the choices offered in Settings
+//   resolvePreferredAbi  -> the stored choice if it's an option, else the device's primary ABI
+//   abiPreferenceOrder   -> that choice, then universal, then the device's other ABIs
+
+/** Every ABI the device runs that an APK could plausibly be built for, in the device's order. */
+fun deviceAbiOptions(deviceAbis: List<String>): List<String> =
+    deviceAbis.filterNot { isUniversalAbi(it) || it.lowercase() in LEGACY_ABIS }.distinct()
+
+/** The affinity options offered in Settings: universal first, then [deviceAbiOptions]. */
+fun abiPreferenceOptions(deviceAbis: List<String>): List<String> = listOf(UNIVERSAL_ABI) + deviceAbiOptions(deviceAbis)
+
+/**
+ * The stored [preferredAbi] if it's still an option on this device; otherwise the device's primary
+ * ABI, or universal if the device reports none we build for. This favors smaller downloads over
+ * universal APKs unless the user explicitly picks universal.
+ */
+fun resolvePreferredAbi(preferredAbi: String?, deviceAbis: List<String>): String {
+    val options = abiPreferenceOptions(deviceAbis)
+    return preferredAbi
+        ?.takeIf { options.any { option -> option.equals(it, ignoreCase = true) } }
+        ?: deviceAbiOptions(deviceAbis).firstOrNull()
+        ?: UNIVERSAL_ABI
+}
+
+/**
+ * The ABIs a build's APK is picked from, best first: the resolved preference, then universal (it
+ * installs anywhere), then the device's other ABIs in its own order. ABIs the device can't run are
+ * never offered.
+ */
+fun abiPreferenceOrder(preferredAbi: String?, deviceAbis: List<String>): List<String> =
+    (listOf(resolvePreferredAbi(preferredAbi, deviceAbis), UNIVERSAL_ABI) + deviceAbiOptions(deviceAbis)).distinct()
 
 /**
  * Determine the active ABI for installed package from `ApplicationInfo.nativeLibraryDir` path.
@@ -39,21 +70,3 @@ fun abiFromNativeLibraryDir(nativeLibraryDir: String?): String? {
         ?.takeIf { it.isNotBlank() && it != "lib" }
         ?.let { directory -> directoryAbis[directory] ?: directory }
 }
-
-/**
- * The affinity options offered in Settings: universal first, then every ABI the device runs that
- * an APK could plausibly be built for.
- */
-fun abiPreferenceOptions(deviceAbis: List<String>): List<String> {
-    val filteredAbis = deviceAbis
-        .filterNot { isUniversalAbi(it) || it.lowercase() in LEGACY_ABIS }
-        .distinct()
-    return listOf(UNIVERSAL_ABI) + filteredAbis
-}
-
-/** Falls back to universal when the stored ABI is blank or no longer supported by this device. */
-fun resolvePreferredAbi(preferredAbi: String?, deviceAbis: List<String>): String =
-    preferredAbi
-        ?.takeIf { it.isNotBlank() }
-        ?.takeIf { abiPreferenceOptions(deviceAbis).any { option -> option.equals(it, ignoreCase = true) } }
-        ?: DEFAULT_PREFERRED_ABI

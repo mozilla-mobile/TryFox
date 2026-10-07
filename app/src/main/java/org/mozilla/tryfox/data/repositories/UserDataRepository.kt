@@ -18,8 +18,11 @@ interface UserDataRepository {
     val lanReceiveIdentityFlow: Flow<LanReceiveIdentity?>
     val homeScreenLayoutFlow: Flow<HomeScreenLayout>
 
-    /** The ABI variant to favour when a build offers several. Emits `universal` by default. */
-    val preferredAbiFlow: Flow<String>
+    /**
+     * The ABI variant to favour when a build offers several, as picked in Settings. Emits null
+     * until the user picks one, so the device's default applies.
+     */
+    val preferredAbiFlow: Flow<String?>
 
     /**
      * Saves the last searched email.

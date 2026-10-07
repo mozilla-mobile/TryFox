@@ -8,7 +8,7 @@ import org.mozilla.tryfox.model.MozillaArchiveApk
  * and a directory without an ABI suffix holds the universal build.
  *
  * The APK file name is derived from the directory name and may not actually be published (e.g.
- * some universal directories only hold an `.aab`).
+ * some universal directories only hold an `.aab`), so check it before offering it.
  */
 data class ArchiveApkDirectory(
     val directory: String,

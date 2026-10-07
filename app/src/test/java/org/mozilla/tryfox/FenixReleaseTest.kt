@@ -540,7 +540,7 @@ class FenixReleaseTest {
     }
 
     @Test
-    fun `nightly listing yields the latest day's builds`() {
+    fun `nightly listing yields the latest day's builds including the universal directory`() {
         val listingUrl = "https://archive.mozilla.org/pub/fenix/nightly/2026/10/"
         val html = listOf(
             "../",
@@ -553,12 +553,11 @@ class FenixReleaseTest {
 
         val latest = parser.parseNightlyBuildsFromHtml(html, listingUrl, date = null)
 
-        // Universal nightly directories are skipped until missing APKs can be detected.
-        assertEquals(listOf("arm64-v8a", "x86_64"), latest.map { it.abiName })
+        assertEquals(listOf("arm64-v8a", "x86_64", "universal"), latest.map { it.abiName })
         assertTrue(latest.all { it.rawDateString == "2026-10-06-19-44-15" && it.version == "159.0a1" && it.appName == "fenix" })
         assertEquals(
-            "${listingUrl}2026-10-06-19-44-15-fenix-159.0a1-android-arm64-v8a/fenix-159.0a1.multi.android-arm64-v8a.apk",
-            latest.single { it.abiName == "arm64-v8a" }.fullUrl,
+            "${listingUrl}2026-10-06-19-44-15-fenix-159.0a1-android/fenix-159.0a1.multi.android-universal.apk",
+            latest.single { it.abiName == "universal" }.fullUrl,
         )
         assertEquals(
             listOf("2026-10-05-21-22-56"),

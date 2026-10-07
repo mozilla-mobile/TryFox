@@ -31,6 +31,7 @@ import org.mozilla.tryfox.data.repositories.EmptyInstalledTryBuildRepository
 import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.HomeDataSnapshot
 import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
+import org.mozilla.tryfox.data.repositories.MozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.data.repositories.VersionAwareReleaseRepository
@@ -50,7 +51,6 @@ import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.models.NightlyBuildOption
 import org.mozilla.tryfox.ui.models.newVersionAvailable
-import org.mozilla.tryfox.util.DEFAULT_PREFERRED_ABI
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
@@ -61,8 +61,8 @@ import org.mozilla.tryfox.util.FOCUS_DEBUG
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
+import org.mozilla.tryfox.util.abiPreferenceOrder
 import org.mozilla.tryfox.util.isAbiSupported
-import org.mozilla.tryfox.util.resolvePreferredAbi
 import java.io.File
 
 /**
@@ -74,6 +74,7 @@ import java.io.File
  * @param cacheManager Manager for handling application cache.
  * @param intentManager Manager for handling intents, such as APK installation.
  * @param ioDispatcher The coroutine dispatcher for background operations.
+ * @param mozillaArchiveRepository Used to check that the APK a card offers is actually published.
  */
 class HomeViewModel(
     private val releaseRepositories: List<ReleaseRepository>,
@@ -83,6 +84,7 @@ class HomeViewModel(
     private val intentManager: IntentManager,
     private val installCoordinator: ApkInstallCoordinator,
     private val ioDispatcher: CoroutineDispatcher,
+    private val mozillaArchiveRepository: MozillaArchiveRepository,
     private val userDataRepository: UserDataRepository? = null,
     private val homeDataCacheRepository: HomeDataCacheRepository = EmptyHomeDataCacheRepository,
     private val installedTryBuildRepository: InstalledTryBuildRepository = EmptyInstalledTryBuildRepository,
@@ -104,7 +106,7 @@ class HomeViewModel(
     private var homeScreenLayout = HomeScreenLayout.OneCardPerApp
 
     @Volatile
-    private var preferredAbi = DEFAULT_PREFERRED_ABI
+    private var abiOrder = abiPreferenceOrder(null, supportedAbis)
 
     @Volatile
     private var selectedHomeAppNames = HomeAppFamily.entries.associateWith { it.defaultAppName }
@@ -147,15 +149,11 @@ class HomeViewModel(
 
         userDataRepository?.preferredAbiFlow
             ?.onEach { storedAbi ->
-                val resolvedAbi = resolvePreferredAbi(storedAbi, supportedAbis)
-                preferredAbi = resolvedAbi
-                _homeScreenState.update { currentState ->
-                    if (currentState is HomeScreenState.Loaded) {
-                        currentState.copy(preferredAbi = resolvedAbi)
-                    } else {
-                        currentState
-                    }
-                }
+                val order = abiPreferenceOrder(storedAbi, supportedAbis)
+                // The flow also emits the stored value on start; only reselect when the order changes.
+                if (order == abiOrder) return@onEach
+                abiOrder = order
+                reselectApks()
             }
             ?.launchIn(viewModelScope)
 
@@ -210,6 +208,22 @@ class HomeViewModel(
                 }
             }
             .launchIn(viewModelScope)
+    }
+
+    private fun reselectApks() {
+        viewModelScope.launch(ioDispatcher) {
+            val apps = synchronized(appsLock) { currentAppsByName }
+            apps.forEach { (appName, app) ->
+                val apks = app.apks as? ApksResult.Success ?: return@forEach
+                val selectedKey = selectPublishedApk(apks.apks)?.uniqueKey
+                if (selectedKey == apks.selectedApkKey) return@forEach
+                // Skip cards whose APKs changed meanwhile; they were selected for the new ABI already.
+                updateAppEverywhere(appName) { current ->
+                    val currentApks = current.apks as? ApksResult.Success
+                    if (currentApks?.apks == apks.apks) current.copy(apks = currentApks.copy(selectedApkKey = selectedKey)) else current
+                }
+            }
+        }
     }
 
     fun initialLoad() {
@@ -365,7 +379,6 @@ class HomeViewModel(
             isDownloadingAnyFile = false,
             selectedAppNames = selectedHomeAppNames,
             homeScreenLayout = homeScreenLayout,
-            preferredAbi = preferredAbi,
         ).applyDownloadStates(downloadStates.value)
     }
 
@@ -426,7 +439,7 @@ class HomeViewModel(
         splitNames = appState?.splitNames.orEmpty(),
         activeAbi = appState?.activeAbi,
         installedTryBuild = appState?.takeIf { appName == FENIX_DEBUG }?.let(::matchingInstalledTryBuild),
-        apks = ApksResult.Success(apks.map { it.toUiModel() }),
+        apks = cachedCardApks(apks.map { it.toUiModel() }),
         selectedReleaseVersion = selectedReleaseVersion,
         availableReleaseVersions = availableReleaseVersions,
     )
@@ -507,6 +520,30 @@ class HomeViewModel(
             availableReleaseVersions = availableReleaseVersions,
         )
     }
+
+    /** Turns a build's parsed APKs into the card's APKs, selecting the one the card offers. */
+    private suspend fun toCardApks(parsedApks: List<MozillaArchiveApk>): ApksResult.Success {
+        val apks = convertParsedApksToUiModels(parsedApks)
+        return ApksResult.Success(apks, selectPublishedApk(apks)?.uniqueKey)
+    }
+
+    /** Selects cached APKs without a request; the refresh that follows checks the selection. */
+    private fun cachedCardApks(apks: List<ApkUiModel>): ApksResult.Success =
+        ApksResult.Success(apks, candidatesByPreference(apks).firstOrNull()?.uniqueKey)
+
+    /** The build's APKs for this device, in [abiPreferenceOrder]. */
+    private fun candidatesByPreference(apks: List<ApkUiModel>): List<ApkUiModel> =
+        abiOrder.mapNotNull { abi ->
+            apks.firstOrNull { it.abi.name.equals(abi, ignoreCase = true) }
+        }
+
+    /**
+     * The first [candidatesByPreference] APK that's actually published. Archive APK URLs are built from
+     * directory names, which don't guarantee the file exists (e.g. releases before 143 only publish
+     * an `.aab` in the universal directory). Usually one request.
+     */
+    private suspend fun selectPublishedApk(apks: List<ApkUiModel>): ApkUiModel? =
+        candidatesByPreference(apks).firstOrNull { mozillaArchiveRepository.isPublished(it.url) }
 
     private fun convertParsedApksToUiModels(parsedApks: List<MozillaArchiveApk>): List<ApkUiModel> {
         return parsedApks.map { parsedApk ->
@@ -618,23 +655,10 @@ class HomeViewModel(
         val builds = pendingBuildsByApp.remove(appName) ?: return
         val chosen = builds.filter { it.rawDateString == buildId }
         if (chosen.isEmpty()) return
-        val chosenApks = ApksResult.Success(convertParsedApksToUiModels(chosen))
-
-        updateCurrentApp(appName) {
-            it.copy(apks = chosenApks, pendingBuildOptions = emptyList())
-        }
-
-        _homeScreenState.update { state ->
-            if (state !is HomeScreenState.Loaded) return@update state
-            val app = state.apps[appName] ?: return@update state
-            state.copy(
-                apps = state.apps + (
-                    appName to app.copy(
-                        apks = chosenApks,
-                        pendingBuildOptions = emptyList(),
-                    )
-                    ),
-            )
+        // Checking the chosen build is published needs a request, so apply it off the main thread.
+        viewModelScope.launch(ioDispatcher) {
+            val chosenApks = toCardApks(chosen)
+            updateAppEverywhere(appName) { it.copy(apks = chosenApks, pendingBuildOptions = emptyList()) }
         }
     }
 
@@ -697,6 +721,15 @@ class HomeViewModel(
         }
     }
 
+    private fun updateAppEverywhere(appName: String, transform: (AppUiModel) -> AppUiModel) {
+        updateCurrentApp(appName, transform)
+        _homeScreenState.update { state ->
+            if (state !is HomeScreenState.Loaded) return@update state
+            val app = state.apps[appName] ?: return@update state
+            state.copy(apps = state.apps + (appName to transform(app)))
+        }
+    }
+
     private fun updateDate(
         appName: String,
         date: LocalDate?,
@@ -735,7 +768,7 @@ class HomeViewModel(
                         buildOptions = options
                     }
                     val latestApks = getLatestApks(result.data)
-                    ApksResult.Success(convertParsedApksToUiModels(latestApks))
+                    toCardApks(latestApks)
                 }
 
                 is NetworkResult.Error -> ApksResult.Error(
@@ -815,11 +848,11 @@ class HomeViewModel(
         }
     }
 
-    private fun NetworkResult<List<MozillaArchiveApk>>.toApksResult(appName: String): ApksResult {
+    private suspend fun NetworkResult<List<MozillaArchiveApk>>.toApksResult(appName: String): ApksResult {
         return when (this) {
             is NetworkResult.Success -> {
                 val latestApks = getLatestApks(data)
-                ApksResult.Success(convertParsedApksToUiModels(latestApks))
+                toCardApks(latestApks)
             }
 
             is NetworkResult.Error -> ApksResult.Error(
@@ -858,7 +891,7 @@ class HomeViewModel(
         val updatedApks = apksResult.apks.map { apk ->
             apk.copy(downloadState = resolveDownloadState(apk, persistedDownloads))
         }
-        return copy(apks = ApksResult.Success(updatedApks))
+        return copy(apks = apksResult.copy(apks = updatedApks))
     }
 
     private fun AppUiModel.containsActiveDownload(): Boolean =

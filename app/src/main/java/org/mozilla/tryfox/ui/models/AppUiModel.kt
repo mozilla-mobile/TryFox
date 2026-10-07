@@ -6,7 +6,14 @@ import org.mozilla.tryfox.util.Version
 
 sealed class ApksResult {
     data object Loading : ApksResult()
-    data class Success(val apks: List<ApkUiModel>) : ApksResult()
+
+    /**
+     * A build's APKs, one per ABI in archive order, and the one the card offers, chosen by the view
+     * model. [selectedApkKey] is null when none suits this device.
+     */
+    data class Success(val apks: List<ApkUiModel>, val selectedApkKey: String?) : ApksResult() {
+        val selectedApk: ApkUiModel? get() = apks.firstOrNull { it.uniqueKey == selectedApkKey }
+    }
     data class Error(val message: String) : ApksResult()
 }
 

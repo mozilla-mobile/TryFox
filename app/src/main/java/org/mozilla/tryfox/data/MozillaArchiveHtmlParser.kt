@@ -3,7 +3,6 @@ package org.mozilla.tryfox.data
 import kotlinx.datetime.LocalDate
 import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.util.UNIVERSAL_ABI
-import org.mozilla.tryfox.util.isUniversalAbi
 
 class MozillaArchiveHtmlParser {
 
@@ -18,8 +17,7 @@ class MozillaArchiveHtmlParser {
         archiveUrl: String,
         date: LocalDate?,
     ): List<MozillaArchiveApk> {
-        // Nightly universal directories have AAB without APK so be sure to skip them.
-        val builds = parseApkDirectoriesFromHtml(html).filter { it.timestamp != null && !isUniversalAbi(it.abi) }
+        val builds = parseApkDirectoriesFromHtml(html).filter { it.timestamp != null }
         val day = date?.toString() ?: builds.maxOfOrNull { it.timestamp!!.take(10) } ?: return emptyList()
         return builds.filter { it.timestamp!!.startsWith(day) }.map { it.toApk(archiveUrl) }
     }

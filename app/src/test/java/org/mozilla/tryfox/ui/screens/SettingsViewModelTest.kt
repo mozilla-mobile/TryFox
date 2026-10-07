@@ -63,7 +63,7 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `preferred ABI defaults to universal and offers every device ABI`() = runTest {
+    fun `preferred ABI defaults to the device's primary ABI and offers every device ABI`() = runTest {
         val userData = FakeUserDataRepository()
         val viewModel = SettingsViewModel(
             FakeCacheManager(tempDir),
@@ -73,21 +73,21 @@ class SettingsViewModelTest {
         )
         advanceUntilIdle()
 
-        assertEquals(UNIVERSAL_ABI, viewModel.uiState.value.preferredAbi)
+        assertEquals("arm64-v8a", viewModel.uiState.value.preferredAbi)
         assertEquals(listOf(UNIVERSAL_ABI, "arm64-v8a", "armeabi-v7a"), viewModel.uiState.value.abiOptions)
 
-        viewModel.selectPreferredAbi("arm64-v8a")
+        viewModel.selectPreferredAbi(UNIVERSAL_ABI)
         advanceUntilIdle()
-        assertEquals("arm64-v8a", viewModel.uiState.value.preferredAbi)
+        assertEquals(UNIVERSAL_ABI, viewModel.uiState.value.preferredAbi)
 
         // An ABI this device cannot run is never persisted.
         viewModel.selectPreferredAbi("x86_64")
         advanceUntilIdle()
-        assertEquals("arm64-v8a", viewModel.uiState.value.preferredAbi)
+        assertEquals(UNIVERSAL_ABI, viewModel.uiState.value.preferredAbi)
     }
 
     @Test
-    fun `a stored ABI the device no longer runs resolves back to universal`() = runTest {
+    fun `a stored ABI the device no longer runs resolves back to the device default`() = runTest {
         val userData = FakeUserDataRepository()
         userData.savePreferredAbi("x86_64")
         val viewModel = SettingsViewModel(
@@ -98,7 +98,7 @@ class SettingsViewModelTest {
         )
         advanceUntilIdle()
 
-        assertEquals(UNIVERSAL_ABI, viewModel.uiState.value.preferredAbi)
+        assertEquals("arm64-v8a", viewModel.uiState.value.preferredAbi)
     }
 
     private class FakeDownloadCoordinator : ApkDownloadCoordinator {

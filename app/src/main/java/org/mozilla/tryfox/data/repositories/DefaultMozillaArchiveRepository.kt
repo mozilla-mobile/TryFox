@@ -22,6 +22,7 @@ import org.mozilla.tryfox.util.FOCUS
 import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import retrofit2.HttpException
+import java.net.HttpURLConnection
 
 class DefaultMozillaArchiveRepository(
     private val mozillaArchivesApiService: MozillaArchivesApiService,
@@ -281,6 +282,16 @@ class DefaultMozillaArchiveRepository(
                     }.awaitAll().flatten()
                 }
         }
+    }
+
+    override suspend fun isPublished(url: String): Boolean = try {
+        // Only archive URLs are built from directory listings; others come from real asset links.
+        !url.startsWith(ARCHIVE_MOZILLA_BASE_URL) ||
+            mozillaArchivesApiService.head(url).code() != HttpURLConnection.HTTP_NOT_FOUND
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        true
     }
 
     private data class CandidateVersion(val baseVersion: String, val buildNumber: Int)
