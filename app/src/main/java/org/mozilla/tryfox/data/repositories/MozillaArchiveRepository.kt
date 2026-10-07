@@ -41,4 +41,10 @@ interface MozillaArchiveRepository {
     suspend fun getFocusReleaseBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>>
 
     suspend fun getFocusBetaBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>>
+
+    /**
+     * Whether a file is actually published at [url]. Only a definite "not found" from the archive
+     * counts as missing; other hosts and network errors return true so the download reports them.
+     */
+    suspend fun isPublished(url: String): Boolean
 }

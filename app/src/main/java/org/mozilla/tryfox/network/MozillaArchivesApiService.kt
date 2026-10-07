@@ -1,6 +1,8 @@
 package org.mozilla.tryfox.network
 
+import retrofit2.Response
 import retrofit2.http.GET
+import retrofit2.http.HEAD
 import retrofit2.http.Url
 
 /**
@@ -9,4 +11,7 @@ import retrofit2.http.Url
 interface MozillaArchivesApiService {
     @GET
     suspend fun getHtmlPage(@Url url: String): String
+
+    @HEAD
+    suspend fun head(@Url url: String): Response<Void>
 }

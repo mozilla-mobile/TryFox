@@ -67,8 +67,6 @@ import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
 import org.mozilla.tryfox.ui.models.AppUiModel
 import org.mozilla.tryfox.ui.models.NightlyBuildOption
-import org.mozilla.tryfox.ui.models.preferredAbiApk
-import org.mozilla.tryfox.util.DEFAULT_PREFERRED_ABI
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FENIX_DEBUG
@@ -96,7 +94,6 @@ internal fun HomeAppCard(
     onBuildSelected: (String, String) -> Unit,
     onDismissBuildPicker: (String) -> Unit,
     modifier: Modifier = Modifier,
-    preferredAbi: String = DEFAULT_PREFERRED_ABI,
 ) {
     val app = card.selectedApp
     val appState = app.toAppState()
@@ -107,7 +104,7 @@ internal fun HomeAppCard(
     val isNightly = app.name == FENIX || app.name == FOCUS
     val isDebug = app.name == FENIX_DEBUG || app.name == FOCUS_DEBUG
     val isVersionSelectable = app.name in setOf(FENIX_RELEASE, FENIX_BETA, FOCUS_RELEASE, FOCUS_BETA)
-    val selectedApk = (app.apks as? ApksResult.Success)?.apks?.preferredAbiApk(preferredAbi)
+    val selectedApk = (app.apks as? ApksResult.Success)?.selectedApk
 
     Card(
         modifier = modifier

@@ -19,7 +19,9 @@ class FakeMozillaArchiveRepository(
     private val focusBetaReleases: NetworkResult<List<MozillaArchiveApk>> = NetworkResult.Success(emptyList()),
     private val focusBetaVersions: NetworkResult<List<String>> = NetworkResult.Success(emptyList()),
     private val focusBetaReleasesByVersion: Map<String, NetworkResult<List<MozillaArchiveApk>>> = emptyMap(),
+    private val unpublishedUrls: Set<String> = emptySet(),
 ) : MozillaArchiveRepository {
+    val publishedChecks = mutableListOf<String>()
 
     override suspend fun getFenixNightlyBuilds(date: LocalDate?): NetworkResult<List<MozillaArchiveApk>> {
         return fenixBuilds
@@ -62,4 +64,9 @@ class FakeMozillaArchiveRepository(
 
     override suspend fun getFocusBetaBuildsForVersion(version: String): NetworkResult<List<MozillaArchiveApk>> =
         focusBetaReleasesByVersion[version] ?: focusBetaReleases
+
+    override suspend fun isPublished(url: String): Boolean {
+        publishedChecks += url
+        return url !in unpublishedUrls
+    }
 }

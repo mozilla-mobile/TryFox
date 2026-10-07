@@ -48,6 +48,7 @@ import org.mozilla.tryfox.data.repositories.FocusReleaseRepository
 import org.mozilla.tryfox.data.repositories.HomeDataCacheRepository
 import org.mozilla.tryfox.data.repositories.HomeDataSnapshot
 import org.mozilla.tryfox.data.repositories.InstalledTryBuildRepository
+import org.mozilla.tryfox.data.repositories.MozillaArchiveRepository
 import org.mozilla.tryfox.data.repositories.ReleaseRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.download.ApkDownloadRequest
@@ -61,7 +62,6 @@ import org.mozilla.tryfox.model.MozillaArchiveApk
 import org.mozilla.tryfox.ui.models.AbiUiModel
 import org.mozilla.tryfox.ui.models.ApkUiModel
 import org.mozilla.tryfox.ui.models.ApksResult
-import org.mozilla.tryfox.ui.models.preferredAbiApk
 import org.mozilla.tryfox.util.FENIX
 import org.mozilla.tryfox.util.FENIX_DEBUG
 import org.mozilla.tryfox.util.FENIX_DEBUG_PACKAGE
@@ -205,6 +205,7 @@ class HomeViewModelTest {
         userDataRepository: FakeUserDataRepository? = null,
         homeDataCacheRepository: HomeDataCacheRepository = FakeHomeDataCacheRepository(),
         installedTryBuildRepository: InstalledTryBuildRepository = FakeInstalledTryBuildRepository(),
+        mozillaArchiveRepository: MozillaArchiveRepository = FakeMozillaArchiveRepository(),
     ) = HomeViewModel(
         releaseRepositories = releaseRepositories,
         downloadCoordinator = fakeDownloadCoordinator,
@@ -216,6 +217,7 @@ class HomeViewModelTest {
         userDataRepository = userDataRepository,
         homeDataCacheRepository = homeDataCacheRepository,
         installedTryBuildRepository = installedTryBuildRepository,
+        mozillaArchiveRepository = mozillaArchiveRepository,
         supportedAbis = listOf("arm64-v8a", "x86_64", "armeabi-v7a"),
     )
 
@@ -234,7 +236,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `preferred ABI reaches the loaded state and universal APKs count as supported`() = runTest {
+    fun `preferred ABI defaults to the device's primary ABI and universal APKs count as supported`() = runTest {
         val universalApk = createTestParsedReleaseApk(version = "153.0", abi = UNIVERSAL_ABI)
         val arm64Apk = createTestParsedReleaseApk(version = "153.0", abi = "arm64-v8a")
         val userDataRepository = FakeUserDataRepository()
@@ -255,19 +257,18 @@ class HomeViewModelTest {
         viewModel.initialLoad()
         advanceUntilIdle()
 
-        val initialState = viewModel.homeScreenState.value as HomeScreenState.Loaded
-        assertEquals(UNIVERSAL_ABI, initialState.preferredAbi)
-        val apks = (initialState.apps.getValue(FENIX_RELEASE).apks as ApksResult.Success).apks
+        fun cardApks() = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps.getValue(FENIX_RELEASE).apks as ApksResult.Success
         // Universal bundles every architecture, so it must never be flagged as unsupported.
-        assertTrue(apks.single { it.abi.name == UNIVERSAL_ABI }.abi.isSupported)
-        assertEquals(UNIVERSAL_ABI, apks.preferredAbiApk(initialState.preferredAbi)?.abi?.name)
+        assertTrue(cardApks().apks.single { it.abi.name == UNIVERSAL_ABI }.abi.isSupported)
+        // By default the card offers the device's primary ABI.
+        assertEquals("arm64-v8a", cardApks().selectedApk?.abi?.name)
 
-        userDataRepository.savePreferredAbi("arm64-v8a")
+        userDataRepository.savePreferredAbi(UNIVERSAL_ABI)
         advanceUntilIdle()
 
-        val updatedState = viewModel.homeScreenState.value as HomeScreenState.Loaded
-        assertEquals("arm64-v8a", updatedState.preferredAbi)
-        assertEquals("arm64-v8a", apks.preferredAbiApk(updatedState.preferredAbi)?.abi?.name)
+        assertEquals(UNIVERSAL_ABI, cardApks().selectedApk?.abi?.name)
+        // Selection doesn't reorder or drop the build's APKs.
+        assertEquals(listOf("arm64-v8a", UNIVERSAL_ABI), cardApks().apks.map { it.abi.name })
     }
 
     private class FakeHomeDataCacheRepository(
@@ -846,6 +847,152 @@ class HomeViewModelTest {
         assertEquals("fenix-release/candidate-153.0.4-build2/${candidate.fileName}", candidate.uniqueKey)
         assertTrue(candidate.uniqueKey != stableKey)
     }
+
+    @Test
+    fun `card skips an unpublished universal APK and falls back to a device ABI`() = runTest {
+        // Archive listing order; the device (arm64-v8a, x86_64, armeabi-v7a) prefers x86_64 over armeabi-v7a.
+        val apks = listOf("armeabi-v7a", "x86_64", UNIVERSAL_ABI).map { createTestParsedReleaseApk(version = "140.0.4", abi = it) }
+        val universalUrl = apks.single { it.abiName == UNIVERSAL_ABI }.fullUrl
+        val x86Url = apks.single { it.abiName == "x86_64" }.fullUrl
+        val archive = FakeMozillaArchiveRepository(
+            fenixReleaseVersions = NetworkResult.Success(listOf("140.0.4")),
+            fenixReleasesByVersion = mapOf("140.0.4" to NetworkResult.Success(apks)),
+            unpublishedUrls = setOf(universalUrl),
+        )
+        viewModel = createViewModel(
+            releaseRepositories = listOf(FenixReleaseReleaseRepository(archive)),
+            mozillaArchiveRepository = archive,
+        )
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        val cardApks = fenixReleaseApp().apks as ApksResult.Success
+        assertEquals(listOf(universalUrl, x86Url), archive.publishedChecks)
+        val selected = cardApks.selectedApk!!
+        assertEquals("x86_64", selected.abi.name)
+        assertEquals(3, cardApks.apks.size)
+
+        viewModel.downloadNightlyApk(selected)
+        advanceUntilIdle()
+
+        assertEquals(x86Url, fakeDownloadCoordinator.enqueuedRequests.single().downloadUrl)
+        assertEquals(2, archive.publishedChecks.size)
+    }
+
+    @Test
+    fun `card checks a published preferred APK once and keeps every variant`() = runTest {
+        val apks = listOf("arm64-v8a", UNIVERSAL_ABI).map { createTestParsedReleaseApk(version = "157.0.1", abi = it) }
+        val archive = FakeMozillaArchiveRepository(
+            fenixReleaseVersions = NetworkResult.Success(listOf("157.0.1")),
+            fenixReleasesByVersion = mapOf("157.0.1" to NetworkResult.Success(apks)),
+        )
+        viewModel = createViewModel(
+            releaseRepositories = listOf(FenixReleaseReleaseRepository(archive)),
+            mozillaArchiveRepository = archive,
+        )
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        // The device's primary ABI comes first by default, so it's the one checked.
+        assertEquals(listOf(apks.single { it.abiName == "arm64-v8a" }.fullUrl), archive.publishedChecks)
+        assertEquals(2, (fenixReleaseApp().apks as ApksResult.Success).apks.size)
+    }
+
+    @Test
+    fun `a cold start from saved cards checks each card's APK once`() = runTest {
+        val apk = createTestParsedReleaseApk(version = "157.0.1", abi = "arm64-v8a")
+        val cache = FakeHomeDataCacheRepository(
+            HomeDataSnapshot(
+                version = HomeDataSnapshot.CURRENT_VERSION,
+                apps = listOf(
+                    CachedHomeApp(
+                        appName = FENIX_RELEASE,
+                        apks = listOf(
+                            CachedHomeApk(apk.originalString, apk.rawDateString, apk.appName, apk.version, apk.abiName, apk.fullUrl, apk.fileName),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val archive = FakeMozillaArchiveRepository(
+            fenixReleaseVersions = NetworkResult.Success(listOf("157.0.1")),
+            fenixReleasesByVersion = mapOf("157.0.1" to NetworkResult.Success(listOf(apk))),
+        )
+        viewModel = createViewModel(
+            releaseRepositories = listOf(FenixReleaseReleaseRepository(archive)),
+            // Emits the stored (unset) preference on start, as the real repository does.
+            userDataRepository = FakeUserDataRepository(),
+            homeDataCacheRepository = cache,
+            mozillaArchiveRepository = archive,
+        )
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        assertEquals(listOf(apk.fullUrl), archive.publishedChecks)
+    }
+
+    @Test
+    fun `picking a version checks that version's preferred APK`() = runTest {
+        val latest = listOf("arm64-v8a", UNIVERSAL_ABI).map { createTestParsedReleaseApk(version = "157.0.1", abi = it) }
+        val older = listOf("arm64-v8a", UNIVERSAL_ABI).map { createTestParsedReleaseApk(version = "140.0.4", abi = it) }
+        val archive = FakeMozillaArchiveRepository(
+            fenixReleaseVersions = NetworkResult.Success(listOf("157.0.1", "140.0.4")),
+            fenixReleasesByVersion = mapOf(
+                "157.0.1" to NetworkResult.Success(latest),
+                "140.0.4" to NetworkResult.Success(older),
+            ),
+            unpublishedUrls = setOf(older.single { it.abiName == UNIVERSAL_ABI }.fullUrl),
+        )
+        val userDataRepository = FakeUserDataRepository().apply { savePreferredAbi(UNIVERSAL_ABI) }
+        viewModel = createViewModel(
+            releaseRepositories = listOf(FenixReleaseReleaseRepository(archive)),
+            userDataRepository = userDataRepository,
+            mozillaArchiveRepository = archive,
+        )
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        viewModel.onReleaseVersionSelected(FENIX_RELEASE, "140.0.4")
+        advanceUntilIdle()
+
+        assertEquals("arm64-v8a", (fenixReleaseApp().apks as ApksResult.Success).selectedApk?.abi?.name)
+    }
+
+    @Test
+    fun `changing the preferred ABI checks the variant each card now uses`() = runTest {
+        val apks = listOf("arm64-v8a", "x86_64", UNIVERSAL_ABI).map { createTestParsedReleaseApk(version = "140.0.4", abi = it) }
+        val x86Url = apks.single { it.abiName == "x86_64" }.fullUrl
+        val userDataRepository = FakeUserDataRepository()
+        val archive = FakeMozillaArchiveRepository(
+            fenixReleaseVersions = NetworkResult.Success(listOf("140.0.4")),
+            fenixReleasesByVersion = mapOf("140.0.4" to NetworkResult.Success(apks)),
+            unpublishedUrls = setOf(x86Url),
+        )
+        viewModel = createViewModel(
+            releaseRepositories = listOf(FenixReleaseReleaseRepository(archive)),
+            userDataRepository = userDataRepository,
+            mozillaArchiveRepository = archive,
+        )
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+        viewModel.initialLoad()
+        advanceUntilIdle()
+        assertEquals(3, (fenixReleaseApp().apks as ApksResult.Success).apks.size)
+
+        userDataRepository.savePreferredAbi("x86_64")
+        advanceUntilIdle()
+
+        assertTrue(x86Url in archive.publishedChecks)
+        assertEquals(UNIVERSAL_ABI, (fenixReleaseApp().apks as ApksResult.Success).selectedApk?.abi?.name)
+    }
+
+    private fun fenixReleaseApp() = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
 
     @Test
     fun `onReleaseVersionSelected should reload Focus APKs for selected version`() = runTest {

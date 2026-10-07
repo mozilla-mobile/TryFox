@@ -13,7 +13,7 @@ import org.mozilla.tryfox.data.repositories.UserDataRepository
 import org.mozilla.tryfox.download.ApkDownloadCoordinator
 import org.mozilla.tryfox.model.CacheManagementState
 import org.mozilla.tryfox.model.HomeScreenLayout
-import org.mozilla.tryfox.util.DEFAULT_PREFERRED_ABI
+import org.mozilla.tryfox.util.UNIVERSAL_ABI
 import org.mozilla.tryfox.util.abiPreferenceOptions
 import org.mozilla.tryfox.util.resolvePreferredAbi
 
@@ -22,8 +22,8 @@ data class SettingsUiState(
     val cacheSizeBytes: Long = 0L,
     val hasActiveDownloads: Boolean = false,
     val homeScreenLayout: HomeScreenLayout = HomeScreenLayout.OneCardPerApp,
-    val preferredAbi: String = DEFAULT_PREFERRED_ABI,
-    val abiOptions: List<String> = listOf(DEFAULT_PREFERRED_ABI),
+    val preferredAbi: String = UNIVERSAL_ABI,
+    val abiOptions: List<String> = listOf(UNIVERSAL_ABI),
 ) {
     val canClearCache: Boolean
         get() = cacheState == CacheManagementState.IdleNonEmpty && !hasActiveDownloads
@@ -52,7 +52,11 @@ class SettingsViewModel(
             preferredAbi = resolvePreferredAbi(preferredAbi, supportedAbis),
             abiOptions = abiOptions,
         )
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsUiState(abiOptions = abiOptions))
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        SettingsUiState(preferredAbi = resolvePreferredAbi(null, supportedAbis), abiOptions = abiOptions),
+    )
 
     init {
         viewModelScope.launch { cacheManager.checkCacheStatus() }
