@@ -995,6 +995,24 @@ class HomeViewModelTest {
     private fun fenixReleaseApp() = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
 
     @Test
+    fun `home load never recommends a release candidate`() = runTest {
+        val betaApk = createTestParsedReleaseApk(version = "158.0b4")
+        val archive = FakeMozillaArchiveRepository(
+            fenixReleaseVersions = NetworkResult.Success(listOf("158.0b5-RC1", "158.0b4", "158.0b4-RC1")),
+            fenixReleasesByVersion = mapOf("158.0b4" to NetworkResult.Success(listOf(betaApk))),
+        )
+        viewModel = createViewModel(releaseRepositories = listOf(FenixReleaseReleaseRepository(archive)))
+        fakeCacheManager.setCacheState(CacheManagementState.IdleEmpty)
+
+        viewModel.initialLoad()
+        advanceUntilIdle()
+
+        val app = (viewModel.homeScreenState.value as HomeScreenState.Loaded).apps[FENIX_RELEASE]!!
+        assertEquals("158.0b4", app.selectedReleaseVersion)
+        assertEquals("158.0b4", (app.apks as ApksResult.Success).apks.single().version)
+    }
+
+    @Test
     fun `onReleaseVersionSelected should reload Focus APKs for selected version`() = runTest {
         val latestReleaseApk = createTestParsedReleaseApk(version = "147.0.1", appName = testFocusReleaseAppName)
         val olderReleaseApk = createTestParsedReleaseApk(version = "146.0.1", appName = testFocusReleaseAppName)
