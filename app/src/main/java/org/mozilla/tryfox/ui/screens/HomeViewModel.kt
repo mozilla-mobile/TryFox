@@ -483,7 +483,8 @@ class HomeViewModel(
             if (repository is VersionAwareReleaseRepository) {
                 when (val versionsResult = repository.getAvailableReleaseVersions()) {
                     is NetworkResult.Success -> {
-                        val selectedVersion = versionsResult.data.firstOrNull()
+                        // Only recommend published builds; RCs are reachable through the picker.
+                        val selectedVersion = versionsResult.data.firstOrNull { !it.isReleaseCandidate() }
                         val releaseResult = if (selectedVersion != null) {
                             repository.getReleasesForVersion(selectedVersion)
                         } else {
@@ -550,6 +551,8 @@ class HomeViewModel(
      */
     private suspend fun selectPublishedApk(apks: List<ApkUiModel>): ApkUiModel? =
         candidatesByPreference(apks).firstOrNull { mozillaArchiveRepository.isPublished(it.url) }
+
+    private fun String.isReleaseCandidate(): Boolean = RELEASE_CANDIDATE_SUFFIX.containsMatchIn(this)
 
     private fun convertParsedApksToUiModels(parsedApks: List<MozillaArchiveApk>): List<ApkUiModel> {
         return parsedApks.map { parsedApk ->
@@ -940,5 +943,6 @@ class HomeViewModel(
 
     companion object {
         private const val TAG = "HomeViewModel"
+        private val RELEASE_CANDIDATE_SUFFIX = Regex("-RC\\d+$")
     }
 }
