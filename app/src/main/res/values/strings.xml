@@ -76,8 +76,6 @@
     <string name="archive_group_card_no_apk_details">No APK details available.</string>
     <string name="archive_group_card_supported_apks">Supported by your device (%1$d)</string>
     <string name="archive_group_card_unsupported_apks">Not supported by your device (%1$d)</string>
-    <string name="archive_group_card_no_apks_for_date">No APKs found for this date.</string>
-    <string name="archive_group_card_no_apks_for_release_version">No APKs found for this release.</string>
     <string name="profile_screen_title">Search builds</string>
     <string name="profile_screen_loading_pushes">Loading pushes…</string>
     <string name="profile_screen_no_pushes_found">No pushes found for this author.</string>
@@ -109,15 +107,6 @@
     <string name="history_screen_last_installed_label">Last installed: %1$s</string>
     <string name="history_screen_delete_entry_description">Remove history entry</string>
 
-    <string name="app_name_fenix">Fenix Nightly</string>
-    <string name="app_name_fenix_release">Fenix Release</string>
-    <string name="app_name_fenix_beta">Fenix Beta</string>
-    <string name="app_name_focus">Focus Nightly</string>
-    <string name="app_name_focus_release">Focus Release</string>
-    <string name="app_name_focus_beta">Focus Beta</string>
-    <string name="app_name_reference_browser">Reference Browser</string>
-    <string name="unsupported_abi">Unsupported ABI</string>
-    <string name="clear_date_selection">Clear date selection</string>
     <string name="release_version_chip_description">Select Firefox Release version</string>
     <string name="version_selector_release_title">Choose Release version</string>
     <string name="version_selector_beta_title">Choose Beta version</string>
@@ -129,8 +118,6 @@
     <string name="version_selector_available_builds">Builds:</string>
     <string name="version_selector_no_builds">No builds are available for this major version.</string>
     <string name="version_selector_current_major_unavailable">The current major version (%1$d) is outside the selectable range. Choose a version from %2$d to %3$d.</string>
-    <string name="nightly_build_picker_title">Select build</string>
-    <string name="uninstall_button_label">Uninstall</string>
     <string name="installed_chip_label">Installed</string>
     <string name="not_installed_chip_label">Not installed</string>
     <string name="play_store_chip_label">Play Store</string>
