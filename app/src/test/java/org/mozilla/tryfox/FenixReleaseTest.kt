@@ -1,6 +1,7 @@
 package org.mozilla.tryfox
 
 import kotlinx.coroutines.runBlocking
+import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -22,7 +23,7 @@ class FenixReleaseTest {
     fun `test getFenixReleaseBuilds returns list of APKs for beta release`() = runBlocking {
         val mockApiService: MozillaArchivesApiService = mock()
         val releasesListHtml = loadHtmlResource("fenix-releases-page.html")
-        val releaseDetailsHtml = loadHtmlResource("fenix-releases-145.html")
+        val releaseDetailsHtml = loadHtmlResource("fenix-releases-146b5.html")
 
         whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL))
             .thenReturn(releasesListHtml)
@@ -67,7 +68,7 @@ class FenixReleaseTest {
     fun `test constructed release APKs have correct URLs`() = runBlocking {
         val mockApiService: MozillaArchivesApiService = mock()
         val releasesListHtml = loadHtmlResource("fenix-releases-page.html")
-        val releaseDetailsHtml = loadHtmlResource("fenix-releases-145.html")
+        val releaseDetailsHtml = loadHtmlResource("fenix-releases-146b5.html")
 
         whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL))
             .thenReturn(releasesListHtml)
@@ -109,16 +110,16 @@ class FenixReleaseTest {
         val mockApiService: MozillaArchivesApiService = mock()
         val releaseDetailsHtml = loadHtmlResource("fenix-releases-145.html")
 
-        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForRelease("146.0.1")))
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForRelease("145.0")))
             .thenReturn(releaseDetailsHtml)
 
         val repository = DefaultMozillaArchiveRepository(mockApiService)
-        val result = repository.getFenixReleaseBuildsForVersion("146.0.1", ReleaseType.Release)
+        val result = repository.getFenixReleaseBuildsForVersion("145.0", ReleaseType.Release)
 
         assertTrue(result is NetworkResult.Success)
         if (result is NetworkResult.Success) {
-            assertTrue(result.data.all { it.version == "146.0.1" })
-            assertTrue(result.data.any { it.fullUrl.contains("fenix-146.0.1.multi.android-arm64-v8a.apk") })
+            assertTrue(result.data.all { it.version == "145.0" })
+            assertTrue(result.data.any { it.fullUrl.contains("fenix-145.0.multi.android-arm64-v8a.apk") })
         }
     }
 
@@ -145,17 +146,17 @@ class FenixReleaseTest {
         val mockApiService: MozillaArchivesApiService = mock()
         val releaseDetailsHtml = loadHtmlResource("focus-releases-147.html")
 
-        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForRelease(DefaultMozillaArchiveRepository.RELEASES_FOCUS_BASE_URL, "146.0.1")))
+        whenever(mockApiService.getHtmlPage(DefaultMozillaArchiveRepository.archiveUrlForRelease(DefaultMozillaArchiveRepository.RELEASES_FOCUS_BASE_URL, "147.0.1")))
             .thenReturn(releaseDetailsHtml)
 
         val repository = DefaultMozillaArchiveRepository(mockApiService)
-        val result = repository.getFocusReleaseBuildsForVersion("146.0.1")
+        val result = repository.getFocusReleaseBuildsForVersion("147.0.1")
 
         assertTrue(result is NetworkResult.Success)
         if (result is NetworkResult.Success) {
-            assertTrue(result.data.all { it.version == "146.0.1" })
+            assertTrue(result.data.all { it.version == "147.0.1" })
             assertTrue(result.data.all { it.appName == "focus-release" })
-            assertTrue(result.data.any { it.fullUrl.contains("focus-146.0.1.multi.android-arm64-v8a.apk") })
+            assertTrue(result.data.any { it.fullUrl.contains("focus-147.0.1.multi.android-arm64-v8a.apk") })
         }
     }
 
@@ -192,7 +193,7 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml extracts all ABIs from release HTML`() {
         val htmlContent = loadHtmlResource("fenix-releases-145.html")
 
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
 
         println("Extracted ABIs: $result")
         assertEquals(4, result.size, "Should extract 4 ABIs")
@@ -206,7 +207,7 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml extracts in correct order`() {
         val htmlContent = loadHtmlResource("fenix-releases-145.html")
 
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
 
         // The order should match the order in the HTML
         val expected = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "universal")
@@ -219,11 +220,11 @@ class FenixReleaseTest {
         val htmlContent = loadHtmlResource("fenix-releases-145.html")
 
         // Using "fenix" app name (correct one)
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
         assertEquals(4, result.size, "Should extract 4 ABIs with correct app name")
 
         // Using "focus" app name (shouldn't match fenix entries)
-        val resultFocus = parser.parseFenixReleaseAbisFromHtml(htmlContent, "focus")
+        val resultFocus = abisIn(htmlContent, "focus")
         assertEquals(0, resultFocus.size, "Should extract 0 ABIs with wrong app name")
     }
 
@@ -231,7 +232,7 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml empty HTML returns empty list`() {
         val htmlContent = "<html><body></body></html>"
 
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
 
         assertEquals(0, result.size, "Should return empty list for HTML with no matching entries")
     }
@@ -240,7 +241,7 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml identifies universal ABI correctly`() {
         val htmlContent = loadHtmlResource("fenix-releases-145.html")
 
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
 
         // The last entry should be "universal" (fenix-145.0-android/)
         assertTrue(result.last() == "universal", "Last ABI should be universal")
@@ -250,7 +251,7 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml extracts all ABIs from beta release HTML`() {
         val htmlContent = loadHtmlResource("fenix-releases-146b5.html")
 
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
 
         println("Extracted ABIs from beta release: $result")
         assertEquals(4, result.size, "Should extract 4 ABIs from beta release")
@@ -264,7 +265,7 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml handles beta markers correctly`() {
         val htmlContent = loadHtmlResource("fenix-releases-146b5.html")
 
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
 
         // Verify the order matches the HTML
         val expected = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "universal")
@@ -275,7 +276,7 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml identifies universal ABI in beta release`() {
         val htmlContent = loadHtmlResource("fenix-releases-146b5.html")
 
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
 
         // The last entry should be "universal" (fenix-146.0b5-android/)
         assertTrue(result.last() == "universal", "Last ABI in beta release should be universal")
@@ -285,7 +286,7 @@ class FenixReleaseTest {
     fun `test parseFenixReleaseAbisFromHtml extracts specific ABI from beta pattern`() {
         val htmlContent = loadHtmlResource("fenix-releases-146b5.html")
 
-        val result = parser.parseFenixReleaseAbisFromHtml(htmlContent, "fenix")
+        val result = abisIn(htmlContent, "fenix")
 
         // Verify specific ABIs are correctly extracted from beta version format
         assertTrue(result.contains("arm64-v8a"), "fenix-146.0b5-android-arm64-v8a/ should extract arm64-v8a")
@@ -538,7 +539,37 @@ class FenixReleaseTest {
         assertTrue(apks.any { it.fileName == "fenix-153.0.4.multi.android-arm64-v8a.apk" })
     }
 
+    @Test
+    fun `nightly listing yields the latest day's builds`() {
+        val listingUrl = "https://archive.mozilla.org/pub/fenix/nightly/2026/10/"
+        val html = listOf(
+            "../",
+            "2026-10-05-21-22-56-fenix-159.0a1-android-arm64-v8a/",
+            "2026-10-05-21-22-56-fenix-159.0a1-android/",
+            "2026-10-06-19-44-15-fenix-159.0a1-android-arm64-v8a/",
+            "2026-10-06-19-44-15-fenix-159.0a1-android-x86_64/",
+            "2026-10-06-19-44-15-fenix-159.0a1-android/",
+        ).joinToString("\n") { "<tr><td>Dir</td><td><a href=\"$it\">$it</a></td></tr>" }
+
+        val latest = parser.parseNightlyBuildsFromHtml(html, listingUrl, date = null)
+
+        // Universal nightly directories are skipped until missing APKs can be detected.
+        assertEquals(listOf("arm64-v8a", "x86_64"), latest.map { it.abiName })
+        assertTrue(latest.all { it.rawDateString == "2026-10-06-19-44-15" && it.version == "159.0a1" && it.appName == "fenix" })
+        assertEquals(
+            "${listingUrl}2026-10-06-19-44-15-fenix-159.0a1-android-arm64-v8a/fenix-159.0a1.multi.android-arm64-v8a.apk",
+            latest.single { it.abiName == "arm64-v8a" }.fullUrl,
+        )
+        assertEquals(
+            listOf("2026-10-05-21-22-56"),
+            parser.parseNightlyBuildsFromHtml(html, listingUrl, LocalDate(2026, 10, 5)).map { it.rawDateString }.distinct(),
+        )
+    }
+
     // Helper method
+
+    private fun abisIn(html: String, appName: String): List<String> =
+        parser.parseApkDirectoriesFromHtml(html).filter { it.appName == appName }.map { it.abi }
 
     private fun loadHtmlResource(resourceName: String): String {
         return this::class.java.classLoader?.getResource(resourceName)?.readText()
