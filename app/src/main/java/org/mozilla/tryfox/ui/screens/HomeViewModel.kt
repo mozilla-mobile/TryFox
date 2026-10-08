@@ -4,6 +4,9 @@ import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -320,8 +323,11 @@ class HomeViewModel(
             publishCurrentApps()
         }
 
-        val fetchedApps = releaseRepositories.associate { repository ->
-            repository.appName to buildAppUiModel(repository, appInfoMap[repository.appName])
+        // Load every card concurrently; cards that read the same archive listing share one request.
+        val fetchedApps = coroutineScope {
+            releaseRepositories.map { repository ->
+                async { repository.appName to buildAppUiModel(repository, appInfoMap[repository.appName]) }
+            }.awaitAll().toMap()
         }
         applyFetchedApps(fetchedApps, mutationVersionsAtStart)
         publishCurrentApps()

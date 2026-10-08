@@ -1,17 +1,27 @@
 package org.mozilla.tryfox
 
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.mozilla.tryfox.data.MozillaArchiveHtmlParser
 import org.mozilla.tryfox.data.NetworkResult
 import org.mozilla.tryfox.data.ReleaseType
 import org.mozilla.tryfox.data.repositories.DefaultMozillaArchiveRepository
 import org.mozilla.tryfox.network.MozillaArchivesApiService
+import retrofit2.Response
+import kotlin.time.Duration.Companion.seconds
 
 class FenixReleaseTest {
 
@@ -563,6 +573,92 @@ class FenixReleaseTest {
             listOf("2026-10-05-21-22-56"),
             parser.parseNightlyBuildsFromHtml(html, listingUrl, LocalDate(2026, 10, 5)).map { it.rawDateString }.distinct(),
         )
+    }
+
+    @Test
+    fun `archive listings are fetched again once the cache expires`() = runBlocking<Unit> {
+        val api: MozillaArchivesApiService = mock()
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL))
+            .thenReturn("<a href=\"153.0.4/\">153.0.4/</a>")
+            .thenReturn("<a href=\"153.0.5/\">153.0.5/</a>")
+        val clock = MutableClock(Instant.parse("2026-10-06T12:00:00Z"))
+        val repository = DefaultMozillaArchiveRepository(api, clock)
+
+        assertEquals(listOf("153.0.4"), (repository.getFenixReleaseVersions(ReleaseType.Release) as NetworkResult.Success).data)
+        clock.now += 5.seconds
+        assertEquals(listOf("153.0.4"), (repository.getFenixReleaseVersions(ReleaseType.Release) as NetworkResult.Success).data)
+        clock.now += 10.seconds
+        assertEquals(listOf("153.0.5"), (repository.getFenixReleaseVersions(ReleaseType.Release) as NetworkResult.Success).data)
+        verify(api, times(2)).getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL)
+    }
+
+    @Test
+    fun `failed archive listings are not cached`() = runBlocking {
+        val api: MozillaArchivesApiService = mock()
+        whenever(api.getHtmlPage(DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL))
+            .thenThrow(IllegalStateException("Releases unavailable"))
+            .thenReturn("<a href=\"153.0.4/\">153.0.4/</a>")
+        val repository = DefaultMozillaArchiveRepository(api)
+
+        assertTrue(repository.getFenixReleaseVersions(ReleaseType.Release) is NetworkResult.Error)
+        assertEquals(listOf("153.0.4"), (repository.getFenixReleaseVersions(ReleaseType.Release) as NetworkResult.Success).data)
+    }
+
+    private class MutableClock(var now: Instant) : Clock {
+        override fun now(): Instant = now
+    }
+
+    @Test
+    fun `concurrent requests for the same listing share one fetch`() = runBlocking {
+        val releasesUrl = DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL
+        val api = GatedArchivesApiService(mapOf(releasesUrl to "<a href=\"153.0.4/\">153.0.4/</a><a href=\"153.0b4/\">153.0b4/</a>"))
+        val repository = DefaultMozillaArchiveRepository(api)
+
+        val release = async { repository.getFenixReleaseVersions(ReleaseType.Release) }
+        val beta = async { repository.getFenixReleaseVersions(ReleaseType.Beta) }
+
+        assertEquals(listOf("153.0.4"), (release.await() as NetworkResult.Success).data)
+        assertEquals(listOf("153.0b4"), (beta.await() as NetworkResult.Success).data)
+        // Loading release versions also fetches the candidates listing, so count releases fetches.
+        assertEquals(1, api.requestedUrls.count { it == releasesUrl })
+    }
+
+    @Test
+    fun `listings for different URLs are fetched in parallel`() = runBlocking {
+        val fenixUrl = DefaultMozillaArchiveRepository.RELEASES_FENIX_BASE_URL
+        val focusUrl = DefaultMozillaArchiveRepository.RELEASES_FOCUS_BASE_URL
+        val focusStarted = CompletableDeferred<Unit>()
+        val api = GatedArchivesApiService(
+            pages = mapOf(fenixUrl to "<a href=\"153.0.4/\">153.0.4/</a>", focusUrl to "<a href=\"153.0.3/\">153.0.3/</a>"),
+            // The Fenix fetch only completes once the Focus fetch has started, which deadlocks if
+            // listings are fetched one at a time.
+            beforeResponse = mapOf(fenixUrl to { focusStarted.await() }, focusUrl to { focusStarted.complete(Unit) }),
+        )
+        val repository = DefaultMozillaArchiveRepository(api)
+
+        withTimeout(5.seconds) {
+            val fenix = async { repository.getFenixReleaseVersions(ReleaseType.Release) }
+            val focus = async { repository.getFocusReleaseVersions() }
+            assertEquals(listOf("153.0.4"), (fenix.await() as NetworkResult.Success).data)
+            assertEquals(listOf("153.0.3"), (focus.await() as NetworkResult.Success).data)
+        }
+    }
+
+    /** Serves fixed pages, optionally suspending in [beforeResponse] first, and records requests. */
+    private class GatedArchivesApiService(
+        private val pages: Map<String, String>,
+        private val beforeResponse: Map<String, suspend () -> Unit> = emptyMap(),
+    ) : MozillaArchivesApiService {
+        val requestedUrls = mutableListOf<String>()
+
+        override suspend fun getHtmlPage(url: String): String {
+            requestedUrls += url
+            yield()
+            beforeResponse[url]?.invoke()
+            return pages.getValue(url)
+        }
+
+        override suspend fun head(url: String): Response<Void> = error("Not used")
     }
 
     // Helper method
