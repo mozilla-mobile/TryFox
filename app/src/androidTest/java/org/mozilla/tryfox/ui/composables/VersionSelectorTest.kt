@@ -1,6 +1,8 @@
 package org.mozilla.tryfox.ui.composables
 
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -117,6 +119,7 @@ class VersionSelectorTest {
         }
 
         composeTestRule.onNodeWithTag("release_version_chip_fenix-release", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_show_candidates_fenix-release", useUnmergedTree = true).performClick()
         composeTestRule.onNodeWithTag("release_version_variant_153_0_4-RC2", useUnmergedTree = true).performClick()
 
         assertTrue(confirmedVersion == "153.0.4-RC2")
@@ -136,6 +139,89 @@ class VersionSelectorTest {
         }
 
         composeTestRule.onNodeWithTag("release_version_chip_fenix-beta", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_show_candidates_fenix-beta", useUnmergedTree = true).performClick()
         composeTestRule.onNodeWithTag("release_version_variant_153_0b5-RC2", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun releaseCandidates_areHiddenUntilShown() {
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                VersionSelector(
+                    appName = FENIX_RELEASE,
+                    selectedReleaseVersion = "153.0.4",
+                    availableReleaseVersions = listOf("153.0.4", "153.0.4-RC2", "153.0.4-RC1"),
+                    onReleaseVersionSelected = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_fenix-release", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_show_candidates_fenix-release", useUnmergedTree = true).assertIsOff()
+        composeTestRule.onNodeWithTag("release_version_variant_153_0_4", useUnmergedTree = true).assertIsDisplayed()
+        assertTrue(
+            composeTestRule
+                .onAllNodesWithTag("release_version_variant_153_0_4-RC2", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun releaseCandidates_areShownWhenAnRcIsSelected() {
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                VersionSelector(
+                    appName = FENIX_RELEASE,
+                    selectedReleaseVersion = "153.0.4-RC2",
+                    availableReleaseVersions = listOf("153.0.4", "153.0.4-RC2", "153.0.4-RC1"),
+                    onReleaseVersionSelected = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_fenix-release", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_show_candidates_fenix-release", useUnmergedTree = true).assertIsOn()
+        composeTestRule.onNodeWithTag("release_version_variant_153_0_4-RC2", useUnmergedTree = true).assertIsSelected()
+    }
+
+    @Test
+    fun releaseCandidates_areShownWhenOnlyRcBuildsExist() {
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                VersionSelector(
+                    appName = FENIX_RELEASE,
+                    selectedReleaseVersion = null,
+                    availableReleaseVersions = listOf("153.0.4-RC2", "153.0.4-RC1"),
+                    onReleaseVersionSelected = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_fenix-release", useUnmergedTree = true).performClick()
+        composeTestRule.onNodeWithTag("release_version_show_candidates_fenix-release", useUnmergedTree = true).assertIsOn()
+        composeTestRule.onNodeWithTag("release_version_variant_153_0_4-RC2", useUnmergedTree = true).assertIsDisplayed()
+    }
+
+    @Test
+    fun focusSelector_hasNoReleaseCandidateCheckbox() {
+        composeTestRule.setContent {
+            TryFoxTheme(dynamicColor = false) {
+                VersionSelector(
+                    appName = FOCUS_RELEASE,
+                    selectedReleaseVersion = "155.0.1",
+                    availableReleaseVersions = listOf("155.0.1", "154.0.2"),
+                    onReleaseVersionSelected = {},
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithTag("release_version_chip_focus-release", useUnmergedTree = true).performClick()
+        assertTrue(
+            composeTestRule
+                .onAllNodesWithTag("release_version_show_candidates_focus-release", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isEmpty(),
+        )
     }
 }

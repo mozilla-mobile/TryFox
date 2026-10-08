@@ -3,10 +3,14 @@ package org.mozilla.tryfox.util
 import java.util.regex.Pattern
 
 private val RELEASE_MAJOR_REGEX = Regex("^(\\d+)(?:\\.|$)")
+private val RELEASE_CANDIDATE_SUFFIX = Regex("-RC\\d+$")
 
 /** Major version of an archive release string such as `157.0.1`, `158.0b4` or `157.0-RC2`. */
 fun releaseVersionMajor(version: String): Int? =
     RELEASE_MAJOR_REGEX.find(version)?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+/** True for a release candidate build such as `157.0-RC2`, as opposed to a published release. */
+fun isReleaseCandidateVersion(version: String): Boolean = RELEASE_CANDIDATE_SUFFIX.containsMatchIn(version)
 
 data class Version(
     val fullStringVersion: String,
