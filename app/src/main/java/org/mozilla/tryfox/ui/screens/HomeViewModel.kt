@@ -68,6 +68,7 @@ import org.mozilla.tryfox.util.REFERENCE_BROWSER
 import org.mozilla.tryfox.util.TRYFOX
 import org.mozilla.tryfox.util.abiPreferenceOrder
 import org.mozilla.tryfox.util.isAbiSupported
+import org.mozilla.tryfox.util.isReleaseCandidateVersion
 import org.mozilla.tryfox.util.releaseVersionMajor
 import java.io.File
 
@@ -500,7 +501,7 @@ class HomeViewModel(
                 when (versionsResult) {
                     is NetworkResult.Success -> {
                         // Only recommend published builds; RCs are reachable through the picker.
-                        val selectedVersion = versionsResult.data.firstOrNull { !it.isReleaseCandidate() }
+                        val selectedVersion = versionsResult.data.firstOrNull { !isReleaseCandidateVersion(it) }
                         val releaseResult = if (selectedVersion != null) {
                             repository.getReleasesForVersion(selectedVersion)
                         } else {
@@ -568,8 +569,6 @@ class HomeViewModel(
      */
     private suspend fun selectPublishedApk(apks: List<ApkUiModel>): ApkUiModel? =
         candidatesByPreference(apks).firstOrNull { mozillaArchiveRepository.isPublished(it.url) }
-
-    private fun String.isReleaseCandidate(): Boolean = RELEASE_CANDIDATE_SUFFIX.containsMatchIn(this)
 
     private fun convertParsedApksToUiModels(parsedApks: List<MozillaArchiveApk>): List<ApkUiModel> {
         return parsedApks.map { parsedApk ->
@@ -1022,6 +1021,5 @@ class HomeViewModel(
 
     companion object {
         private const val TAG = "HomeViewModel"
-        private val RELEASE_CANDIDATE_SUFFIX = Regex("-RC\\d+$")
     }
 }

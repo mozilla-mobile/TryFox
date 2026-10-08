@@ -21,9 +21,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,6 +42,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,6 +50,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -56,6 +61,7 @@ import org.mozilla.tryfox.R
 import org.mozilla.tryfox.ui.models.ReleaseCandidatesUiState
 import org.mozilla.tryfox.util.FENIX_BETA
 import org.mozilla.tryfox.util.FOCUS_BETA
+import org.mozilla.tryfox.util.isReleaseCandidateVersion
 import org.mozilla.tryfox.util.releaseVersionMajor
 
 @Composable
@@ -69,6 +75,10 @@ internal fun VersionSelector(
 ) {
     var showSelector by remember { mutableStateOf(false) }
     val selectedVersion = selectedReleaseVersion ?: availableReleaseVersions.firstOrNull()
+    // Release candidates are hidden, and not fetched, unless asked for. They're shown by default
+    // when an RC is already selected; the picker also turns them on for majors that only have RCs.
+    var showReleaseCandidatesChoice by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    val showReleaseCandidates = showReleaseCandidatesChoice ?: (selectedVersion?.let(::isReleaseCandidateVersion) == true)
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -98,6 +108,8 @@ internal fun VersionSelector(
             availableVersions = availableReleaseVersions,
             releaseCandidates = releaseCandidates,
             onMajorBrowsed = onReleaseMajorBrowsed,
+            showReleaseCandidates = showReleaseCandidates,
+            onShowReleaseCandidatesChanged = { showReleaseCandidatesChoice = it },
             onDismiss = { showSelector = false },
             onConfirm = { version ->
                 showSelector = false
@@ -118,30 +130,50 @@ private fun VersionSelectorSheet(
     availableVersions: List<String>,
     releaseCandidates: ReleaseCandidatesUiState,
     onMajorBrowsed: (Int) -> Unit,
+    showReleaseCandidates: Boolean,
+    onShowReleaseCandidatesChanged: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
 ) {
-    val versionsByMajor = remember(availableVersions) {
-        availableVersions.mapNotNull { version -> releaseVersionMajor(version)?.let { it to version } }.groupBy({ it.first }, { it.second })
+    val hasReleaseCandidates = releaseCandidates.baseVersions.isNotEmpty() || availableVersions.any(::isReleaseCandidateVersion)
+    val shownVersions = if (showReleaseCandidates) availableVersions else availableVersions.filterNot(::isReleaseCandidateVersion)
+    val versionsByMajor = remember(shownVersions) {
+        shownVersions.mapNotNull { version -> releaseVersionMajor(version)?.let { it to version } }.groupBy({ it.first }, { it.second })
     }
-    // Majors that only have candidate builds so far must still be reachable on the wheel.
-    val knownMajors = remember(versionsByMajor, releaseCandidates.baseVersions) {
-        versionsByMajor.keys + releaseCandidates.baseVersions.mapNotNull(::releaseVersionMajor)
+    val publishedMajors = remember(availableVersions) {
+        availableVersions.filterNot(::isReleaseCandidateVersion).mapNotNull(::releaseVersionMajor).toSet()
     }
+    val candidateMajors = remember(availableVersions, releaseCandidates.baseVersions) {
+        (availableVersions.filter(::isReleaseCandidateVersion) + releaseCandidates.baseVersions).mapNotNull(::releaseVersionMajor).toSet()
+    }
+    // Majors that only have candidate builds so far are always reachable on the wheel.
+    val knownMajors = publishedMajors + candidateMajors
     val initialMajor = releaseVersionMajor(selectedVersion.orEmpty())
-        ?: versionsByMajor.keys.maxOrNull()
+        ?: publishedMajors.maxOrNull()
+        ?: candidateMajors.maxOrNull()
         ?: MINIMUM_SUPPORTED_MAJOR_VERSION
     val maximumSupportedMajorVersion = knownMajors.maxOrNull() ?: MINIMUM_SUPPORTED_MAJOR_VERSION
     var activeMajor by remember(selectedVersion) { mutableStateOf(initialMajor) }
     var draftVersion by remember(selectedVersion) { mutableStateOf(selectedVersion) }
     val isActiveMajorSelectable = activeMajor in MINIMUM_SUPPORTED_MAJOR_VERSION..maximumSupportedMajorVersion
-    val variants = if (isActiveMajorSelectable) versionsByMajor[activeMajor].orEmpty() else emptyList()
-    val isLoadingCandidates = activeMajor in releaseCandidates.loadingMajors
+    // Versions arrive newest first; list them oldest first to match the wheel, which counts up downwards.
+    val variants = if (isActiveMajorSelectable) versionsByMajor[activeMajor].orEmpty().asReversed() else emptyList()
+    // Builds that load later (e.g. RCs of the oldest beta) sort above the visible ones, and the list
+    // would otherwise keep its current first row in view, so start from the top whenever it changes.
+    val buildsListState = rememberLazyListState()
+    LaunchedEffect(variants) { buildsListState.scrollToItem(0) }
+    val isLoadingCandidates = showReleaseCandidates && activeMajor in releaseCandidates.loadingMajors
     // The NumberPicker's text listener outlives recompositions, so read the latest bound through state.
     val currentMaximumMajor by rememberUpdatedState(maximumSupportedMajorVersion)
 
+    // A major with only candidate builds has nothing to show otherwise, so turn candidates on for it.
     LaunchedEffect(activeMajor) {
-        if (isActiveMajorSelectable) onMajorBrowsed(activeMajor)
+        if (!showReleaseCandidates && activeMajor in candidateMajors && activeMajor !in publishedMajors) {
+            onShowReleaseCandidatesChanged(true)
+        }
+    }
+    LaunchedEffect(activeMajor, showReleaseCandidates) {
+        if (showReleaseCandidates && isActiveMajorSelectable) onMajorBrowsed(activeMajor)
     }
     val title = if (appName == FENIX_BETA || appName == FOCUS_BETA) {
         stringResource(R.string.version_selector_beta_title)
@@ -172,6 +204,26 @@ private fun VersionSelectorSheet(
                 style = MaterialTheme.typography.bodyMedium,
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp),
             )
+            if (hasReleaseCandidates) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .toggleable(
+                            value = showReleaseCandidates,
+                            role = Role.Checkbox,
+                            onValueChange = onShowReleaseCandidatesChanged,
+                        )
+                        .testTag("release_version_show_candidates_${appName.lowercase()}")
+                        .padding(bottom = 8.dp),
+                ) {
+                    Checkbox(checked = showReleaseCandidates, onCheckedChange = null)
+                    Text(
+                        text = stringResource(R.string.version_selector_show_release_candidates),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -227,8 +279,9 @@ private fun VersionSelectorSheet(
                             .testTag("release_version_major_picker_${appName.lowercase()}"),
                     )
                 }
+                // Start-aligned so the radio buttons line up regardless of each version's length.
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
+                    horizontalAlignment = Alignment.Start,
                     modifier = Modifier
                         .weight(1f)
                         .padding(start = 24.dp),
@@ -265,16 +318,17 @@ private fun VersionSelectorSheet(
                         }
                     } else {
                         LazyColumn(
+                            state = buildsListState,
                             modifier = Modifier
                                 .weight(1f, fill = false)
-                                .wrapContentWidth(),
+                                .fillMaxWidth(),
                         ) {
                             items(variants, key = { it }) { version ->
                                 val selected = draftVersion == version
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     modifier = Modifier
-                                        .wrapContentWidth()
+                                        .fillMaxWidth()
                                         .clickable {
                                             draftVersion = version
                                             onConfirm(version)
