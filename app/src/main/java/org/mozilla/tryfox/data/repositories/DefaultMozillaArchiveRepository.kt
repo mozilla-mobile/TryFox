@@ -245,48 +245,19 @@ class DefaultMozillaArchiveRepository(
         archiveUrl: String,
         archiveAppName: String,
         resultAppName: String,
+        // Empty for releases; candidates need an isolated cache key.
         cacheBuildKey: String,
     ): NetworkResult<List<MozillaArchiveApk>> {
         val releaseHtml = mozillaArchivesApiService.getHtmlPage(archiveUrl)
-        val abis = mozillaArchiveHtmlParser.parseFenixReleaseAbisFromHtml(releaseHtml, archiveAppName)
+        val apks = mozillaArchiveHtmlParser.parseApkDirectoriesFromHtml(releaseHtml)
+            .filter { it.appName == archiveAppName }
+            .map { it.toApk(archiveUrl, appName = resultAppName, displayVersion = displayVersion, buildKey = cacheBuildKey) }
 
-        if (abis.isEmpty()) {
+        if (apks.isEmpty()) {
             return NetworkResult.Error("No ABIs found for release $version", null)
         }
 
-        val apks = abis.map { abi ->
-            constructReleaseApk(version, displayVersion, abi, archiveUrl, archiveAppName, resultAppName, cacheBuildKey)
-        }
-
-        if (apks.isEmpty()) {
-            return NetworkResult.Error("Failed to construct APKs for release $version", null)
-        }
-
         return NetworkResult.Success(apks)
-    }
-
-    private fun constructReleaseApk(
-        version: String,
-        displayVersion: String,
-        abi: String,
-        releaseBaseUrl: String,
-        archiveAppName: String,
-        resultAppName: String,
-        cacheBuildKey: String,
-    ): MozillaArchiveApk {
-        val buildString = "$archiveAppName-$version-android${if (abi == "universal") "" else "-$abi"}/"
-        val fileName = "$archiveAppName-$version.multi.android-$abi.apk"
-        val fullUrl = "${releaseBaseUrl}${buildString}$fileName"
-
-        return MozillaArchiveApk(
-            originalString = buildString,
-            rawDateString = cacheBuildKey, // Empty for releases; candidates need an isolated cache key.
-            appName = resultAppName,
-            version = displayVersion,
-            abiName = abi,
-            fullUrl = fullUrl,
-            fileName = fileName,
-        )
     }
 
     private suspend fun fetchFenixCandidateVersions(

@@ -2,45 +2,69 @@ package org.mozilla.tryfox.data
 
 import kotlinx.datetime.LocalDate
 import org.mozilla.tryfox.model.MozillaArchiveApk
-import java.util.regex.Pattern
+import org.mozilla.tryfox.util.UNIVERSAL_ABI
+import org.mozilla.tryfox.util.isUniversalAbi
 
 class MozillaArchiveHtmlParser {
+
+    private companion object {
+        // [<yyyy-MM-dd-HH-mm-ss>-]<app>-<version>-android[-<abi>]
+        val APK_DIRECTORY_PATTERN =
+            Regex("^(?:(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})-)?(.+?)-(\\d+\\.\\d+(?:\\.\\d+)?(?:[ab]\\d+)?)-android(?:-(.+))?$")
+    }
 
     fun parseNightlyBuildsFromHtml(
         html: String,
         archiveUrl: String,
         date: LocalDate?,
     ): List<MozillaArchiveApk> {
-        val htmlPattern = Regex("<td>Dir</td>\\s*<td><a href=\"[^\"]*\">([^<]+/)</a></td>")
-        val rawBuildStrings = htmlPattern.findAll(html)
-            .mapNotNull { it.groups[1]?.value }
-            .filter { it != "../" }
-            .toList()
+        // Nightly universal directories have AAB without APK so be sure to skip them.
+        val builds = parseApkDirectoriesFromHtml(html).filter { it.timestamp != null && !isUniversalAbi(it.abi) }
+        val day = date?.toString() ?: builds.maxOfOrNull { it.timestamp!!.take(10) } ?: return emptyList()
+        return builds.filter { it.timestamp!!.startsWith(day) }.map { it.toApk(archiveUrl) }
+    }
 
-        val buildsForDate = if (date != null) {
-            val dateString = date.toString()
-            rawBuildStrings.filter { it.startsWith(dateString) }
-        } else {
-            val buildsByDay = rawBuildStrings.groupBy { it.substring(0, 10) }
-            if (buildsByDay.isEmpty()) return emptyList()
-            val latestDay = buildsByDay.keys.maxOrNull() ?: return emptyList()
-            buildsByDay[latestDay] ?: emptyList()
-        }
+    /** Parses the APK build directories in an archive listing; see [ArchiveApkDirectory]. */
+    fun parseApkDirectoriesFromHtml(html: String): List<ArchiveApkDirectory> =
+        parseDirectoryNamesFromHtml(html).mapNotNull(::parseApkDirectory)
 
-        return buildsForDate.mapNotNull { buildString ->
-            parseBuildString(buildString, archiveUrl)
-        }
+    private fun parseApkDirectory(name: String): ArchiveApkDirectory? {
+        val match = APK_DIRECTORY_PATTERN.matchEntire(name) ?: return null
+        val (timestamp, appName, version, abi) = match.destructured
+        return ArchiveApkDirectory(
+            directory = "$name/",
+            timestamp = timestamp.ifEmpty { null },
+            appName = appName,
+            version = version,
+            abi = abi.ifEmpty { UNIVERSAL_ABI },
+        )
     }
 
     fun parseFenixReleasesFromHtml(html: String, releaseType: ReleaseType = ReleaseType.Beta): String {
         return parseFenixReleaseVersionsFromHtml(html, releaseType).firstOrNull() ?: ""
     }
 
-    fun parseFenixReleaseVersionsFromHtml(html: String, releaseType: ReleaseType = ReleaseType.Beta): List<String> {
-        val releasePattern = Regex("<a href=\"[^\"]+\">([0-9.]+[a-zA-Z0-9.-]*)/</a>")
-        val rawReleaseStrings = releasePattern.findAll(html)
-            .mapNotNull { it.groups[1]?.value }
-            .toList()
+    fun parseFenixReleaseVersionsFromHtml(html: String, releaseType: ReleaseType = ReleaseType.Beta): List<String> =
+        releaseVersionsFromDirectories(parseDirectoryNamesFromHtml(html), releaseType)
+
+    /** Returns candidate base versions, without their `-candidates` directory suffix. */
+    fun parseFenixCandidateVersionsFromHtml(html: String, releaseType: ReleaseType): List<String> =
+        candidateBaseVersionsFromDirectories(parseDirectoryNamesFromHtml(html), releaseType)
+
+    /**
+     * Extracts the directory names (without trailing `/`) from an archive index page. This is the
+     * channel-independent form of a listing, so one fetch can serve both Release and Beta, and
+     * it's what [parseApkDirectoriesFromHtml] reads build directories from.
+     */
+    fun parseDirectoryNamesFromHtml(html: String): List<String> {
+        val directoryPattern = Regex("<a href=\"[^\"]+\">([^<]+)/</a>")
+        return directoryPattern.firstGroupOfAll(html)
+    }
+
+    /** Filters a `releases/` listing to the versions of [releaseType], newest first. */
+    fun releaseVersionsFromDirectories(directories: List<String>, releaseType: ReleaseType): List<String> {
+        val releasePattern = Regex("[0-9.]+[a-zA-Z0-9.-]*")
+        val rawReleaseStrings = directories.filter { it.matches(releasePattern) }
 
         return when (releaseType) {
             ReleaseType.Beta -> {
@@ -56,11 +80,9 @@ class MozillaArchiveHtmlParser {
         }
     }
 
-    /** Returns candidate base versions, without their `-candidates` directory suffix. */
-    fun parseFenixCandidateVersionsFromHtml(html: String, releaseType: ReleaseType): List<String> {
-        val directoryPattern = Regex("<a href=\"[^\"]+\">([^<]+/)</a>")
-        return directoryPattern.findAll(html)
-            .mapNotNull { it.groups[1]?.value?.removeSuffix("/") }
+    /** Filters a `candidates/` listing to the base versions of [releaseType], newest first. */
+    fun candidateBaseVersionsFromDirectories(directories: List<String>, releaseType: ReleaseType): List<String> {
+        return directories
             .filter { it.endsWith("-candidates") }
             .map { it.removeSuffix("-candidates") }
             .filter { candidate ->
@@ -71,48 +93,16 @@ class MozillaArchiveHtmlParser {
             }
             .distinct()
             .sortedWith(::compareReleaseVersions)
-            .toList()
             .reversed()
     }
 
     /** Extracts numeric build directories such as `build1/` and `build12/`. */
     fun parseCandidateBuildNumbersFromHtml(html: String): List<Int> {
         val directoryPattern = Regex("<a href=\"[^\"]+\">build(\\d+)/</a>")
-        return directoryPattern.findAll(html)
-            .mapNotNull { it.groups[1]?.value?.toIntOrNull() }
+        return directoryPattern.firstGroupOfAll(html)
+            .mapNotNull { it.toIntOrNull() }
             .distinct()
             .sortedDescending()
-            .toList()
-    }
-
-    fun parseFenixReleaseAbisFromHtml(html: String, appName: String): List<String> {
-        // Pattern: {appName}-D+.D+(.D+)?-android-ABI/ or {appName}-D+.D+(.D+)?-android/
-        // Also supports beta/alpha markers: {appName}-D+.D+(.D+)?[ab]D+-android-ABI/
-        val htmlPattern = Regex("<td>Dir</td>\\s*<td><a href=\"[^\"]*\">([^<]+/)</a></td>")
-        val rawBuildStrings = htmlPattern.findAll(html)
-            .mapNotNull { it.groups[1]?.value }
-            .filter { it != "../" }
-            .toList()
-
-        val abis = mutableListOf<String>()
-
-        for (buildString in rawBuildStrings) {
-            // Pattern: {appName}-D+.D+(.D+)?[ab]D+-android-ABI/ or {appName}-D+.D+(.D+)?-android/
-            // Also supports: {appName}-D+.D+(.D+)?-android-ABI/ (stable releases)
-            // Examples:
-            // - fenix-145.0-android-arm64-v8a/ (stable)
-            // - fenix-145.0-android/ (stable universal)
-            // - fenix-146.0b5-android-arm64-v8a/ (beta)
-            // - fenix-146.0b5-android/ (beta universal)
-            val pattern = Regex("^$appName-\\d+\\.\\d+(?:\\.\\d+)?(?:[ab]\\d+)?-android(?:-(.+?))?/$")
-            val matchResult = pattern.find(buildString)
-
-            if (matchResult != null) {
-                val abi = matchResult.groups[1]?.value
-                abis.add(abi ?: "universal")
-            }
-        }
-        return abis
     }
 
     internal fun compareReleaseVersions(version1: String, version2: String): Int {
@@ -153,30 +143,13 @@ class MozillaArchiveHtmlParser {
         return !isPreRelease && version.matches(Regex("\\d+\\.\\d+(\\.\\d+)?"))
     }
 
-    private fun parseBuildString(buildString: String, archiveUrl: String): MozillaArchiveApk? {
-        val apkPattern =
-            Pattern.compile("^(\\d{4}-\\d{2}-\\d{2}-\\d{2}-\\d{2}-\\d{2})-(.*?)-([^-]+)-android-(.*?)/$")
-        val matcher = apkPattern.matcher(buildString)
-        if (matcher.matches()) {
-            val rawDate = matcher.group(1) ?: ""
-            val appNameResult = matcher.group(2) ?: ""
-            val version = matcher.group(3) ?: ""
-            val abi = matcher.group(4) ?: ""
-
-            val fileName = "$appNameResult-$version.multi.android-$abi.apk"
-            val fullUrl = "${archiveUrl}${buildString}$fileName"
-
-            return MozillaArchiveApk(
-                originalString = buildString,
-                rawDateString = rawDate,
-                appName = appNameResult,
-                version = version,
-                abiName = abi,
-                fullUrl = fullUrl,
-                fileName = fileName,
-            )
-        }
-
-        return null
+    /**
+     * The first capture group of every match. Kotlin's [Regex.findAll] creates a new Matcher per
+     * match, and on Android each one copies the whole input, which makes scanning a large listing
+     * cost matches x length (about 200 ms for `fenix/releases/`). One Matcher avoids that.
+     */
+    private fun Regex.firstGroupOfAll(input: CharSequence): List<String> {
+        val matcher = toPattern().matcher(input)
+        return buildList { while (matcher.find()) add(matcher.group(1)) }
     }
 }
