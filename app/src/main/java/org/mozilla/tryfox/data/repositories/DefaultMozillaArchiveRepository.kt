@@ -4,8 +4,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
@@ -23,6 +26,8 @@ import org.mozilla.tryfox.util.FOCUS_BETA
 import org.mozilla.tryfox.util.FOCUS_RELEASE
 import retrofit2.HttpException
 import java.net.HttpURLConnection
+import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.seconds
 
 class DefaultMozillaArchiveRepository(
     private val mozillaArchivesApiService: MozillaArchivesApiService,
@@ -30,7 +35,11 @@ class DefaultMozillaArchiveRepository(
     private val mozillaArchiveHtmlParser: MozillaArchiveHtmlParser = MozillaArchiveHtmlParser(),
 ) : MozillaArchiveRepository {
 
+    private val listingLocks = ConcurrentHashMap<String, Mutex>()
+    private val listingCache = ConcurrentHashMap<String, CachedListing>()
+
     companion object {
+        private val LISTING_CACHE_TTL = 10.seconds
         private const val CANDIDATE_BUILD_INDEX_CONCURRENCY = 4
         const val ARCHIVE_MOZILLA_BASE_URL = "https://archive.mozilla.org/pub/"
         const val RELEASES_FENIX_BASE_URL = "${ARCHIVE_MOZILLA_BASE_URL}fenix/releases/"
@@ -67,8 +76,10 @@ class DefaultMozillaArchiveRepository(
 
     override suspend fun getFenixReleaseBuilds(releaseType: ReleaseType): NetworkResult<List<MozillaArchiveApk>> {
         return try {
-            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
-            val latestReleaseVersion = mozillaArchiveHtmlParser.parseFenixReleasesFromHtml(releasesHtml, releaseType)
+            val latestReleaseVersion = mozillaArchiveHtmlParser
+                .releaseVersionsFromDirectories(getDirectoryListing(RELEASES_FENIX_BASE_URL), releaseType)
+                .firstOrNull()
+                .orEmpty()
 
             if (latestReleaseVersion.isEmpty()) {
                 return NetworkResult.Error("No releases found for type $releaseType", null)
@@ -96,11 +107,10 @@ class DefaultMozillaArchiveRepository(
 
     private suspend fun getFocusReleaseBuilds(releaseType: ReleaseType): NetworkResult<List<MozillaArchiveApk>> {
         return try {
-            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
-            val latestReleaseVersion = mozillaArchiveHtmlParser.parseFenixReleasesFromHtml(
-                releasesHtml,
-                releaseType,
-            )
+            val latestReleaseVersion = mozillaArchiveHtmlParser
+                .releaseVersionsFromDirectories(getDirectoryListing(RELEASES_FOCUS_BASE_URL), releaseType)
+                .firstOrNull()
+                .orEmpty()
 
             if (latestReleaseVersion.isEmpty()) {
                 return NetworkResult.Error("No releases found for Focus", null)
@@ -120,8 +130,8 @@ class DefaultMozillaArchiveRepository(
 
     override suspend fun getFenixReleaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
         return try {
-            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FENIX_BASE_URL)
-            val releaseVersions = mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
+            val releaseVersions = mozillaArchiveHtmlParser
+                .releaseVersionsFromDirectories(getDirectoryListing(RELEASES_FENIX_BASE_URL), releaseType)
             val candidateVersions = fetchFenixCandidateVersions(releaseType)
             val versions = (releaseVersions + candidateVersions)
                 .distinct()
@@ -150,8 +160,8 @@ class DefaultMozillaArchiveRepository(
 
     private suspend fun getFocusReleaseVersions(releaseType: ReleaseType): NetworkResult<List<String>> {
         return try {
-            val releasesHtml = mozillaArchivesApiService.getHtmlPage(RELEASES_FOCUS_BASE_URL)
-            val releaseVersions = mozillaArchiveHtmlParser.parseFenixReleaseVersionsFromHtml(releasesHtml, releaseType)
+            val releaseVersions = mozillaArchiveHtmlParser
+                .releaseVersionsFromDirectories(getDirectoryListing(RELEASES_FOCUS_BASE_URL), releaseType)
 
             if (releaseVersions.isEmpty()) {
                 return NetworkResult.Error("No Focus release versions found", null)
@@ -295,6 +305,21 @@ class DefaultMozillaArchiveRepository(
     }
 
     private data class CandidateVersion(val baseVersion: String, val buildNumber: Int)
+
+    private class CachedListing(val fetchedAt: Instant, val directories: List<String>)
+
+    /**
+     * Fetches an index page such as `releases/` as its directory names. Release and beta cards load
+     * concurrently and read the same listings, so a per-URL lock makes the second caller wait for
+     * the first's request, and successful results are reused for [LISTING_CACHE_TTL]; the short TTL
+     * keeps a pull-to-refresh fetching fresh data. Different URLs are fetched in parallel.
+     */
+    private suspend fun getDirectoryListing(url: String): List<String> = listingLocks.getOrPut(url) { Mutex() }.withLock {
+        val now = clock.now()
+        listingCache[url]?.takeIf { now - it.fetchedAt < LISTING_CACHE_TTL }?.let { return@withLock it.directories }
+        mozillaArchiveHtmlParser.parseDirectoryNamesFromHtml(mozillaArchivesApiService.getHtmlPage(url))
+            .also { listingCache[url] = CachedListing(now, it) }
+    }
 
     private suspend fun getHtmlPageOrNull(url: String): String? = try {
         mozillaArchivesApiService.getHtmlPage(url)
